@@ -12,14 +12,9 @@ from pyrep import __version__
     
 
         
-class PyrepInfo(dict):
+class Repository(dict):
     def __init__(self):
-        self.__reset_version()
-        self.__reset_id()
         self.__path = None
-        # set directories and files dictionaries
-        dict.__setitem__(self, "directories", {})
-        dict.__setitem__(self, "files",       {})
         
     def __setitem__(self, key, value):
         raise Exception("setting item is not allowed")
@@ -42,8 +37,15 @@ class PyrepInfo(dict):
     def __reset_version(self):
         dict.__setitem__(self, "__version__", __version__)
     
-    def _update_path(self, path):
-        self.__path = path
+    def __update_repository(self, repository=None):
+        if repository is None:
+            self.__reset_version()
+            self.__reset_id()
+            # set directories and files dictionaries
+            dict.__setitem__(self, "directories", {})
+            dict.__setitem__(self, "files",       {})
+        else:
+            self.update(repository)
         
     @property
     def path(self):
@@ -59,13 +61,88 @@ class PyrepInfo(dict):
     def id(self):
         """Get the universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
-        
+    
+    def initialize(self, path, replace=False, save=True): 
+        absPath = os.path.abspath(path)
+        if not replace:
+            assert not self.is_repository(absPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
+        self.__update_repository(repository=None)
+        # set path
+        self.__path = absPath
+        # save repository
+        if save:
+            self.save()
+    
+    def load(self, path):
+        # try to open
+        repoPath = os.path.join(path, ".pyrepinfo")
+        try:
+            fd = open(repoPath, 'rb')
+        except Exception as e:
+            raise Exception("unable to open repository file(%s)"%e)   
+        # unpickle file
+        try:
+            info = pickle.load( fd )
+        except Exception as e:
+            fd.close()
+            raise Exception("unable to pickle load repository (%s)"%e)  
+        finally:
+            fd.close()
+        # check if its a PyrepInfo instance
+        if not isinstance(info, Repository): 
+            raise Exception("No repository found in %s"%s)  
+        else:
+            # update info path
+            self.__update_repository(info)
+            self.__path = infoPath
+    
+    def save(self):
+        """ Save repository. """
+        if self.__path is None:
+            raise Exception('Must load or initialize the repository first !')
+        # open file
+        repoPath = os.path.join(self.__path, ".pyrepinfo")
+        try:
+            fd = open(repoPath, 'wb')
+        except Exception as e:
+            raise Exception("unable to open repository info for saving (%s)"%e)   
+        # save repository
+        try:
+            pickle.dump( self, fd, protocol=pickle.HIGHEST_PROTOCOL )
+        except Exception as e:
+            fd.close()
+            raise Exception( LOGGER.error("Unable to save repository info (%s)"%e) )
+        finally:
+            fd.close()
+    
+    def remove_repository(self, path, relatedFilesAndFolders=False):
+        """Remove .pyrepinfo file from path if exists. """
+        absPath = os.path.abspath(path)
+        if not self.is_repository(absPath):
+            return
+        # if it is a repository    
+        # SHOULD ADD THE RELATED FILES AND FOLDERS SECTION
+               
+        os.remove( os.path.join(absPath,".pyrepinfo") )            
+            
+            
+    def is_repository(self, path):
+        """Remove .pyrepinfo file from path if exists. """
+        absPath = os.path.abspath(path)
+        if not os.path.isdir(absPath):
+            return False
+        if ".pyrepinfo" not in os.listdir(absPath):
+            return False
+        return True
+                   
     def add_directory(self, relativePath):
         """Ensures adding directory in the given relative path"""
         path = os.path.normpath(relativePath)
         # create directories
         currentDir  = self.path
         currentDict = dict.__getitem__(self,"directories")
+        if path in ("","."):
+            return currentDict
         for dir in path.split(os.sep):
             dirPath = os.path.join(currentDir, dir)
             # create directory
@@ -77,94 +154,96 @@ class PyrepInfo(dict):
             currentDict = currentDict[dir]["directories"]
             currentDir  = dirPath
             
-    def get_directory(self, relativePath):
-        currentDir  = self.path
-        dirInfoDict = dict.__getitem__(self, "directories")
-        for dir in os.path.normpath(relativePath).split(os.sep):
+    def get_directory_info(self, relativePath): 
+        relativePath = os.path.normpath(relativePath)
+        if relativePath in ('','.'):
+            return self
+        currentDir  = self.__path
+        dirInfoDict = dict.__getitem__(self, "directories")        
+        for dir in relativePath.split(os.sep):
             currentDir = os.path.join(currentDir, dir)
             assert os.path.exists(currentDir), "directory '%s' is not found"%currentDir
             assert dirInfoDict.get(dir, None) is not None, "directory '%s' is not registered in PyrepInfo"%currentDir   
             dirInfoDict = dirInfoDict[dir]["directories"]
         return dirInfoDict
+    
+    def get_file_info(self, relativePath, name): 
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict = self.get_directory_info(relativePath)
+        fileInfo = dict.__getitem__(dirInfoDict, "files").get(name, None)
+        assert fileInfo is not None, "file %s does not exist in relative path %s"%(name, relativePath)
+        return fileInfo
+        
+    
+    #def get_repository_tree_representation(self):
+           
+    def dump_file(self, file, relativePath, name, dump=None, pull=None, replace=False, save=True):
+        """
+        dump file into repository.
+        dump is the dumping method $FILE_NAME is used to indicate the passed file name.
+            e.g "import numpy as np; np.savetxt(fname='$FILE_PATH', X=file, fmt='%.6e')"
+        
+        pull is the pull method $FILE_NAME is used to indicate the passed file name.
+        and PULLED_DATA must be used to indicate the output
+            e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
             
-    def add_file(self, relativePath, file, info={}):
+        """
+        relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+            assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository folder"
         # ensure directory added
         self.add_directory(relativePath)
+        absPath = os.path.join(self.__path, relativePath)
         # get directory info dict
-        dirInfoDict = self.get_directory(relativePath)
-        print dirDict
-            
+        dirInfoDict = self.get_directory_info(relativePath)
+        if dict.__getitem__(dirInfoDict, "files").has_key(name):
+            assert replace, "a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name)
+        # convert dump and pull methods to strings
+        if dump is None:
+            dump="pickle.dump( file, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
+        if pull is None:
+            pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
+        # try to dump the file
+        try:
+            exec(dump.replace("$FILE_PATH", os.path.join(absPath,name)))
+        except Exception as e:
+            raise Exception( "unable to dump the file (%s)"%e )
+        # save the new file to the repository
+        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,"pull":pull}
+        # save repository
+        if save:
+            self.save()
+    
+    def pull_file(self, relativePath, name, pull=None, update=True):
+        relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+            assert name != '.pyrepinfo', "pulling '.pyrepinfo' from main repository folder is not allowed."
+        # get file info
+        fileInfo = self.get_file_info(relativePath, name)
+        # get absolute path
+        absPath = os.path.join(self.__path, relativePath)
+        assert os.path.exists(absPath), "relative path '%s'within repository '%s' does not exist"%(relativePath, self.__path)
+        # file path
+        fileAbsPath = os.path.join(absPath, name)
+        assert os.path.isfile(fileAbsPath), "file '%s' does not exist in absolute path '%s'"%(name,absPath)
+        if pull is None:
+            pull = fileInfo["pull"]
+        # try to pull file
+        try:
+            exec(pull.replace("$FILE_PATH", os.path.join(absPath,name)))
+        except Exception as e:
+            raise Exception( "unable to pull data from file (%s)"%e )
+        # update
+        if update:
+            fileInfo["pull"] = pull
+        # return data
+        return PULLED_DATA
             
             
     
-class Repository(object):
-    def __init__(self, path=None):
-        if path is not None:
-            if self.is_repository(path):
-                self.__info = self.get_repository_info(path)
-            else:
-                self.__info = self.initialize_repository(path)
-        else:
-            self.__info = None
-        
-  
-    def is_repository(self, path):
-        if not os.path.isdir(path):
-            return False
-        if ".pyrepinfo" not in os.listdir(path):
-            return False
-        
-    def initialize_repository(self, path):
-        self.__info = PyrepInfo()
-        self.save(path)
-     
-    def get_repository_info(self, path): 
-        # try to open
-        infoPath = os.path.join(path, ".pyrepinfo")
-        try:
-            fd = open(infoPath, 'rb')
-        except Exception as e:
-            raise Exception("unable to open repository (%s)"%e)   
-        # unpickle file
-        try:
-            info = pickle.load( fd )
-        except Exception as e:
-            fd.close()
-            raise Exception("unable to open repository (%s)"%e)  
-        finally:
-            fd.close()
-        # check if its a PyrepInfo instance
-        if not isinstance(info, PyrepInfo): 
-            raise Exception("No repository found in %s"%s)  
-        else:
-            # update info path
-            info._update_path(path)
-            return info
-            
-    def dump_repository_info(self, path):
-        """
-        Save repository info.
-        
-        :Parameters:
-            #. path (string): the file path to save the engine
-        """
-        if self.__info is None:
-            raise Exception("must initialize repository first!")
-        # open file
-        infoPath = os.path.join(path, ".pyrepinfo")
-        try:
-            fd = open(infoPath, 'wb')
-        except Exception as e:
-            raise Exception("unable to open repository info for saving (%s)"%e)   
-        # save engine
-        oldPath = info._update_path(path)
-        try:
-            pickle.dump( self.__info, fd, protocol=pickle.HIGHEST_PROTOCOL )
-        except Exception as e:
-            fd.close()
-            raise Exception( LOGGER.error("Unable to save repository info (%s)"%e) )
-        finally:
-            fd.close()
+
     
     
     
