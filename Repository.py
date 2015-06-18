@@ -13,6 +13,13 @@ from pyrep import __version__
 
         
 class Repository(dict):
+    """
+    This is a pythonic way to organize dumping and pulling python objects 
+    or any type of file to a repository.
+    Any folder can be a repository, it suffice to initialize a repository instance 
+    in a folder to start dumping and pulling object into in.
+    A Repository folder, is any folder that has .pyrepinfo file in it.
+    """
     def __init__(self):
         self.__path = None
         
@@ -61,8 +68,31 @@ class Repository(dict):
     def id(self):
         """Get the universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
+      
+    def __walk_repository_files(self, directory):
+        print '\n'
+        print directory
+        directories = dict.__getitem__(directory, 'directories')
+        files       = dict.__getitem__(directory, 'files')
+        for f in files:
+            yield f
+        for k,d in dict.items(directories):
+            print k
+            print d
+            self.__walk_repository_files(d)
     
+    def walk_files(self):
+        return self.__walk_repository_files(self)
+            
     def initialize(self, path, replace=False, save=True): 
+        """
+        Initialize a repository in a folder
+        
+        :Parameters:
+            #. path (str): The path of the folder where to create a repository.
+            #. replace (boolean): Whether to replace any existing repository.
+            #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
+        """
         absPath = os.path.abspath(path)
         if not replace:
             assert not self.is_repository(absPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
@@ -74,6 +104,12 @@ class Repository(dict):
             self.save()
     
     def load(self, path):
+        """
+        Load repository from a folder and update the current instance
+        
+        :Parameters:
+            #. path (str): The path of the folder from where to load the repository.
+        """
         # try to open
         repoPath = os.path.join(path, ".pyrepinfo")
         try:
@@ -97,7 +133,7 @@ class Repository(dict):
             self.__path = infoPath
     
     def save(self):
-        """ Save repository. """
+        """ Save repository .pyrepinfo to disk. """
         if self.__path is None:
             raise Exception('Must load or initialize the repository first !')
         # open file
@@ -116,18 +152,28 @@ class Repository(dict):
             fd.close()
     
     def remove_repository(self, path, relatedFilesAndFolders=False):
-        """Remove .pyrepinfo file from path if exists. """
+        """
+        Remove .pyrepinfo file from path if exists. 
+        
+        :Parameters:
+            #. path (str): The path of the folder where to remove an existing repository.
+            #. relatedFilesAndFolders (boolean): Whether to also remove all related files from system as well.
+        """
         absPath = os.path.abspath(path)
         if not self.is_repository(absPath):
             return
         # if it is a repository    
         # SHOULD ADD THE RELATED FILES AND FOLDERS SECTION
                
-        os.remove( os.path.join(absPath,".pyrepinfo") )            
-            
+        os.remove( os.path.join(absPath,".pyrepinfo") )              
             
     def is_repository(self, path):
-        """Remove .pyrepinfo file from path if exists. """
+        """
+        Check if its a repository. 
+        
+        :Parameters:
+            #. path (str): The path of the folder where to check if there is a repository.
+        """
         absPath = os.path.abspath(path)
         if not os.path.isdir(absPath):
             return False
@@ -136,7 +182,13 @@ class Repository(dict):
         return True
                    
     def add_directory(self, relativePath):
-        """Ensures adding directory in the given relative path"""
+        """
+        Adds a directory in the repository. 
+        It insures adding all the missing directories in the path.
+        
+        :Parameters:
+            #. relativePath (str): The relative to the repository path of the directory to add in the repository.
+        """
         path = os.path.normpath(relativePath)
         # create directories
         currentDir  = self.path
@@ -155,19 +207,34 @@ class Repository(dict):
             currentDir  = dirPath
             
     def get_directory_info(self, relativePath): 
+        """
+        get directory info in the repository
+        
+        :Parameters:
+            #. relativePath (str): The relative to the repository path of the directory.
+        """
         relativePath = os.path.normpath(relativePath)
         if relativePath in ('','.'):
             return self
         currentDir  = self.__path
-        dirInfoDict = dict.__getitem__(self, "directories")        
+        dirInfoDict = self    
         for dir in relativePath.split(os.sep):
+            dirInfoDict = dict.__getitem__(dirInfoDict, "directories")   
             currentDir = os.path.join(currentDir, dir)
             assert os.path.exists(currentDir), "directory '%s' is not found"%currentDir
-            assert dirInfoDict.get(dir, None) is not None, "directory '%s' is not registered in PyrepInfo"%currentDir   
-            dirInfoDict = dirInfoDict[dir]["directories"]
+            val = dirInfoDict.get(dir, None)
+            assert val is not None, "directory '%s' is not registered in PyrepInfo"%currentDir   
+            dirInfoDict = val       
         return dirInfoDict
     
     def get_file_info(self, relativePath, name): 
+        """
+        get file info in the repository
+        
+        :Parameters:
+            #. relativePath (str): The relative to the repository path of the directory where the file is.
+            #. name (str): The file name.
+        """
         relativePath = os.path.normpath(relativePath)
         dirInfoDict = self.get_directory_info(relativePath)
         fileInfo = dict.__getitem__(dirInfoDict, "files").get(name, None)
@@ -179,14 +246,25 @@ class Repository(dict):
            
     def dump_file(self, file, relativePath, name, dump=None, pull=None, replace=False, save=True):
         """
-        dump file into repository.
-        dump is the dumping method $FILE_NAME is used to indicate the passed file name.
-            e.g "import numpy as np; np.savetxt(fname='$FILE_PATH', X=file, fmt='%.6e')"
+        Dump a file to the repository.
         
-        pull is the pull method $FILE_NAME is used to indicate the passed file name.
-        and PULLED_DATA must be used to indicate the output
-            e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
-            
+        :Parameters:
+            #. file (object): The file to add. It is any python object.
+            #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+            #. name (str): The file name.
+            #. dump (none, str): The dumping method. 
+               If None it will be set automatically to pickle and therefore the object must be pickleable.
+               If a string is given, the string should include all the necessary imports 
+               and a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed.
+               e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=file, fmt='%.6e')"
+            #. pull (none, str): The pulling method. 
+               If None it will be set automatically to pickle and therefore the object must be pickleable.
+               If a string is given, the string should include all the necessary imports, 
+               a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed
+               and finally a PULLED_DATA variable.
+               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
+            #. replace (boolean): Whether to replace any existing file with the same name if existing.
+            #. save (boolean): Whether to save repository .pyrepinfo to disk.
         """
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
@@ -216,6 +294,20 @@ class Repository(dict):
             self.save()
     
     def pull_file(self, relativePath, name, pull=None, update=True):
+        """
+        Pull a file from the repository.
+        
+        :Parameters:
+            #. relativePath (str): The relative to the repository path of the directory where the file should be pulled.
+            #. name (str): The file name.
+            #. pull (none, str): The pulling method. 
+               If None, the pull method saved in the file info will be used.
+               If a string is given, the string should include all the necessary imports, 
+               a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed
+               and finally a PULLED_DATA variable.
+               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
+            #. update (boolean): If pull is not None, Whether to update the pull method stored in the file info by the given pull method.
+        """
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
             relativePath = ''
