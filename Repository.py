@@ -1,8 +1,8 @@
 # standard distribution imports
 import os
-import sys
 import uuid
 import warnings
+import zipfile
 try:
     import cPickle as pickle
 except:
@@ -11,7 +11,6 @@ except:
 # pyrep imports
 from pyrep import __version__
     
-
         
 class Repository(dict):
     """
@@ -23,6 +22,51 @@ class Repository(dict):
     """
     def __init__(self):
         self.__path = None
+     
+    def __str__(self):
+        if self.__path is None:
+            return ""
+        string = os.path.normpath(self.__path)+"\n"
+        # walk files
+        leftAdjust = "  "
+        for file in dict.__getitem__(self, 'files').keys():
+            string += leftAdjust
+            string += file+"\n"
+        # walk folders
+        for folder in sorted(list(self.walk_folders())):
+            # split folder path
+            splitPath = folder.split(os.sep)
+            # get left space
+            leftAdjust = "".join(["  "*(len(item)>0) for item in splitPath])
+            # get folder info
+            dirInfoDict, errorMessage = self.get_directory_info(folder)
+            assert dirInfoDict is not None, errorMessage
+            # append folders to representation
+            string += leftAdjust
+            string += os.sep+str(splitPath[-1])+"\n"
+            # append files to representation
+            leftAdjust += "  "
+            for file in dict.__getitem__(dirInfoDict, 'files').keys():
+                string += leftAdjust
+                string += file+"\n"
+        return string    
+    
+    def __repr__(self):
+        if self.__path is None:
+            return ""
+        repr = []
+        # walk files
+        for file in dict.__getitem__(self, 'files').keys():
+            repr.append( file )
+        # walk folders
+        for folder in sorted(list(self.walk_folders())):
+            folderRepr = os.path.normpath(folder)
+            # get folder info
+            dirInfoDict, errorMessage = self.get_directory_info(folder)
+            assert dirInfoDict is not None, errorMessage
+            folderRepr += str( tuple(dict.__getitem__(dirInfoDict, 'files').keys()) )
+            repr.append(folderRepr)
+        return str(repr)
         
     def __setitem__(self, key, value):
         raise Exception("setting item is not allowed")
@@ -69,8 +113,7 @@ class Repository(dict):
     def id(self):
         """Get the universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
-      
-      
+        
     def walk_files(self):
         """Walk the repository and yield all found files relative path"""
         def walk_repository_files(directory, relativePath):
@@ -106,19 +149,22 @@ class Repository(dict):
             #. replace (boolean): Whether to replace any existing repository.
             #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
         """
-        absPath = os.path.abspath(path)
+        if path.strip() in ('','.'):
+            path = os.getcwd()
+        path = os.path.expanduser(path)
+        normPath = os.path.normpath(path)
         if not replace:
-            assert not self.is_repository(absPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
+            assert not self.is_repository(normPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
         self.__update_repository(repository=None)
         # set path
-        self.__path = absPath
+        self.__path = normPath
         # save repository
         if save:
             self.save()
     
     def load(self, path):
         """
-        Load repository from a folder and update the current instance
+        Load repository from a folder and update the current instance.
         
         :Parameters:
             #. path (str): The path of the folder from where to load the repository.
@@ -164,6 +210,53 @@ class Repository(dict):
         finally:
             fd.close()
     
+    def create_package(self, absolutePath=None, name=None):
+        """
+        Create a .zip file package of all the repository files and folders. 
+        Only files and folders that are stored in the repository info 
+        are stored in the package zip file.
+        
+        :Parameters:
+            #. absolutePath (None, str): The absolute path where to create the package.
+               If None, it will be created in the same folder as the repository
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. name (None, str): The name to give to the package file
+               If None, the package folder name will be used with .zip extension added.
+        """
+        # get root
+        if absolutePath is None:
+            root = os.path.split(self.__path)[0]
+        elif absolutePath.strip() in ('','.'):
+            root = os.getcwd()
+        else:
+            root = os.path.normpath( os.path.expanduser(absolutePath) )
+        assert os.path.isdir(root), 'absolute path %s is not a valid folder'%absolutePath
+        # get name
+        if name is None:
+            name = os.path.split(self.__path)[1]+".zip"
+
+        # save repository
+        self.save()
+        # create zipfile
+        zipfilePath = os.path.join(root, name)
+        try:
+            zipHandler = zipfile.ZipFile(zipfilePath, 'w', zipfile.ZIP_DEFLATED)
+        except Exception as e:
+            raise Exception("Unable to create package (%s)"%e)
+        # walk folder and create empty folders
+        for folder in sorted(list(self.walk_folders())):
+            zipInfo = zipfile.ZipInfo( folder )  
+            zipInfo.external_attr = 16
+            zipHandler.writestr(zipInfo, "") 
+            #zipHandler.write( filename=folder, arcname=folder ) 
+        # walk files and create in zip
+        for file in self.walk_files():
+            zipHandler.write( filename=os.path.join(self.__path,file), arcname=file)
+        # save repository .pyrepinfo
+        zipHandler.write(filename=".pyrepinfo", arcname=".pyrepinfo")
+        # close zip file
+        zipHandler.close()
+        
     def remove_repository(self, relatedFiles=False, relatedFolders=False):
         """
         Remove .pyrepinfo file from path if exists. 
@@ -177,25 +270,25 @@ class Repository(dict):
         if self.__path is None:
             return
         rootPath = os.path.realpath('/..')  
-        absPath  = os.path.abspath(self.__path)
-        if rootPath == absPath:
+        normPath  = os.path.normpath(self.__path)
+        if rootPath == normPath:
             warnings.warn('you are about to wipe out your system !!! action aboarded')
             return
-        if not self.is_repository(absPath):
+        if not self.is_repository(normPath):
             return
         # delete files
         if relatedFiles:
             for relativePath in self.walk_files():
-                os.remove( os.path.join(absPath, relativePath) )
+                os.remove( os.path.join(normPath, relativePath) )
         # delete folders
         if relatedFolders:
             for relativePath in reversed(list(self.walk_folders())):
-                realPath = os.path.join(absPath, relativePath)
+                realPath = os.path.join(normPath, relativePath)
                 # protect from wiping out the system
                 if not len(os.listdir(realPath)):
                     os.rmdir( realPath )
         # delete repository       
-        os.remove( os.path.join(absPath,".pyrepinfo") )              
+        os.remove( os.path.join(normPath,".pyrepinfo") )              
             
     def is_repository(self, path):
         """
@@ -204,13 +297,13 @@ class Repository(dict):
         :Parameters:
             #. path (str): The path of the folder where to check if there is a repository.
         """
-        absPath = os.path.abspath(path)
-        if not os.path.isdir(absPath):
+        normPath = os.path.normpath(path)
+        if not os.path.isdir(normPath):
             return False
-        if ".pyrepinfo" not in os.listdir(absPath):
+        if ".pyrepinfo" not in os.listdir(normPath):
             return False
         return True
-                   
+    
     def add_directory(self, relativePath):
         """
         Adds a directory in the repository. 
@@ -244,18 +337,23 @@ class Repository(dict):
             #. relativePath (str): The relative to the repository path of the directory.
         """
         relativePath = os.path.normpath(relativePath)
+        # if root folder
         if relativePath in ('','.'):
-            return self
+            return self, ""
         currentDir  = self.__path
         dirInfoDict = self    
         for dir in relativePath.split(os.sep):
             dirInfoDict = dict.__getitem__(dirInfoDict, "directories")   
             currentDir = os.path.join(currentDir, dir)
-            assert os.path.exists(currentDir), "directory '%s' is not found"%currentDir
+            # check if path exists
+            if not os.path.exists(currentDir):
+                return None,  "directory '%s' is not found"%currentDir
             val = dirInfoDict.get(dir, None)
-            assert val is not None, "directory '%s' is not registered in PyrepInfo"%currentDir   
+            # check if directory is registered in repository
+            if val is None:
+                return None,  "directory '%s' is not registered in PyrepInfo"%currentDir   
             dirInfoDict = val       
-        return dirInfoDict
+        return dirInfoDict, ""
     
     def get_file_info(self, relativePath, name): 
         """
@@ -265,14 +363,14 @@ class Repository(dict):
             #. relativePath (str): The relative to the repository path of the directory where the file is.
             #. name (str): The file name.
         """
+        errorMessage = ""
         relativePath = os.path.normpath(relativePath)
-        dirInfoDict = self.get_directory_info(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
         fileInfo = dict.__getitem__(dirInfoDict, "files").get(name, None)
-        assert fileInfo is not None, "file %s does not exist in relative path %s"%(name, relativePath)
-        return fileInfo
-        
-    
-    #def get_repository_tree_representation(self):
+        if fileInfo is None:
+            errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
+        return fileInfo, errorMessage
            
     def dump_file(self, file, relativePath, name, dump=None, pull=None, replace=False, save=True):
         """
@@ -302,9 +400,10 @@ class Repository(dict):
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository folder"
         # ensure directory added
         self.add_directory(relativePath)
-        absPath = os.path.join(self.__path, relativePath)
+        normPath = os.path.join(self.__path, relativePath)
         # get directory info dict
-        dirInfoDict = self.get_directory_info(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
         if dict.__getitem__(dirInfoDict, "files").has_key(name):
             assert replace, "a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name)
         # convert dump and pull methods to strings
@@ -314,7 +413,7 @@ class Repository(dict):
             pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
         # try to dump the file
         try:
-            exec(dump.replace("$FILE_PATH", os.path.join(absPath,name)))
+            exec( dump.replace("$FILE_PATH", os.path.join(normPath,name).encode('string-escape')) ) 
         except Exception as e:
             raise Exception( "unable to dump the file (%s)"%e )
         # save the new file to the repository
@@ -343,18 +442,19 @@ class Repository(dict):
             relativePath = ''
             assert name != '.pyrepinfo', "pulling '.pyrepinfo' from main repository folder is not allowed."
         # get file info
-        fileInfo = self.get_file_info(relativePath, name)
+        fileInfo, errorMessage = self.get_file_info(relativePath, name)
+        assert fileInfo is not None, errorMessage
         # get absolute path
-        absPath = os.path.join(self.__path, relativePath)
-        assert os.path.exists(absPath), "relative path '%s'within repository '%s' does not exist"%(relativePath, self.__path)
+        normPath = os.path.join(self.__path, relativePath)
+        assert os.path.exists(normPath), "relative path '%s'within repository '%s' does not exist"%(relativePath, self.__path)
         # file path
-        fileAbsPath = os.path.join(absPath, name)
-        assert os.path.isfile(fileAbsPath), "file '%s' does not exist in absolute path '%s'"%(name,absPath)
+        fileAbsPath = os.path.join(normPath, name)
+        assert os.path.isfile(fileAbsPath), "file '%s' does not exist in absolute path '%s'"%(name,normPath)
         if pull is None:
             pull = fileInfo["pull"]
         # try to pull file
         try:
-            exec(pull.replace("$FILE_PATH", os.path.join(absPath,name)))
+            exec( pull.replace("$FILE_PATH", os.path.join(normPath,name).encode('string-escape')) )
         except Exception as e:
             raise Exception( "unable to pull data from file (%s)"%e )
         # update
