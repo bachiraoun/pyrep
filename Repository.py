@@ -2,6 +2,7 @@
 import os
 import sys
 import uuid
+import warnings
 try:
     import cPickle as pickle
 except:
@@ -69,21 +70,33 @@ class Repository(dict):
         """Get the universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
       
-    def __walk_repository_files(self, directory):
-        print '\n'
-        print directory
-        directories = dict.__getitem__(directory, 'directories')
-        files       = dict.__getitem__(directory, 'files')
-        for f in files:
-            yield f
-        for k,d in dict.items(directories):
-            print k
-            print d
-            self.__walk_repository_files(d)
-    
+      
     def walk_files(self):
-        return self.__walk_repository_files(self)
-            
+        """Walk the repository and yield all found files relative path"""
+        def walk_repository_files(directory, relativePath):
+            directories = dict.__getitem__(directory, 'directories')
+            files       = dict.__getitem__(directory, 'files')
+            for f in files:
+                yield os.path.join(relativePath, f)
+            for k,d in dict.items(directories):
+                path = os.path.join(relativePath, k)
+                for e in walk_repository_files(d, path):
+                    yield e
+        return walk_repository_files(self, relativePath="")
+    
+    def walk_folders(self):
+        """Walk the repository and yield all found folders relative path"""
+        def walk_repository_files(directory, relativePath):
+            directories = dict.__getitem__(directory, 'directories')
+            dirNames = dict.keys(directories)
+            for d in dirNames:
+                yield os.path.join(relativePath, d)
+            for k,d in dict.items(directories):
+                path = os.path.join(relativePath, k)
+                for e in walk_repository_files(d, path):
+                    yield e
+        return walk_repository_files(self, relativePath="")
+        
     def initialize(self, path, replace=False, save=True): 
         """
         Initialize a repository in a folder
@@ -151,20 +164,37 @@ class Repository(dict):
         finally:
             fd.close()
     
-    def remove_repository(self, path, relatedFilesAndFolders=False):
+    def remove_repository(self, relatedFiles=False, relatedFolders=False):
         """
         Remove .pyrepinfo file from path if exists. 
         
         :Parameters:
             #. path (str): The path of the folder where to remove an existing repository.
-            #. relatedFilesAndFolders (boolean): Whether to also remove all related files from system as well.
+            #. relatedFiles (boolean): Whether to also remove all related files from system as well.
+            #. relatedFolders (boolean): Whether to also remove all related folders from system as well.
+               Folders will be removed only if they are left empty after removing the files.
         """
-        absPath = os.path.abspath(path)
+        if self.__path is None:
+            return
+        rootPath = os.path.realpath('/..')  
+        absPath  = os.path.abspath(self.__path)
+        if rootPath == absPath:
+            warnings.warn('you are about to wipe out your system !!! action aboarded')
+            return
         if not self.is_repository(absPath):
             return
-        # if it is a repository    
-        # SHOULD ADD THE RELATED FILES AND FOLDERS SECTION
-               
+        # delete files
+        if relatedFiles:
+            for relativePath in self.walk_files():
+                os.remove( os.path.join(absPath, relativePath) )
+        # delete folders
+        if relatedFolders:
+            for relativePath in reversed(list(self.walk_folders())):
+                realPath = os.path.join(absPath, relativePath)
+                # protect from wiping out the system
+                if not len(os.listdir(realPath)):
+                    os.rmdir( realPath )
+        # delete repository       
         os.remove( os.path.join(absPath,".pyrepinfo") )              
             
     def is_repository(self, path):
