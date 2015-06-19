@@ -43,5 +43,5 @@ print 'walk folders -->', list(REP.walk_folders())
 print 'repository print -->'
 print REP
 print repr(REP)
-REP.create_package(absolutePath=None, name=None)
+REP.create_package(path=None, name=None)
 #REP.remove_repository(relatedFiles=True, relatedFolders=True)
