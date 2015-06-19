@@ -2,7 +2,7 @@
 import os
 import uuid
 import warnings
-import zipfile
+import tarfile
 try:
     import cPickle as pickle
 except:
@@ -210,19 +210,27 @@ class Repository(dict):
         finally:
             fd.close()
     
-    def create_package(self, absolutePath=None, name=None):
+    def create_package(self, absolutePath=None, name=None, mode=None):
         """
-        Create a .zip file package of all the repository files and folders. 
+        Create a tar file package of all the repository files and folders. 
         Only files and folders that are stored in the repository info 
-        are stored in the package zip file.
+        are stored in the package tar file.
         
         :Parameters:
             #. absolutePath (None, str): The absolute path where to create the package.
                If None, it will be created in the same folder as the repository
                If '.' or an empty string is passed, the current working directory will be used.
             #. name (None, str): The name to give to the package file
-               If None, the package folder name will be used with .zip extension added.
+               If None, the package folder name will be used with the appropriate extension added.
+            #. mode (None, str): The writing mode of the tarfile.
+               If None, automatically the best compression mode will be chose.
+               Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
         """
+        # check mode
+        assert mode in (None, 'w', 'w:', 'w:gz', 'w:bz2'), 'unkown archive mode %s'%str(mode)
+        if mode is None:
+            mode = 'w:bz2'
+            mode = 'w:'
         # get root
         if absolutePath is None:
             root = os.path.split(self.__path)[0]
@@ -233,29 +241,36 @@ class Repository(dict):
         assert os.path.isdir(root), 'absolute path %s is not a valid folder'%absolutePath
         # get name
         if name is None:
-            name = os.path.split(self.__path)[1]+".zip"
-
+            ext = mode.split(":")
+            if len(ext) == 2:
+                if len(ext[1]):
+                    ext = "."+ext[1]
+                else:
+                    ext = '.tar'
+            else:
+                ext = '.tar'
+            name = os.path.split(self.__path)[1]+ext
+        print root, name
         # save repository
         self.save()
-        # create zipfile
-        zipfilePath = os.path.join(root, name)
+        # create tar file
+        tarfilePath = os.path.join(root, name)
         try:
-            zipHandler = zipfile.ZipFile(zipfilePath, 'w', zipfile.ZIP_DEFLATED)
+            tarHandler = tarfile.TarFile.open(tarfilePath, mode=mode)
         except Exception as e:
             raise Exception("Unable to create package (%s)"%e)
         # walk folder and create empty folders
         for folder in sorted(list(self.walk_folders())):
-            zipInfo = zipfile.ZipInfo( folder )  
-            zipInfo.external_attr = 16
-            zipHandler.writestr(zipInfo, "") 
-            #zipHandler.write( filename=folder, arcname=folder ) 
-        # walk files and create in zip
+            t = tarfile.TarInfo( folder )
+            t.type = tarfile.DIRTYPE
+            tarHandler.addfile(t)
+        # walk files and add to tar
         for file in self.walk_files():
-            zipHandler.write( filename=os.path.join(self.__path,file), arcname=file)
+            tarHandler.add(os.path.join(self.__path,file), arcname=file)
         # save repository .pyrepinfo
-        zipHandler.write(filename=".pyrepinfo", arcname=".pyrepinfo")
-        # close zip file
-        zipHandler.close()
+        tarHandler.add(".pyrepinfo", arcname=".pyrepinfo")
+        # close tar file
+        tarHandler.close()
         
     def remove_repository(self, relatedFiles=False, relatedFolders=False):
         """

@@ -44,4 +44,4 @@ print 'repository print -->'
 print REP
 print repr(REP)
 REP.create_package(absolutePath=None, name=None)
-REP.remove_repository(relatedFiles=True, relatedFolders=True)
+#REP.remove_repository(relatedFiles=True, relatedFolders=True)
