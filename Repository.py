@@ -15,26 +15,34 @@ from pyrep import __version__
 class Repository(dict):
     """
     This is a pythonic way to organize dumping and pulling python objects 
-    or any type of file to a repository.
-    Any folder can be a repository, it suffice to initialize a repository instance 
-    in a folder to start dumping and pulling object into in.
-    A Repository folder, is any folder that has .pyrepinfo file in it.
+    or any type of files to a repository. Any folder can be a repository, 
+    it suffices to initialize a Repository instance in a folder to start 
+    dumping and pulling object into it. Any folder that has .pyrepinfo 
+    binary file in it is theoretically a pyrep Repository.
+    
+    :Parameters:
+        #. repo (None, path, Repository): This is used to initialize a Repository instance.
+           If None, Repository is initialized but not assigned to any folder.
+           If Path, Repository is loaded from folder path unless folder is not a repository and error will be raised.
+           If Repository, current instance will cast the given Repository instance.
     """
+    __LOCK = True 
     def __init__(self, repo=None):
         self.__path = None
-        self.__lock = True
         self.__reset_repository()
         self.__cast(repo)
+        self.__LOCK = True
      
     def __str__(self):
         if self.__path is None:
             return ""
-        string = os.path.normpath(self.__path)+"\n"
+        string = os.path.normpath(self.__path)
         # walk files
         leftAdjust = "  "
         for file in dict.__getitem__(self, 'files').keys():
+            string += "\n"
             string += leftAdjust
-            string += file+'\n'
+            string += file
         # walk folders
         for folder in sorted(list(self.walk_folders())):
             # split folder path
@@ -45,13 +53,15 @@ class Repository(dict):
             dirInfoDict, errorMessage = self.get_directory_info(folder)
             assert dirInfoDict is not None, errorMessage
             # append folders to representation
+            string += "\n"
             string += leftAdjust
-            string += os.sep+str(splitPath[-1])+'\n'
+            string += os.sep+str(splitPath[-1])
             # append files to representation
             leftAdjust += "  "
             for file in dict.__getitem__(dirInfoDict, 'files').keys():
+                string += "\n"
                 string += leftAdjust
-                string += file+"\n"
+                string += file
         return string    
     
     def __repr__(self):
@@ -59,47 +69,25 @@ class Repository(dict):
         if self.__path is None:
             return repr
         repr += '\n'
-        repr += self.__path+":"+str(dict.__getitem__(self, 'files').keys())
-        # walk folders
-        for folder in sorted(list(self.walk_folders())):
-            folderRepr = os.path.normpath(folder)
-            # get folder info
-            dirInfoDict, errorMessage = self.get_directory_info(folder)
-            assert dirInfoDict is not None, errorMessage
-            folderRepr += ":"+str( dict.__getitem__(dirInfoDict, 'files').keys() )
-            repr += " ; "           
-            repr += folderRepr
-        return str(repr)
+        lrepr = self.get_list_representation()
+        repr += " ; ".join(lrepr)
+        return repr 
         
-    #def __setitem__(self, key, value):
-    #    if self.lock:
-    #        raise Exception("setting item is not allowed")
-    #    dict.__setitem__(self, key, value)
-    #    
-    #def __getitem__(self, key):
-    #    if self.lock:
-    #        raise Exception("getting item is not allowed")
-    #    dict.__getitem__(self, key)
-    #    
-    #def keys(self, *args, **kwargs):
-    #    if self.lock:
-    #        raise Exception("getting keys list is not allowed")
-    #    return dict.keys(self)
-    #    
-    #def values(self, *args, **kwargs):
-    #    if self.lock:
-    #        raise Exception("getting values list is not allowed")
-    #    return dict.values(self)
-    #    
-    #def items(self, *args, **kwargs):
-    #    if self.lock:
-    #        raise Exception("getting items list is not allowed")
-    #    return dict.items(self)
-    
+    def __setitem__(self, key, value):
+        if self.__LOCK:
+            raise Exception("setting item is not allowed")
+        dict.__setitem__(self, key, value)
+        
+    def __getitem__(self, key):
+        if self.__LOCK:
+            raise Exception("getting item is not allowed")
+        dict.__getitem__(self, key)
+     
     def __cast(self, repo):
         if repo is None:
             return
         if isinstance(repo, Repository):
+            self.__reset_repository()
             self.__update_repository(repo)
         elif isinstance(repo, basestring):
             repo = str(repo)
@@ -121,17 +109,58 @@ class Repository(dict):
         dict.__setitem__(self, "directories", {})
         dict.__setitem__(self, "files",       {})
             
-    def __update_repository(self, repository=None):
-        if repository is None:
-            self.__reset_repository()
-        else:
-            self.update(repository)
+    def __update_repository(self, repository):
+        assert isinstance(repository, Repository), "repository must be a Repository instance"
+        dict.update(self, repository)
+        self.__path = repository.path
+               
+    def keys(self, *args, **kwargs):
+        """Keys is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("keys is a locked method!")
+        return dict.keys(self)
         
-    @property
-    def lock(self):
-        """Get the lock value."""
-        return self.__lock
+    def values(self, *args, **kwargs):
+        """values is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("values is a locked method!")
+        return dict.values(self)
         
+    def items(self, *args, **kwargs):
+        """items is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("items is a locked method!")
+        return dict.items(self)
+    
+    def pop(self, *args, **kwargs):
+        """pop is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("pop is a locked method!")
+        return dict.pop(self, *args, **kwargs)
+    
+    def update(self, *args, **kwargs):
+        """update is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("update is a locked method!")
+        return dict.pop(self, *args, **kwargs)
+    
+    def popitem(self, *args, **kwargs):
+        """popitem is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("popitem is a locked method!")
+        return dict.popitem(self, *args, **kwargs)
+    
+    def viewkeys(self, *args, **kwargs):
+        """viewkeys is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("viewkeys is a locked method!")
+        return dict.viewkeys(self, *args, **kwargs)
+    
+    def viewvalues(self, *args, **kwargs):
+        """viewvalues is a locked method and modified to be a private method only callable from within the instance."""
+        if self.__LOCK:
+            raise Exception("viewvalues is a locked method!")
+        return viewvalues.viewkeys(self, *args, **kwargs)  
     @property
     def path(self):
         """Get the path of this repository."""
@@ -146,6 +175,26 @@ class Repository(dict):
     def id(self):
         """Get the universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
+        
+    def get_list_representation(self):
+        """
+        Gets a representation of the Repository content in a list of directories(files) format.
+        
+        :Returns:
+            #. repr (list): The list representation of the Repository content.
+        """
+        if self.__path is None:
+            return []
+        repr = [ self.__path+":["+','.join(dict.__getitem__(self, 'files').keys())+']' ]
+        # walk folders
+        for folder in sorted(list(self.walk_folders())):
+            folderRepr = os.path.normpath(folder)
+            # get folder info
+            dirInfoDict, errorMessage = self.get_directory_info(folder)
+            assert dirInfoDict is not None, errorMessage
+            folderRepr += ":["+','.join( dict.__getitem__(dirInfoDict, 'files').keys())+']'
+            repr.append(folderRepr)
+        return repr
         
     def walk_files(self):
         """Walk the repository and yield all found files relative path"""
@@ -188,7 +237,7 @@ class Repository(dict):
         normPath = os.path.normpath(path)
         if not replace:
             assert not self.is_repository(normPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
-        self.__update_repository(repository=None)
+        self.__reset_repository()
         # set path
         self.__path = normPath
         # save repository
@@ -213,20 +262,21 @@ class Repository(dict):
             raise Exception("unable to open repository file(%s)"%e)   
         # unpickle file
         try:
-            self.__lock = False
+            Repository.__LOCK = False
             info = pickle.load( fd )
         except Exception as e:
             fd.close()
-            self.__lock = True
+            Repository.__LOCK = True
             raise Exception("unable to pickle load repository (%s)"%e)  
         finally:
             fd.close()
-            self.__lock = False
+            Repository.__LOCK = False
         # check if its a PyrepInfo instance
         if not isinstance(info, Repository): 
             raise Exception("No repository found in %s"%s)  
         else:
             # update info path
+            self.__reset_repository()
             self.__update_repository(info)
             self.__path = repoPath
     
@@ -323,7 +373,7 @@ class Repository(dict):
         if self.__path is None:
             return
         # check for security  
-        if rootPath == os.path.realpath('/..') :
+        if self.__path == os.path.realpath('/..') :
             warnings.warn('you are about to wipe out your system !!! action aboarded')
             return
         if not self.is_repository(self.__path):
@@ -348,6 +398,9 @@ class Repository(dict):
         
         :Parameters:
             #. path (str): The path of the folder where to check if there is a repository.
+        
+        :Returns:
+            #. result (boolean): Whether its a repository or not.
         """
         realPath = os.path.realpath( os.path.expanduser(path) )
         if not os.path.isdir(realPath):
@@ -387,6 +440,11 @@ class Repository(dict):
         
         :Parameters:
             #. relativePath (str): The relative to the repository path of the directory.
+        
+        :Returns:
+            #. info (None, dict): The directory information dictionary.
+               If None, it means an error has occurred.
+            #. error (string): The error message if any error occurred.
         """
         relativePath = os.path.normpath(relativePath)
         # if root folder
@@ -414,6 +472,11 @@ class Repository(dict):
         :Parameters:
             #. relativePath (str): The relative to the repository path of the directory where the file is.
             #. name (str): The file name.
+        
+        :Returns:
+            #. info (None, dict): The file information dictionary.
+               If None, it means an error has occurred.
+            #. error (string): The error message if any error occurred.
         """
         errorMessage = ""
         relativePath = os.path.normpath(relativePath)
@@ -488,6 +551,9 @@ class Repository(dict):
                and finally a PULLED_DATA variable.
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
             #. update (boolean): If pull is not None, Whether to update the pull method stored in the file info by the given pull method.
+        
+        :Returns:
+            #. data (object): The pulled data from the file.
         """
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':

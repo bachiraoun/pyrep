@@ -4,10 +4,10 @@ from pyrep.Repository import Repository
 REP=Repository()
 print "repository path --> %s"%str(REP.path)
 REP.remove_repository(".")
-print "Is path '.' a repository --> %s"%str(REP.is_repository('.'))
+print "\nIs path '.' a repository --> %s"%str(REP.is_repository('.'))
 REP.initialize(path='.', replace=True, save=True)
-print "Repository initialized, is path '.' a repository --> %s"%str(REP.is_repository('.'))
-print 'repository path --> %s'%str(REP.path)
+print "\nRepository initialized, is path '.' a repository --> %s"%str(REP.is_repository('.'))
+print '\nRepository path --> %s'%str(REP.path)
 
 # add directory
 REP.add_directory("folder1/folder2/folder3")
@@ -31,17 +31,33 @@ REP.dump_file(file, relativePath="folder1/archive1/archive2", name='archive2Pick
 
 # pull data
 data = REP.pull_file(relativePath='.', name='text')
-print 'Pulled text data --> %s'%str(data)
+print '\nPulled text data --> %s'%str(data)
 data = REP.pull_file(relativePath='.', name='pickled')
 data = REP.pull_file(relativePath="folder1/folder2/folder3", name='folder3Pickled')
-print 'Pulled pickled data --> %s'%str(data)
+print '\nPulled pickled data --> %s'%str(data)
 
 # walk repository
-print 'walk files -->', list(REP.walk_files())
-print 'walk folders -->', list(REP.walk_folders())
+print '\nwalk files -->', list(REP.walk_files())
+print '\nwalk folders -->', list(REP.walk_folders())
 
-print 'repository print -->'
+print '\nRepository print -->'
 print REP
+print '\nRepository representation -->'
 print repr(REP)
+print '\nRepository to list -->'
+print  REP.get_list_representation()
 REP.create_package(path=None, name=None)
-#REP.remove_repository(relatedFiles=True, relatedFolders=True)
+
+try:
+    REP.load('.')
+except:
+    loadable = False
+finally:
+    loadable = True
+print '\nIs repository loadable -->',loadable 
+
+# remove all repo data
+REP.remove_repository(relatedFiles=True, relatedFolders=True)
+
+
+
