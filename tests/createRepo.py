@@ -1,13 +1,14 @@
 import numpy as np
 from pyrep.Repository import Repository
 
+PATH = '~/Desktop/test'
+
 REP=Repository()
-#REP.create_repository('~/Desktop/bachir/nadine')
-#exit()
 print "repository path --> %s"%str(REP.path)
-REP.remove_repository(".")
+REP.remove_repository(path=PATH, relatedFiles=False, relatedFolders=False)
+REP.create_repository(PATH)
 print "\nIs path '.' a repository --> %s"%str(REP.is_repository('.'))
-REP.initialize(path='.', replace=True, save=True)
+#REP.initialize(path='.', replace=True, save=True)
 print "\nRepository initialized, is path '.' a repository --> %s"%str(REP.is_repository('.'))
 print '\nRepository path --> %s'%str(REP.path)
 
@@ -15,7 +16,6 @@ print '\nRepository path --> %s'%str(REP.path)
 REP.add_directory("folder1/folder2/folder3")
 REP.add_directory("folder1/archive1/archive2/archive3/archive3")
 REP.add_directory("directory1/directory2")
-
 
 
 # dump files
@@ -40,7 +40,7 @@ print '\nPulled pickled data --> %s'%str(data)
 
 # walk repository
 print '\nwalk files -->', list(REP.walk_files())
-print '\nwalk folders -->', list(REP.walk_folders())
+print '\nwalk folders -->', list(REP.walk_directories())
 
 print '\nRepository print -->'
 print REP
@@ -50,8 +50,9 @@ print '\nRepository to list -->'
 print  REP.get_list_representation()
 REP.create_package(path=None, name=None)
 
+# Try to load
 try:
-    REP.load('.')
+    REP.load(PATH)
 except:
     loadable = False
 finally:
