@@ -2,6 +2,8 @@ import numpy as np
 from pyrep.Repository import Repository
 
 REP=Repository()
+#REP.create_repository('~/Desktop/bachir/nadine')
+#exit()
 print "repository path --> %s"%str(REP.path)
 REP.remove_repository(".")
 print "\nIs path '.' a repository --> %s"%str(REP.is_repository('.'))

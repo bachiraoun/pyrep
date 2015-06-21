@@ -11,7 +11,24 @@ except:
 # pyrep imports
 from pyrep import __version__
     
-        
+#### Define decorators ###
+def path_required(func):
+    def wrapper(self, *args, **kwargs):
+        if self.path is None:
+            warnings.warn('Must load or initialize the repository first !')
+            return
+        return func(self, *args, **kwargs)
+    return wrapper
+
+def unlock_required(func):
+    def wrapper(self, *args, **kwargs):
+        if self.LOCK:
+            warnings.warn("Repository class '%s' method '%s' is locked!"%(self.__class__.__name__,func.__name__))
+            return
+        return func(self, *args, **kwargs)
+    return wrapper
+
+           
 class Repository(dict):
     """
     This is a pythonic way to organize dumping and pulling python objects 
@@ -32,7 +49,7 @@ class Repository(dict):
         self.__reset_repository()
         self.__cast(repo)
         self.__LOCK = True
-     
+    
     def __str__(self):
         if self.__path is None:
             return ""
@@ -73,16 +90,54 @@ class Repository(dict):
         repr += " ; ".join(lrepr)
         return repr 
         
+    @unlock_required
     def __setitem__(self, key, value):
-        if self.__LOCK:
-            raise Exception("setting item is not allowed")
         dict.__setitem__(self, key, value)
-        
+    
+    @unlock_required
     def __getitem__(self, key):
-        if self.__LOCK:
-            raise Exception("getting item is not allowed")
         dict.__getitem__(self, key)
      
+    @unlock_required
+    def keys(self, *args, **kwargs):
+        """Keys is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.keys(self)
+    
+    @unlock_required
+    def values(self, *args, **kwargs):
+        """values is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.values(self)
+        
+    @unlock_required
+    def items(self, *args, **kwargs):
+        """items is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.items(self)
+    
+    @unlock_required
+    def pop(self, *args, **kwargs):
+        """pop is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.pop(self, *args, **kwargs)
+    
+    @unlock_required
+    def update(self, *args, **kwargs):
+        """update is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.pop(self, *args, **kwargs)
+    
+    @unlock_required
+    def popitem(self, *args, **kwargs):
+        """popitem is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.popitem(self, *args, **kwargs)
+    
+    @unlock_required
+    def viewkeys(self, *args, **kwargs):
+        """viewkeys is a locked method and modified to be a private method only callable from within the instance."""
+        return dict.viewkeys(self, *args, **kwargs)
+    
+    @unlock_required
+    def viewvalues(self, *args, **kwargs):
+        """viewvalues is a locked method and modified to be a private method only callable from within the instance."""
+        return viewvalues.viewkeys(self, *args, **kwargs)  
+    
     def __cast(self, repo):
         if repo is None:
             return
@@ -109,58 +164,19 @@ class Repository(dict):
         dict.__setitem__(self, "directories", {})
         dict.__setitem__(self, "files",       {})
             
-    def __update_repository(self, repository):
-        assert isinstance(repository, Repository), "repository must be a Repository instance"
-        dict.update(self, repository)
-        self.__path = repository.path
-               
-    def keys(self, *args, **kwargs):
-        """Keys is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("keys is a locked method!")
-        return dict.keys(self)
-        
-    def values(self, *args, **kwargs):
-        """values is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("values is a locked method!")
-        return dict.values(self)
-        
-    def items(self, *args, **kwargs):
-        """items is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("items is a locked method!")
-        return dict.items(self)
+    def __update_repository(self, repo):
+        assert isinstance(repo, Repository), "repository must be a Repository instance"
+        if repo.version > self.version:
+            warnings.warn("Unable to update Repository of currently installed pyrep version %i to pyrep Repository version %i !"%(self.version, repo.version))
+            return
+        dict.update(self, repo)
+        self.__path = repo.path
     
-    def pop(self, *args, **kwargs):
-        """pop is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("pop is a locked method!")
-        return dict.pop(self, *args, **kwargs)
-    
-    def update(self, *args, **kwargs):
-        """update is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("update is a locked method!")
-        return dict.pop(self, *args, **kwargs)
-    
-    def popitem(self, *args, **kwargs):
-        """popitem is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("popitem is a locked method!")
-        return dict.popitem(self, *args, **kwargs)
-    
-    def viewkeys(self, *args, **kwargs):
-        """viewkeys is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("viewkeys is a locked method!")
-        return dict.viewkeys(self, *args, **kwargs)
-    
-    def viewvalues(self, *args, **kwargs):
-        """viewvalues is a locked method and modified to be a private method only callable from within the instance."""
-        if self.__LOCK:
-            raise Exception("viewvalues is a locked method!")
-        return viewvalues.viewkeys(self, *args, **kwargs)  
+    @property
+    def LOCK(self):
+        """Get the lock value."""
+        return self.__LOCK 
+            
     @property
     def path(self):
         """Get the path of this repository."""
@@ -227,19 +243,18 @@ class Repository(dict):
         Initialize a repository in a folder
         
         :Parameters:
-            #. path (str): The path of the folder where to create a repository.
+            #. path (string): The path of the folder where to create a repository.
             #. replace (boolean): Whether to replace any existing repository.
             #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
         """
         if path.strip() in ('','.'):
             path = os.getcwd()
-        path = os.path.expanduser(path)
-        normPath = os.path.normpath(path)
+        realPath = os.path.realpath( os.path.expanduser(path) )
         if not replace:
-            assert not self.is_repository(normPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
+            assert not self.is_repository(realPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
         self.__reset_repository()
         # set path
-        self.__path = normPath
+        self.__path = realPath
         # save repository
         if save:
             self.save()
@@ -249,7 +264,7 @@ class Repository(dict):
         Load repository from a folder and update the current instance.
         
         :Parameters:
-            #. path (str): The path of the folder from where to load the repository.
+            #. path (string): The path of the folder from where to load the repository.
         """
         # try to open
         repoPath = os.path.realpath( os.path.expanduser(path) )
@@ -263,7 +278,7 @@ class Repository(dict):
         # unpickle file
         try:
             Repository.__LOCK = False
-            info = pickle.load( fd )
+            repo = pickle.load( fd )
         except Exception as e:
             fd.close()
             Repository.__LOCK = True
@@ -272,18 +287,17 @@ class Repository(dict):
             fd.close()
             Repository.__LOCK = False
         # check if its a PyrepInfo instance
-        if not isinstance(info, Repository): 
+        if not isinstance(repo, Repository): 
             raise Exception("No repository found in %s"%s)  
         else:
             # update info path
             self.__reset_repository()
-            self.__update_repository(info)
+            self.__update_repository(repo)
             self.__path = repoPath
     
+    @path_required
     def save(self):
         """ Save repository .pyrepinfo to disk. """
-        if self.__path is None:
-            raise Exception('Must load or initialize the repository first !')
         # open file
         repoInfoPath = os.path.join(self.__path, ".pyrepinfo")
         try:
@@ -299,19 +313,22 @@ class Repository(dict):
         finally:
             fd.close()
     
+    @path_required
     def create_package(self, path=None, name=None, mode=None):
         """
         Create a tar file package of all the repository files and folders. 
         Only files and folders that are stored in the repository info 
         are stored in the package tar file.
         
+        **N.B. On some systems packaging requires root permissions.**  
+        
         :Parameters:
-            #. path (None, str): The real absolute path where to create the package.
+            #. path (None, string): The real absolute path where to create the package.
                If None, it will be created in the same folder as the repository
                If '.' or an empty string is passed, the current working directory will be used.
-            #. name (None, str): The name to give to the package file
+            #. name (None, string): The name to give to the package file
                If None, the package folder name will be used with the appropriate extension added.
-            #. mode (None, str): The writing mode of the tarfile.
+            #. mode (None, string): The writing mode of the tarfile.
                If None, automatically the best compression mode will be chose.
                Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
         """
@@ -360,18 +377,42 @@ class Repository(dict):
         # close tar file
         tarHandler.close()
         
+    def create_repository(self, path, checkout=True):
+        """
+        Create a repository at given absolute path.
+        This method insures the creation of the directory in the system.
+        
+        **N.B. On some systems and some paths, creating a directory may requires root permissions.**  
+        
+        :Parameters:
+            #. path (None, string): The real absolute path where to create the package.
+               If None, it will be created in the same folder as the repository
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. checkout (boolean): Whether to checkout the current Repository instance to the newly created one
+        """
+        realPath = os.path.realpath( os.path.expanduser(path) )
+        assert not self.is_repository(realPath), "A pyrep Repository already exists in the given path '%s'"%path
+        # create directory
+        if not os.path.isdir(realPath):
+            os.makedirs(realPath)
+        # create Repository
+        repo = Repository()
+        repo.initialize(path=realPath, replace=True, save=True)
+        # checkout
+        if checkout:
+            self.__update_repository(repo)
+    
+    @path_required
     def remove_repository(self, relatedFiles=False, relatedFolders=False):
         """
         Remove .pyrepinfo file from path if exists. 
         
         :Parameters:
-            #. path (str): The path of the folder where to remove an existing repository.
+            #. path (string): The path of the folder where to remove an existing repository.
             #. relatedFiles (boolean): Whether to also remove all related files from system as well.
             #. relatedFolders (boolean): Whether to also remove all related folders from system as well.
                Folders will be removed only if they are left empty after removing the files.
         """
-        if self.__path is None:
-            return
         # check for security  
         if self.__path == os.path.realpath('/..') :
             warnings.warn('you are about to wipe out your system !!! action aboarded')
@@ -397,7 +438,7 @@ class Repository(dict):
         Check if its a repository. 
         
         :Parameters:
-            #. path (str): The path of the folder where to check if there is a repository.
+            #. path (string): The path of the folder where to check if there is a repository.
         
         :Returns:
             #. result (boolean): Whether its a repository or not.
@@ -415,7 +456,7 @@ class Repository(dict):
         It insures adding all the missing directories in the path.
         
         :Parameters:
-            #. relativePath (str): The relative to the repository path of the directory to add in the repository.
+            #. relativePath (string): The relative to the repository path of the directory to add in the repository.
         """
         path = os.path.normpath(relativePath)
         # create directories
@@ -439,10 +480,10 @@ class Repository(dict):
         get directory info in the repository
         
         :Parameters:
-            #. relativePath (str): The relative to the repository path of the directory.
+            #. relativePath (string): The relative to the repository path of the directory.
         
         :Returns:
-            #. info (None, dict): The directory information dictionary.
+            #. info (None, dictionary): The directory information dictionary.
                If None, it means an error has occurred.
             #. error (string): The error message if any error occurred.
         """
@@ -470,11 +511,11 @@ class Repository(dict):
         get file info in the repository
         
         :Parameters:
-            #. relativePath (str): The relative to the repository path of the directory where the file is.
-            #. name (str): The file name.
+            #. relativePath (string): The relative to the repository path of the directory where the file is.
+            #. name (string): The file name.
         
         :Returns:
-            #. info (None, dict): The file information dictionary.
+            #. info (None, dictionary): The file information dictionary.
                If None, it means an error has occurred.
             #. error (string): The error message if any error occurred.
         """
@@ -494,13 +535,13 @@ class Repository(dict):
         :Parameters:
             #. file (object): The file to add. It is any python object.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
-            #. name (str): The file name.
-            #. dump (none, str): The dumping method. 
+            #. name (string): The file name.
+            #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
                and a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed.
                e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=file, fmt='%.6e')"
-            #. pull (none, str): The pulling method. 
+            #. pull (None, string): The pulling method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports, 
                a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed
@@ -542,9 +583,9 @@ class Repository(dict):
         Pull a file from the repository.
         
         :Parameters:
-            #. relativePath (str): The relative to the repository path of the directory where the file should be pulled.
-            #. name (str): The file name.
-            #. pull (none, str): The pulling method. 
+            #. relativePath (string): The relative to the repository path of the directory where the file should be pulled.
+            #. name (string): The file name.
+            #. pull (None, string): The pulling method. 
                If None, the pull method saved in the file info will be used.
                If a string is given, the string should include all the necessary imports, 
                a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed
