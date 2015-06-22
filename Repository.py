@@ -263,9 +263,56 @@ class Repository(dict):
         if save:
             self.save()
     
+    def synchronize(self):
+        """
+        Synchronizes the Repository information with the directory.
+        All registered but missing files and directories in the directory 
+        will be automatically removed from the Repository.
+        """
+        if self.__path is None:
+            return
+        # walk directories
+        for dirPath in sorted(list(self.walk_directories())):
+            realPath = os.path.join(self.__path, dirPath)
+            # if directory exist
+            if os.path.isdir(realPath): 
+                continue            
+            # loop to get dirInfoDict
+            keys = dirPath.split(os.sep)
+            dirInfoDict = self
+            for idx in range(len(keys)-1):
+                dirs = dict.get(dirInfoDict, 'directories', None)
+                if dirs is None: break
+                dirInfoDict = dict.get(dirs, keys[idx], None) 
+                if dirInfoDict is None: break
+            # remove dirInfoDict directory if existing
+            if dirInfoDict is not None:   
+                dirs = dict.get(dirInfoDict, 'directories', None)
+                if dirs is not None:      
+                    dict.pop( dirs, keys[-1], None ) 
+        # walk files
+        for filePath in sorted(list(self.walk_files())):
+            realPath = os.path.join(self.__path, filePath)
+            # if file exists
+            if os.path.isfile( realPath ):
+                continue
+            # loop to get dirInfoDict
+            keys = filePath.split(os.sep)
+            dirInfoDict = self
+            for idx in range(len(keys)-1):
+                dirs = dict.get(dirInfoDict, 'directories', None)
+                if dirs is None: break
+                dirInfoDict = dict.get(dirs, keys[idx], None) 
+                if dirInfoDict is None: break
+            # remove dirInfoDict file if existing
+            if dirInfoDict is not None:   
+                files = dict.get(dirInfoDict, 'files', None)
+                if files is not None:      
+                    dict.pop( files, keys[-1], None ) 
+
     def load(self, path):
         """
-        Load repository from a directory and update the current instance.
+        Load repository from a directory path and update the current instance.
         
         :Parameters:
             #. path (string): The path of the directory from where to load the repository.
@@ -377,21 +424,21 @@ class Repository(dict):
         for file in self.walk_files():
             tarHandler.add(os.path.join(self.__path,file), arcname=file)
         # save repository .pyrepinfo
-        tarHandler.add(".pyrepinfo", arcname=".pyrepinfo")
+        tarHandler.add(os.path.join(self.__path,".pyrepinfo"), arcname=".pyrepinfo")
         # close tar file
         tarHandler.close()
         
-    def create_repository(self, path, checkout=True):
+    def create_repository(self, path, replace=False, checkout=True):
         """
-        Create a repository at given absolute path.
+        Create a repository at given real path.
         This method insures the creation of the directory in the system.
         
         **N.B. On some systems and some paths, creating a directory may requires root permissions.**  
         
         :Parameters:
-            #. path (None, string): The real absolute path where to create the package.
-               If None, it will be created in the same directory as the repository
+            #. path (string): The real absolute path where to create the Repository.
                If '.' or an empty string is passed, the current working directory will be used.
+            #. replace (boolean): Whether to replace any existing repository.
             #. checkout (boolean): Whether to checkout the current Repository instance to the newly created one
         """
         realPath = os.path.realpath( os.path.expanduser(path) )
@@ -401,18 +448,19 @@ class Repository(dict):
             os.makedirs(realPath)
         # create Repository
         repo = Repository()
-        repo.initialize(path=realPath, replace=True, save=True)
+        repo.initialize(path=realPath, replace=replace, save=True)
         # checkout
         if checkout:
             self.__update_repository(repo)
     
     def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False):
         """
-        Remove .pyrepinfo file from path if exists and related files and directories if wanted. 
+        Remove .pyrepinfo file from path if exists and related files and directories 
+        when respective flags are set to True. 
         
         :Parameters:
             #. path (None, string): The path of the directory where to remove an existing repository.
-               If None, current repository is removed if initialized
+               If None, current repository is removed if initialized.
             #. relatedFiles (boolean): Whether to also remove all related files from system as well.
             #. relatedFolders (boolean): Whether to also remove all related directories from system as well.
                Directories will be removed only if they are left empty after removing the files.
@@ -455,10 +503,10 @@ class Repository(dict):
             
     def is_repository(self, path):
         """
-        Check if its a repository. 
+        Check if there is a Repository in path. 
         
         :Parameters:
-            #. path (string): The path of the directory where to check if there is a repository.
+            #. path (string): The real path of the directory where to check if there is a repository.
         
         :Returns:
             #. result (boolean): Whether its a repository or not.
@@ -469,35 +517,10 @@ class Repository(dict):
         if ".pyrepinfo" not in os.listdir(realPath):
             return False
         return True
-    
-    def add_directory(self, relativePath):
-        """
-        Adds a directory in the repository. 
-        It insures adding all the missing directories in the path.
         
-        :Parameters:
-            #. relativePath (string): The relative to the repository path of the directory to add in the repository.
-        """
-        path = os.path.normpath(relativePath)
-        # create directories
-        currentDir  = self.path
-        currentDict = dict.__getitem__(self,"directories")
-        if path in ("","."):
-            return currentDict
-        for dir in path.split(os.sep):
-            dirPath = os.path.join(currentDir, dir)
-            # create directory
-            if not os.path.exists(dirPath):
-                 os.mkdir(dirPath)
-            # create dictionary key
-            if currentDict.get(dir, None) is None:    
-                currentDict[dir] = {"directories":{}, "files":{}, "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            currentDict = currentDict[dir]["directories"]
-            currentDir  = dirPath
-            
     def get_directory_info(self, relativePath): 
         """
-        get directory info in the repository
+        get directory info from the Repository.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory.
@@ -528,7 +551,7 @@ class Repository(dict):
     
     def get_file_info(self, relativePath, name): 
         """
-        get file info in the repository
+        get file info from the repository.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory where the file is.
@@ -547,10 +570,36 @@ class Repository(dict):
         if fileInfo is None:
             errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
         return fileInfo, errorMessage
-           
+    
+    def add_directory(self, relativePath):
+        """
+        Adds a directory in the repository. 
+        It insures adding all the missing directories in the path.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the directory to add in the repository.
+        """
+        path = os.path.normpath(relativePath)
+        # create directories
+        currentDir  = self.path
+        currentDict = dict.__getitem__(self,"directories")
+        if path in ("","."):
+            return currentDict
+        for dir in path.split(os.sep):
+            dirPath = os.path.join(currentDir, dir)
+            # create directory
+            if not os.path.exists(dirPath):
+                 os.mkdir(dirPath)
+            # create dictionary key
+            if currentDict.get(dir, None) is None:    
+                currentDict[dir] = {"directories":{}, "files":{}, "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            currentDict = currentDict[dir]["directories"]
+            currentDir  = dirPath
+                        
     def dump_file(self, value, relativePath, name, dump=None, pull=None, replace=False, save=True):
         """
-        Dump a file to the repository using its value.
+        Dump a file using its value to the system and creates its 
+        attribute in the Repository.
         
         :Parameters:
             #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
@@ -599,9 +648,14 @@ class Repository(dict):
         if save:
             self.save()
     
+    def dump(self, *args, **kwargs):
+        """Alias to dump_file"""
+        self.dump_file(*args, **kwargs)
+        
     def update_file(self, value, relativePath, name, save=True):
         """
-        Update the a value of a file that is already in the repository.
+        Update the value of a file that is already in the Repository.
+        If file is missing in the system, it will be regenerated as dump method is called.
         
         :Parameters:
             #. value (object): The value of the file to update. It is any python object or a file.
@@ -632,10 +686,14 @@ class Repository(dict):
         # save repository
         if save:
             self.save()
-                
+    
+    def update(self, *args, **kwargs):
+        """Alias to update_file"""
+        self.update_file(*args, **kwargs)
+        
     def pull_file(self, relativePath, name, pull=None, update=True):
         """
-        Pull a file from the repository.
+        Pull a file's data from the Repository.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory where the file should be pulled.
@@ -677,7 +735,9 @@ class Repository(dict):
         # return data
         return PULLED_DATA
             
-        
+    def pull(self, *args, **kwargs):
+        """Alias to pull_file"""
+        self.pull_file(*args, **kwargs)    
     
 
     
