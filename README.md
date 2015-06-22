@@ -24,14 +24,14 @@ REP.add_directory("directory1/directory2")
 
 # dump some text files
 value = "This is a string data to pickle and store in the repository"
-REP.dump(value, relativePath='.', name='pickled', dump=None, pull=None, replace=True, save=True)
-REP.dump("another text", relativePath="folder1/folder2/folder3", name='folder3Pickled', replace=True, save=True)
+REP.dump(value, relativePath='.', name='pickle_text_test1')
+REP.dump("another text", relativePath="folder1/folder2/folder3", name='pickle_text_test2')
 
 # dump using numpy
 dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
 pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
 value = np.random.random((10,3))
-REP.dump(value, relativePath='.', name='text', dump=dump, pull=pull, replace=True, save=True)
+REP.dump(value, relativePath='.', name='numpy_test', dump=dump, pull=pull)
 ```
 
 ## Author
