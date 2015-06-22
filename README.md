@@ -7,16 +7,37 @@ pyrep needs no especial installations and requires merely an installation of pyt
 ## Testing
 It is so far test python2.7 installed on all of windows 7, fedora and mac yosemite 10.10 machines.
 
+## Example
+
+```
+from pyrep.Repository import Repository
+import numpy as np
+
+# create repository
+REP = Repository()
+REP.create_repository('.')
+
+# add some directories
+REP.add_directory("folder1/folder2/folder3")
+REP.add_directory("folder1/archive1/archive2/archive3/archive3")
+REP.add_directory("directory1/directory2")
+
+# dump some text files
+value = "This is a string data to pickle and store in the repository"
+REP.dump(value, relativePath='.', name='pickled', dump=None, pull=None, replace=True, save=True)
+REP.dump("another text", relativePath="folder1/folder2/folder3", name='folder3Pickled', replace=True, save=True)
+
+# dump using numpy
+dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
+pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+value = np.random.random((10,3))
+REP.dump(value, relativePath='.', name='text', dump=dump, pull=pull, replace=True, save=True)
+```
+
 ## Author
 Bachir Aoun
 
 
 
-Here's an example:
 
-```
-function test() {
-  console.log("notice the blank line before this function?");
-}
-```
 
