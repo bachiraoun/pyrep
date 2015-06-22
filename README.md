@@ -30,12 +30,16 @@ REP.dump("another text", relativePath="folder1/folder2/folder3", name='pickle_te
 # dump using numpy
 dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
 pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
-value = np.random.random((10,3))
-REP.dump(value, relativePath='.', name='numpy_test', dump=dump, pull=pull)
+value = np.random.random((3,1))
+REP.dump(value, relativePath='folder1/archive1/archive2', name='numpy_test', dump=dump, pull=pull)
 
 # lets pull some data
-print REP.pull( relativePath="folder1/folder2/folder3", name='pickle_text_test2')
->> another text
+print REP.pull(relativePath="folder1/folder2/folder3", name='pickle_text_test2')
+>>> another text
+print REP.pull(relativePath='folder1/archive1/archive2', name='numpy_test')
+>>> array([[ 0.13943792],
+           [ 0.04656474],
+           [ 0.56458421]])
 ```
 
 ## Author
