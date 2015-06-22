@@ -3,6 +3,7 @@ import os
 import uuid
 import warnings
 import tarfile
+import datetime
 try:
     import cPickle as pickle
 except:
@@ -60,6 +61,7 @@ class Repository(dict):
             string += "\n"
             string += leftAdjust
             string += file
+            #string += " ("+dict.__getitem__(self, 'files')[file]['timestamp']+")"
         # walk directories
         for directory in sorted(list(self.walk_directories())):
             # split directory path
@@ -73,12 +75,14 @@ class Repository(dict):
             string += "\n"
             string += leftAdjust
             string += os.sep+str(splitPath[-1])
+            #string += " ("+dirInfoDict['timestamp']+")"
             # append files to representation
             leftAdjust += "  "
             for file in dict.__getitem__(dirInfoDict, 'files').keys():
                 string += "\n"
                 string += leftAdjust
                 string += file
+                #string += " ("+dict.__getitem__(dirInfoDict, 'files')[file]['timestamp']+")"
         return string    
     
     def __repr__(self):
@@ -487,7 +491,7 @@ class Repository(dict):
                  os.mkdir(dirPath)
             # create dictionary key
             if currentDict.get(dir, None) is None:    
-                currentDict[dir] = {"directories":{}, "files":{}}
+                currentDict[dir] = {"directories":{}, "files":{}, "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             currentDict = currentDict[dir]["directories"]
             currentDir  = dirPath
             
@@ -544,19 +548,19 @@ class Repository(dict):
             errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
         return fileInfo, errorMessage
            
-    def dump_file(self, file, relativePath, name, dump=None, pull=None, replace=False, save=True):
+    def dump_file(self, value, relativePath, name, dump=None, pull=None, replace=False, save=True):
         """
-        Dump a file to the repository.
+        Dump a file to the repository using its value.
         
         :Parameters:
-            #. file (object): The file to add. It is any python object.
+            #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
                and a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed.
-               e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=file, fmt='%.6e')"
+               e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
             #. pull (None, string): The pulling method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports, 
@@ -572,7 +576,8 @@ class Repository(dict):
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
         # ensure directory added
         self.add_directory(relativePath)
-        normPath = os.path.join(self.__path, relativePath)
+        # ger real path
+        realPath = os.path.join(self.__path, relativePath)
         # get directory info dict
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
@@ -580,32 +585,54 @@ class Repository(dict):
             assert replace, "a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name)
         # convert dump and pull methods to strings
         if dump is None:
-            dump="pickle.dump( file, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
+            dump="pickle.dump( value, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
         if pull is None:
             pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
         # try to dump the file
         try:
-            exec( dump.replace("$FILE_PATH", os.path.join(normPath,name).encode('string-escape')) ) 
+            exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
         except Exception as e:
             raise Exception( "unable to dump the file (%s)"%e )
         # save the new file to the repository
-        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,"pull":pull}
+        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,"pull":pull,"timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         # save repository
         if save:
             self.save()
     
-    def update_file(self, file, relativePath, name):
+    def update_file(self, value, relativePath, name, save=True):
         """
-        Update a file value in the repository
+        Update the a value of a file that is already in the repository.
         
         :Parameters:
-            #. file (object): The file to add. It is any python object.
+            #. value (object): The value of the file to update. It is any python object or a file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
+            #. save (boolean): Whether to save repository .pyrepinfo to disk.
         """
-        pass
-        
-            
+        # get relative path normalized
+        relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+            assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+        # get file info dict
+        fileInfoDict, errorMessage = self.get_file_info(relativePath, name)
+        assert fileInfoDict is not None, errorMessage
+        # get real path
+        realPath = os.path.join(self.__path, relativePath)
+        # convert dump and pull methods to strings
+        dump = fileInfoDict["dump"]
+        pull = fileInfoDict["pull"]
+        # try to dump the file
+        try:
+            exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
+        except Exception as e:
+            raise Exception( "unable to dump the file (%s)"%e )
+        # update timestamp
+        fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # save repository
+        if save:
+            self.save()
+                
     def pull_file(self, relativePath, name, pull=None, update=True):
         """
         Pull a file from the repository.
@@ -632,16 +659,16 @@ class Repository(dict):
         fileInfo, errorMessage = self.get_file_info(relativePath, name)
         assert fileInfo is not None, errorMessage
         # get absolute path
-        normPath = os.path.join(self.__path, relativePath)
-        assert os.path.exists(normPath), "relative path '%s'within repository '%s' does not exist"%(relativePath, self.__path)
+        realPath = os.path.join(self.__path, relativePath)
+        assert os.path.exists(realPath), "relative path '%s'within repository '%s' does not exist"%(relativePath, self.__path)
         # file path
-        fileAbsPath = os.path.join(normPath, name)
-        assert os.path.isfile(fileAbsPath), "file '%s' does not exist in absolute path '%s'"%(name,normPath)
+        fileAbsPath = os.path.join(realPath, name)
+        assert os.path.isfile(fileAbsPath), "file '%s' does not exist in absolute path '%s'"%(name,realPath)
         if pull is None:
             pull = fileInfo["pull"]
         # try to pull file
         try:
-            exec( pull.replace("$FILE_PATH", os.path.join(normPath,name).encode('string-escape')) )
+            exec( pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) )
         except Exception as e:
             raise Exception( "unable to pull data from file (%s)"%e )
         # update
