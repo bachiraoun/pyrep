@@ -11,3 +11,12 @@ It is so far test python2.7 installed on all of windows 7, fedora and mac yosemi
 Bachir Aoun
 
 
+
+Here's an example:
+
+```
+function test() {
+  console.log("notice the blank line before this function?");
+}
+```
+
