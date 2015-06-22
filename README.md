@@ -5,7 +5,7 @@ This package provides is a pythonic way to organize dumping and pulling python o
 pyrep needs no especial installations and requires merely an installation of python on your syste
 
 ## Testing
-It is so far test python2.7 installed on all of windows 7, fedora and mac yosemite 10.10 machines.
+It is so far testes with python2.7 installed on all of windows 7, fedora 18.0 and mac yosemite 10.10 machines.
 
 ## Example
 
