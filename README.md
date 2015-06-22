@@ -15,7 +15,7 @@ import numpy as np
 
 # create repository
 REP = Repository()
-REP.create_repository('.')
+REP.create_repository('~/test_repository')
 
 # add some directories
 REP.add_directory("folder1/folder2/folder3")
