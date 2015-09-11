@@ -63,7 +63,7 @@ class Repository(dict):
             string += file
             #string += " ("+dict.__getitem__(self, 'files')[file]['timestamp']+")"
         # walk directories
-        for directory in sorted(list(self.walk_directories())):
+        for directory in sorted(list(self.walk_directories_relative_path())):
             # split directory path
             splitPath = directory.split(os.sep)
             # get left space
@@ -207,7 +207,7 @@ class Repository(dict):
             return []
         repr = [ self.__path+":["+','.join(dict.__getitem__(self, 'files').keys())+']' ]
         # walk directories
-        for directory in sorted(list(self.walk_directories())):
+        for directory in sorted(list(self.walk_directories_relative_path())):
             directoryRepr = os.path.normpath(directory)
             # get directory info
             dirInfoDict, errorMessage = self.get_directory_info(directory)
@@ -216,7 +216,7 @@ class Repository(dict):
             repr.append(directoryRepr)
         return repr
         
-    def walk_files(self):
+    def walk_files_relative_path(self):
         """Walk the repository and yield all found files relative path"""
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -229,7 +229,32 @@ class Repository(dict):
                     yield e
         return walk_repository_files(self, relativePath="")
     
-    def walk_directories(self):
+    def walk_files_info_dict(self):
+        """Walk the repository and yield all found files relative path"""
+        def walk_repository_files(directory, relativePath):
+            directories = dict.__getitem__(directory, 'directories')
+            files       = dict.__getitem__(directory, 'files')
+            return files
+            #for f in files:
+            #    yield os.path.join(relativePath, f)
+            #for k,d in dict.items(directories):
+            #    path = os.path.join(relativePath, k)
+            #    for e in walk_repository_files(d, path):
+            #        yield e
+        print 'haha'
+        return walk_repository_files(self, relativePath="")
+        
+    def walk_directory_files_relative_path(self, relativePath):
+        """Walk a certain directory in repository and yield all found files relative path"""
+        # get directory info dict
+        errorMessage = ""
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for fname in dict.__getitem__(dirInfoDict, "files").keys():
+            yield os.path.join(relativePath, fname)
+    
+    def walk_directories_relative_path(self):
         """Walk the repository and yield all found directories relative path"""
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -241,7 +266,17 @@ class Repository(dict):
                 for e in walk_repository_files(d, path):
                     yield e
         return walk_repository_files(self, relativePath="")
-        
+    
+    def walk_directory_directories_relative_path(self, relativePath):
+        """Walk a certain directory in repository and yield all found directories relative path"""
+        # get directory info dict
+        errorMessage = ""
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for dname in dict.__getitem__(dirInfoDict, "directories").keys():
+            yield os.path.join(relativePath, dname)
+            
     def initialize(self, path, replace=False, save=True): 
         """
         Initialize a repository in a directory
@@ -272,7 +307,7 @@ class Repository(dict):
         if self.__path is None:
             return
         # walk directories
-        for dirPath in sorted(list(self.walk_directories())):
+        for dirPath in sorted(list(self.walk_directories_relative_path())):
             realPath = os.path.join(self.__path, dirPath)
             # if directory exist
             if os.path.isdir(realPath): 
@@ -292,7 +327,7 @@ class Repository(dict):
                 if dirs is not None:      
                     dict.pop( dirs, keys[-1], None ) 
         # walk files
-        for filePath in sorted(list(self.walk_files())):
+        for filePath in sorted(list(self.walk_files_relative_path())):
             realPath = os.path.join(self.__path, filePath)
             # if file exists
             if os.path.isfile( realPath ):
@@ -418,12 +453,12 @@ class Repository(dict):
         except Exception as e:
             raise Exception("Unable to create package (%s)"%e)
         # walk directory and create empty directories
-        for directory in sorted(list(self.walk_directories())):
+        for directory in sorted(list(self.walk_directories_relative_path())):
             t = tarfile.TarInfo( directory )
             t.type = tarfile.DIRTYPE
             tarHandler.addfile(t)
         # walk files and add to tar
-        for file in self.walk_files():
+        for file in self.walk_files_relative_path():
             tarHandler.add(os.path.join(self.__path,file), arcname=file)
         # save repository .pyrepinfo
         tarHandler.add(os.path.join(self.__path,".pyrepinfo"), arcname=".pyrepinfo")
@@ -489,11 +524,11 @@ class Repository(dict):
             repo = self
         # delete files
         if relatedFiles:
-            for relativePath in repo.walk_files():
+            for relativePath in repo.walk_files_relative_path():
                 os.remove( os.path.join(repo.path, relativePath) )
         # delete directories
         if relatedFolders:
-            for relativePath in reversed(list(repo.walk_directories())):
+            for relativePath in reversed(list(repo.walk_directories_relative_path())):
                 realPath = os.path.join(repo.path, relativePath)
                 # protect from wiping out the system
                 if not len(os.listdir(realPath)):
@@ -598,7 +633,7 @@ class Repository(dict):
             currentDict = currentDict[dir]["directories"]
             currentDir  = dirPath
                         
-    def dump_file(self, value, relativePath, name, dump=None, pull=None, replace=False, save=True):
+    def dump_file(self, value, relativePath, name, info=None, dump=None, pull=None, replace=False, save=True):
         """
         Dump a file using its value to the system and creates its 
         attribute in the Repository.
@@ -607,6 +642,7 @@ class Repository(dict):
             #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
+            #. info (None, string, pickable object): Any random info about the file.
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
@@ -645,7 +681,10 @@ class Repository(dict):
         except Exception as e:
             raise Exception( "unable to dump the file (%s)"%e )
         # save the new file to the repository
-        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,"pull":pull,"timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,
+                                                        "pull":pull,
+                                                        "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                        "info":info}
         # save repository
         if save:
             self.save()
@@ -654,7 +693,7 @@ class Repository(dict):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
         
-    def update_file(self, value, relativePath, name, save=True):
+    def update_file(self, value, relativePath, name, info=False, save=True):
         """
         Update the value of a file that is already in the Repository.
         If file is missing in the system, it will be regenerated as dump method is called.
@@ -663,6 +702,8 @@ class Repository(dict):
             #. value (object): The value of the file to update. It is any python object or a file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
+            #. info (None, string, pickable object): Any random info about the file. 
+               If False is given, the info won't be updated.
             #. save (boolean): Whether to save repository .pyrepinfo to disk.
         """
         # get relative path normalized
@@ -685,6 +726,8 @@ class Repository(dict):
             raise Exception( "unable to dump the file (%s)"%e )
         # update timestamp
         fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if info is not False:
+            fileInfoDict["info"] = info
         # save repository
         if save:
             self.save()
