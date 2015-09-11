@@ -263,7 +263,7 @@ class Repository(dict):
         if save:
             self.save()
     
-    def synchronize(self):
+    def synchronize(self, verbose=False):
         """
         Synchronizes the Repository information with the directory.
         All registered but missing files and directories in the directory 
@@ -276,7 +276,8 @@ class Repository(dict):
             realPath = os.path.join(self.__path, dirPath)
             # if directory exist
             if os.path.isdir(realPath): 
-                continue            
+                continue             
+            if verbose: warnings.warn("%s directory is missing"%realPath) 
             # loop to get dirInfoDict
             keys = dirPath.split(os.sep)
             dirInfoDict = self
@@ -296,6 +297,7 @@ class Repository(dict):
             # if file exists
             if os.path.isfile( realPath ):
                 continue
+            if verbose: warnings.warn("%s file is missing"%realPath) 
             # loop to get dirInfoDict
             keys = filePath.split(os.sep)
             dirInfoDict = self
@@ -453,7 +455,7 @@ class Repository(dict):
         if checkout:
             self.__update_repository(repo)
     
-    def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False):
+    def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
         """
         Remove .pyrepinfo file from path if exists and related files and directories 
         when respective flags are set to True. 
@@ -470,14 +472,14 @@ class Repository(dict):
         else:
             realPath = self.__path
         if realPath is None:
-            warnings.warn('path is None and current Repository is not initialized!')
+            if verbose: warnings.warn('path is None and current Repository is not initialized!')
             return
         if not self.is_repository(realPath):
-            warnings.warn("No repository found in '%s'!"%realPath)
+            if verbose: warnings.warn("No repository found in '%s'!"%realPath)
             return
         # check for security  
         if realPath == os.path.realpath('/..') :
-            warnings.warn('You are about to wipe out your system !!! action aboarded')
+            if verbose: warnings.warn('You are about to wipe out your system !!! action aboarded')
             return
         # get repo
         if path is not None:
@@ -737,7 +739,7 @@ class Repository(dict):
             
     def pull(self, *args, **kwargs):
         """Alias to pull_file"""
-        self.pull_file(*args, **kwargs)    
+        return self.pull_file(*args, **kwargs)    
     
 
     
