@@ -229,31 +229,37 @@ class Repository(dict):
                     yield e
         return walk_repository_files(self, relativePath="")
     
-    def walk_files_info_dict(self):
+    def walk_files_info(self):
         """Walk the repository and yield all found files relative path"""
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
-            return files
-            #for f in files:
-            #    yield os.path.join(relativePath, f)
-            #for k,d in dict.items(directories):
-            #    path = os.path.join(relativePath, k)
-            #    for e in walk_repository_files(d, path):
-            #        yield e
-        print 'haha'
+            for fname, info in files.items():
+                yield os.path.join(relativePath, fname), info
+            for k,d in dict.items(directories):
+                path = os.path.join(relativePath, k)
+                for e in walk_repository_files(d, path):
+                    yield e
         return walk_repository_files(self, relativePath="")
         
     def walk_directory_files_relative_path(self, relativePath):
         """Walk a certain directory in repository and yield all found files relative path"""
         # get directory info dict
-        errorMessage = ""
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         for fname in dict.__getitem__(dirInfoDict, "files").keys():
             yield os.path.join(relativePath, fname)
     
+    def walk_directory_files_info(self, relativePath):
+        """Walk the repository and yield all found files relative path"""
+         # get directory info dict
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for fname, info in dict.__getitem__(dirInfoDict, "files").items():
+            yield os.path.join(relativePath, fname), info
+        
     def walk_directories_relative_path(self):
         """Walk the repository and yield all found directories relative path"""
         def walk_repository_files(directory, relativePath):
