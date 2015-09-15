@@ -217,7 +217,7 @@ class Repository(dict):
         return repr
         
     def walk_files_relative_path(self):
-        """Walk the repository and yield all found files relative path"""
+        """Walk the repository and yield all found files relative path."""
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
@@ -230,7 +230,10 @@ class Repository(dict):
         return walk_repository_files(self, relativePath="")
     
     def walk_files_info(self):
-        """Walk the repository and yield all found files relative path"""
+        """
+        Walk the repository and yield tuples as the following: 
+        (relative path joined with file name, file info dict).
+        """
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
@@ -243,7 +246,7 @@ class Repository(dict):
         return walk_repository_files(self, relativePath="")
         
     def walk_directory_files_relative_path(self, relativePath):
-        """Walk a certain directory in repository and yield all found files relative path"""
+        """Walk a certain directory in repository and yield all found files relative path joined with file name."""
         # get directory info dict
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
@@ -252,8 +255,11 @@ class Repository(dict):
             yield os.path.join(relativePath, fname)
     
     def walk_directory_files_info(self, relativePath):
-        """Walk the repository and yield all found files relative path"""
-         # get directory info dict
+        """
+        Walk a certain directory in repository and yield tuples as the following: 
+        (relative path joined with file name, file info dict).
+        """
+        # get directory info dict
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
@@ -261,7 +267,9 @@ class Repository(dict):
             yield os.path.join(relativePath, fname), info
         
     def walk_directories_relative_path(self):
-        """Walk the repository and yield all found directories relative path"""
+        """
+        Walk repository and yield all found directories relative path
+        """
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             dirNames = dict.keys(directories)
@@ -274,7 +282,9 @@ class Repository(dict):
         return walk_repository_files(self, relativePath="")
     
     def walk_directory_directories_relative_path(self, relativePath):
-        """Walk a certain directory in repository and yield all found directories relative path"""
+        """
+        Walk a certain directory in repository and yield all found directories relative path
+        """
         # get directory info dict
         errorMessage = ""
         relativePath = os.path.normpath(relativePath)
@@ -592,23 +602,35 @@ class Repository(dict):
             dirInfoDict = val       
         return dirInfoDict, ""
     
-    def get_file_info(self, relativePath, name): 
+    def get_file_info(self, relativePath, name=None): 
         """
-        get file info from the repository.
+        get file information dict from the repository given its relative path and name.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory where the file is.
             #. name (string): The file name.
-        
+               If None is given, name will be split from relativePath.
+               
         :Returns:
             #. info (None, dictionary): The file information dictionary.
                If None, it means an error has occurred.
-            #. error (string): The error message if any error occurred.
+            #. errorMessage (string): The error message if any error occurred.
         """
-        errorMessage = ""
+        # normalize relative path and name
         relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+            assert name != '.pyrepinfo', "'.pyrepinfo' can't be a file name."
+        if name is None:
+            assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
+            relativePath,name = os.path.split(relativePath)
+        # initialize message
+        errorMessage = ""
+        # get directory info
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
-        assert dirInfoDict is not None, errorMessage
+        if dirInfoDict is None:
+            return None, errorMessage
+        # get file info
         fileInfo = dict.__getitem__(dirInfoDict, "files").get(name, None)
         if fileInfo is None:
             errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
@@ -616,7 +638,7 @@ class Repository(dict):
     
     def get_file_info_by_id(self, id): 
         """
-        Get file information tuple given the file id
+        Get file information tuple given the file id.
         
         Parameters:
             #. info (tuple): The tuple of two item.\n
@@ -625,6 +647,9 @@ class Repository(dict):
         
         :Returns:
             #. relativePath (string): The file relative path.
+               If None, it means file was not found.
+            #. info (None, dictionary): The file information dictionary.
+               If None, it means file was not found.
         """
         for path, info in self.walk_files_info():
             if info['id']==id:
@@ -634,13 +659,16 @@ class Repository(dict):
     
     def get_file_relative_path_by_id(self, id): 
         """
-        Get file relativePath given the file id
+        Get file relativePath given the file id.
         
         Parameters:
             #. id (string): The file unique id string.
         
         :Returns:
             #. relativePath (string): The file relative path.
+               If None, it means file was not found.
+            #. info (None, dictionary): The file information dictionary.
+               If None, it means file was not found.
         """
         for path, info in self.walk_files_info():
             if info['id']==id:
@@ -648,30 +676,75 @@ class Repository(dict):
         # none was found
         return None, None
     
-    def get_file_relative_path_by_name(self, name, encountered=0): 
+    def get_file_relative_path_by_name(self, name, skip=0): 
         """
-        Get file relativePath given the file name
+        Get file relative path given the file name.
         
         Parameters:
             #. name (string): The file name.
-            #. encountered (int): As file names can be identical, encountered determines
-               the number of files satisfying the name condition to skip before returning 
-               the right path.
+            #. skip (None, int): As file names can be identical, skip determines 
+               the number of satisfying files name to skip before returning.\n
+               If None is given, a list of all files relative path will be returned.
         
         :Returns:
-            #. relativePath (string): The file relative path.
+            #. relativePath (string, list): The file relative path.
+               If None, it means file was not found.\n
+               If skip is None a list of all found files relative paths will be returned.
         """
+        if skip is None:
+            paths = []
+        else:
+            paths = None
         for path, info in self.walk_files_info():
             _, n = os.path.split(path)
             if n==name:
-                if encountered>0:
-                    encountered -= 1
+                if skip is None:
+                    paths.append(path)
+                elif skip>0:
+                    skip -= 1
                 else:
-                    return path
-        # none was found
-        return None, None
+                    paths = path
+                    break
+        return path
         
-            
+    def get_file_info_by_name(self, name, skip=0): 
+        """
+        Get file information tuple given the file name
+        
+        Parameters:
+            #. name (string): The file name.
+            #. skip (None, int): As file names can be identical, skip determines 
+               the number of satisfying files name to skip before returning.\n
+               If None is given, a list of all files relative path will be returned.
+        
+        :Returns:
+            #. relativePath (string, list): The file relative path.
+               If None, it means file was not found.\n
+               If skip is None a list of all found files relative paths will be returned.
+            #. info (None, dictionary, list): The file information dictionary.
+               If None, it means file was not found.\n
+               If skip is None a list of all found files info dicts will be returned.
+        """
+        if skip is None:
+            paths = []
+            infos = []
+        else:
+            paths = None
+            infos = None
+        for path, info in self.walk_files_info():
+            _, n = os.path.split(path)
+            if n==name:
+                if skip is None:
+                    paths.append(path)
+                    infos.append(info)
+                elif skip>0:
+                    skip -= 1
+                else:
+                    paths = path
+                    infos = info
+                    break
+        return path, info
+        
     def add_directory(self, relativePath):
         """
         Adds a directory in the repository. 
@@ -779,7 +852,7 @@ class Repository(dict):
                If False is given, the info won't be updated.
             #. save (boolean): Whether to save repository .pyrepinfo to disk.
         """
-        # get relative path normalized
+        # get relative path normalized=
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
             relativePath = ''
