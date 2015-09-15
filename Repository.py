@@ -614,6 +614,22 @@ class Repository(dict):
             errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
         return fileInfo, errorMessage
     
+    def get_file_by_id(self, id): 
+        for path, info in self.walk_files_info():
+            if info['id']==id:
+                return path, info
+        # none was found
+        return None, None
+    
+    def get_file_by_name(self, name): 
+        for path, info in self.walk_files_info():
+            _, n = os.path.split(path)
+            if n==name:
+                return path, info
+        # none was found
+        return None, None
+        
+            
     def add_directory(self, relativePath):
         """
         Adds a directory in the repository. 
@@ -686,10 +702,14 @@ class Repository(dict):
             exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
         except Exception as e:
             raise Exception( "unable to dump the file (%s)"%e )
+        # set info
+        if info is None:
+            info = value.__class__
         # save the new file to the repository
         dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,
                                                         "pull":pull,
                                                         "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                        "id":str(uuid.uuid1()),
                                                         "info":info}
         # save repository
         if save:
