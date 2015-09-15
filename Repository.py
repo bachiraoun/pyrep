@@ -614,18 +614,60 @@ class Repository(dict):
             errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
         return fileInfo, errorMessage
     
-    def get_file_by_id(self, id): 
+    def get_file_info_by_id(self, id): 
+        """
+        Get file information tuple given the file id
+        
+        Parameters:
+            #. info (tuple): The tuple of two item.\n
+               The first item is the file relative path.\n
+               The second item is the file info dict.
+        
+        :Returns:
+            #. relativePath (string): The file relative path.
+        """
         for path, info in self.walk_files_info():
             if info['id']==id:
                 return path, info
         # none was found
         return None, None
     
-    def get_file_by_name(self, name): 
+    def get_file_relative_path_by_id(self, id): 
+        """
+        Get file relativePath given the file id
+        
+        Parameters:
+            #. id (string): The file unique id string.
+        
+        :Returns:
+            #. relativePath (string): The file relative path.
+        """
+        for path, info in self.walk_files_info():
+            if info['id']==id:
+                return path
+        # none was found
+        return None, None
+    
+    def get_file_relative_path_by_name(self, name, encountered=0): 
+        """
+        Get file relativePath given the file name
+        
+        Parameters:
+            #. name (string): The file name.
+            #. encountered (int): As file names can be identical, encountered determines
+               the number of files satisfying the name condition to skip before returning 
+               the right path.
+        
+        :Returns:
+            #. relativePath (string): The file relative path.
+        """
         for path, info in self.walk_files_info():
             _, n = os.path.split(path)
             if n==name:
-                return path, info
+                if encountered>0:
+                    encountered -= 1
+                else:
+                    return path
         # none was found
         return None, None
         
@@ -655,7 +697,7 @@ class Repository(dict):
             currentDict = currentDict[dir]["directories"]
             currentDir  = dirPath
                         
-    def dump_file(self, value, relativePath, name, info=None, dump=None, pull=None, replace=False, save=True):
+    def dump_file(self, value, relativePath, name=None, info=None, dump=None, pull=None, replace=False, save=True):
         """
         Dump a file using its value to the system and creates its 
         attribute in the Repository.
@@ -664,6 +706,7 @@ class Repository(dict):
             #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
+               If None is given, name will be split from relativePath.
             #. info (None, string, pickable object): Any random info about the file.
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
@@ -683,6 +726,9 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+        if name is None:
+            assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
+            relativePath,name = os.path.split(relativePath)
         # ensure directory added
         self.add_directory(relativePath)
         # ger real path
@@ -719,7 +765,7 @@ class Repository(dict):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
         
-    def update_file(self, value, relativePath, name, info=False, save=True):
+    def update_file(self, value, relativePath, name=None, info=False, save=True):
         """
         Update the value of a file that is already in the Repository.
         If file is missing in the system, it will be regenerated as dump method is called.
@@ -728,6 +774,7 @@ class Repository(dict):
             #. value (object): The value of the file to update. It is any python object or a file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
+               If None is given, name will be split from relativePath.
             #. info (None, string, pickable object): Any random info about the file. 
                If False is given, the info won't be updated.
             #. save (boolean): Whether to save repository .pyrepinfo to disk.
@@ -737,6 +784,9 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+        if name is None:
+            assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
+            relativePath,name = os.path.split(relativePath)
         # get file info dict
         fileInfoDict, errorMessage = self.get_file_info(relativePath, name)
         assert fileInfoDict is not None, errorMessage
@@ -762,13 +812,14 @@ class Repository(dict):
         """Alias to update_file"""
         self.update_file(*args, **kwargs)
         
-    def pull_file(self, relativePath, name, pull=None, update=True):
+    def pull_file(self, relativePath, name=None, pull=None, update=True):
         """
         Pull a file's data from the Repository.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory where the file should be pulled.
             #. name (string): The file name.
+               If None is given, name will be split from relativePath.
             #. pull (None, string): The pulling method. 
                If None, the pull method saved in the file info will be used.
                If a string is given, the string should include all the necessary imports, 
@@ -780,10 +831,14 @@ class Repository(dict):
         :Returns:
             #. data (object): The pulled data from the file.
         """
+        # get relative path normalized
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "pulling '.pyrepinfo' from main repository directory is not allowed."
+        if name is None:
+            assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
+            relativePath,name = os.path.split(relativePath)
         # get file info
         fileInfo, errorMessage = self.get_file_info(relativePath, name)
         assert fileInfo is not None, errorMessage
