@@ -29,7 +29,33 @@ def unlock_required(func):
         return func(self, *args, **kwargs)
     return wrapper
 
-           
+#### get pickling errors method ###
+def get_pickling_errors(obj, seen=None):
+    if seen == None:
+        seen = []
+    try:
+        state = obj.__getstate__()
+    except AttributeError as e:
+        #state = obj.__dict__
+        return str(e)
+    if state == None:
+        return 'object state is None'
+    if isinstance(state,tuple):
+        if not isinstance(state[0],dict):
+            state=state[1]
+        else:
+            state=state[0].update(state[1])
+    result = {}    
+    for i in state:
+        try:
+            pickle.dumps(state[i],protocol=2)
+        except pickle.PicklingError:
+            if not state[i] in seen:
+                seen.append(state[i])
+                result[i]=get_pickling_errors(state[i],seen)
+    return result
+    
+    
 class Repository(dict):
     """
     This is a pythonic way to organize dumping and pulling python objects 
@@ -820,7 +846,10 @@ class Repository(dict):
         try:
             exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
         except Exception as e:
-            raise Exception( "unable to dump the file (%s)"%e )
+            message = "unable to dump the file (%s)"%e
+            if 'pickle.dump(' in dump:
+                message += '\nmore info: %s'%str(get_pickling_errors(value))
+            raise Exception( message )
         # set info
         if info is None:
             info = value.__class__
@@ -872,7 +901,10 @@ class Repository(dict):
         try:
             exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
         except Exception as e:
-            raise Exception( "unable to dump the file (%s)"%e )
+            message = "unable to dump the file (%s)"%e
+            if 'pickle.dump(' in dump:
+                message += '\nmore info: %s'%str(get_pickling_errors(value))
+            raise Exception( message )
         # update timestamp
         fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if info is not False:
