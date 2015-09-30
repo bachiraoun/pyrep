@@ -844,8 +844,8 @@ class Repository(dict):
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         if dict.__getitem__(dirInfoDict, "files").has_key(name):
-            if replace:
-                warning.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
+            if not replace:
+                warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
                 return
         # convert dump and pull methods to strings
         if dump is None:
