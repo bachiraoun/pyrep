@@ -382,11 +382,15 @@ class Repository(dict):
         
         :Parameters:
             #. path (string): The path of the directory from where to load the repository.
+               If '.' or an empty string is passed, the current working directory will be used.
         """
         # try to open
+        if path.strip() in ('','.'):
+            path = os.getcwd()
         repoPath = os.path.realpath( os.path.expanduser(path) )
         if not self.is_repository(repoPath):
             raise Exception("no repository found in '%s'"%str(repoPath))
+        # get pyrepinfo path
         repoInfoPath = os.path.join(repoPath, ".pyrepinfo")
         try:
             fd = open(repoInfoPath, 'rb')
@@ -403,9 +407,9 @@ class Repository(dict):
         finally:
             fd.close()
             Repository.__LOCK = False
-        # check if its a PyrepInfo instance
+        # check if it's a PyrepInfo instance
         if not isinstance(repo, Repository): 
-            raise Exception("No repository found in %s"%s)  
+            raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
         else:
             # update info path
             self.__reset_repository()
@@ -494,53 +498,63 @@ class Repository(dict):
         # close tar file
         tarHandler.close()
      
-    def initialize(self, path, replace=False, save=True): 
+    def initialize(self, path, verbose=True): 
         """
-        Initialize a repository in a directory
+        Initialize a repository in a directory.
+        This method insures the creation of the directory in the system.\n
+        
+        **N.B. This method erases existing repository in the path but not the repository files.** 
         
         :Parameters:
-            #. path (string): The path of the directory where to create a repository.
-            #. replace (boolean): Whether to replace any existing repository.
+            #. path (string): The real absolute path where to create the Repository.
+               If '.' or an empty string is passed, the current working directory will be used.
             #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
+            #. verbose (boolean): Whether to through warnings and information. 
         """
+        # get real path
         if path.strip() in ('','.'):
             path = os.getcwd()
         realPath = os.path.realpath( os.path.expanduser(path) )
+        # create directory if not existing
+        if not os.path.isdir(realPath):
+            os.makedirs(realPath)
         self.__path = realPath
         # reset if replace is set to True
-        if not replace and self.is_repository(realPath):
-            warnings.warn("replace is set to False and a pyrep Repository already exists in the given path '%s'"%path)
-        else:
-            self.__reset_repository()
-            # save repository
-            if save:
-                self.save()
+        if self.is_repository(realPath):
+            if verbose:
+                warnings.warn("A pyrep Repository already exists in the given path '%s' and therefore it has been erased and replaced by a fresh repository."%path)
+        # reset repository
+        self.__reset_repository()
+        # save repository
+        self.save()
                    
-    def create_repository(self, path, replace=False, checkout=True):
+    def create_repository(self, path, verbose=True):
         """
         Create a repository at given real path.
-        This method insures the creation of the directory in the system.
+        This method insures the creation of the directory in the system.\n
+        Unlike initialize, this method doesn't erase any existing repository in the path
+        but loads it instead.
         
         **N.B. On some systems and some paths, creating a directory may requires root permissions.**  
         
         :Parameters:
             #. path (string): The real absolute path where to create the Repository.
                If '.' or an empty string is passed, the current working directory will be used.
-            #. replace (boolean): Whether to replace any existing repository.
-            #. checkout (boolean): Whether to checkout the current Repository instance to the newly created one
+            #. verbose (boolean): Whether to through warnings and information.
         """
+        # get real path
+        if path.strip() in ('','.'):
+            path = os.getcwd()
         realPath = os.path.realpath( os.path.expanduser(path) )
-        # create directory
+        # create directory if not existing
         if not os.path.isdir(realPath):
             os.makedirs(realPath)
         # create Repository
-        repo = Repository()
-        repo.initialize(path=realPath, replace=replace, save=True)
-        # checkout
-        if checkout:
-            self.__update_repository(repo)
-        # return created repository
-        return repo
+        if not self.is_repository(realPath):
+            self.initialize(realPath, verbose=verbose)
+        else:
+            self.load(realPath)
+
     
     def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
         """
@@ -677,9 +691,7 @@ class Repository(dict):
         Get file information tuple given the file id.
         
         Parameters:
-            #. info (tuple): The tuple of two item.\n
-               The first item is the file relative path.\n
-               The second item is the file info dict.
+            #. id (string): The file unique id string.
         
         :Returns:
             #. relativePath (string): The file relative path.
@@ -807,9 +819,9 @@ class Repository(dict):
             currentDir  = dirPath
                         
     def dump_file(self, value, relativePath, name=None, 
-                       info=None, dump=None, pull=None, 
-                       replace=False, save=True,
-                       check=True, verbose=False):
+                        info=None, dump=None, pull=None, 
+                        replace=False, save=True,
+                        ACID=True, verbose=False):
         """
         Dump a file using its value to the system and creates its 
         attribute in the Repository.
@@ -817,22 +829,27 @@ class Repository(dict):
         :Parameters:
             #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+               If relativePath does not exist, it will be created automatically.
             #. name (string): The file name.
                If None is given, name will be split from relativePath.
             #. info (None, string, pickable object): Any random info about the file.
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
-               and a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed.
+               and a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed.\n
                e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
             #. pull (None, string): The pulling method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports, 
                a '$FILE_PATH' that replaces the absolute file path when the dumping will be performed
-               and finally a PULLED_DATA variable.
+               and finally a PULLED_DATA variable.\n
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
             #. replace (boolean): Whether to replace any existing file with the same name if existing.
             #. save (boolean): Whether to save repository .pyrepinfo to disk.
+            #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+               properties of the repository upon dumping a file. This is ensured by dumping the file in
+               a temporary path first and then moving it to the desired path.
+            #. verbose (boolean): Whether to through warnings and information.
         """
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
@@ -850,18 +867,20 @@ class Repository(dict):
         assert dirInfoDict is not None, errorMessage
         if dict.__getitem__(dirInfoDict, "files").has_key(name):
             if not replace:
-                warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
+                if verbose:
+                    warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
                 return
         # convert dump and pull methods to strings
         if dump is None:
             dump="pickle.dump( value, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
         if pull is None:
             pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
-        # try to dump the file
-        if check:
+        # get savePath
+        if ACID:
             savePath = os.path.join(tempfile.gettempdir(), name)
         else:
             savePath = os.path.join(realPath,name)
+        # dump file
         try:
             exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
         except Exception as e:
@@ -869,8 +888,16 @@ class Repository(dict):
             if 'pickle.dump(' in dump:
                 message += '\nmore info: %s'%str(get_pickling_errors(value))
             raise Exception( message )
-        if check:
-            shutil.copyfile(savePath, os.path.join(realPath,name))
+        # copy if ACID
+        if ACID:
+            try:
+                shutil.copyfile(savePath, os.path.join(realPath,name))
+            except Exception as e:
+                os.remove(savePath)
+                if verbose:
+                    warnings.warn(e)
+                return
+            os.remove(savePath)
         # set info
         if info is None:
             info = value.__class__
@@ -888,9 +915,10 @@ class Repository(dict):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
         
-    def update_file(self, value, relativePath, name=None, info=False, save=True, check=True):
+    def update_file(self, value, relativePath, name=None, info=False, save=True, ACID=True, verbose=True):
         """
-        Update the value of a file that is already in the Repository.
+        Update the value of a file that is already in the Repository.\n
+        If file is not registered in repository, and error will be thrown.\n
         If file is missing in the system, it will be regenerated as dump method is called.
         
         :Parameters:
@@ -901,6 +929,10 @@ class Repository(dict):
             #. info (None, string, pickable object): Any random info about the file. 
                If False is given, the info won't be updated.
             #. save (boolean): Whether to save repository .pyrepinfo to disk.
+            #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+               properties of the repository upon dumping a file. This is ensured by dumping the file in
+               a temporary path first and then moving it to the desired path.
+            #. verbose (boolean): Whether to through warnings and information.
         """
         # get relative path normalized=
         relativePath = os.path.normpath(relativePath)
@@ -915,14 +947,19 @@ class Repository(dict):
         assert fileInfoDict is not None, errorMessage
         # get real path
         realPath = os.path.join(self.__path, relativePath)
+        # check if file exists
+        if verbose:
+            if not os.path.isfile( os.path.join(realPath, name) ):
+                warnings.warn("file '%s' is in repository but does not exist in the system. It is therefore being recreated."%os.path.join(realPath, name))
         # convert dump and pull methods to strings
         dump = fileInfoDict["dump"]
         pull = fileInfoDict["pull"]
-        # try to dump the file
-        if check:
+        # get savePath
+        if ACID:
             savePath = os.path.join(tempfile.gettempdir(), name)
         else:
             savePath = os.path.join(realPath,name)
+        # dump file
         try:
             exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
         except Exception as e:
@@ -930,8 +967,16 @@ class Repository(dict):
             if 'pickle.dump(' in dump:
                 message += '\nmore info: %s'%str(get_pickling_errors(value))
             raise Exception( message )
-        if check:
-            shutil.copyfile(savePath, os.path.join(realPath,name))
+        # copy if ACID
+        if ACID:
+            try:
+                shutil.copyfile(savePath, os.path.join(realPath,name))
+            except Exception as e:
+                os.remove(savePath)
+                if verbose:
+                    warnings.warn(e)
+                return
+            os.remove(savePath)
         # update timestamp
         fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if info is not False:
