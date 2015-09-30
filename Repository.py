@@ -324,27 +324,6 @@ class Repository(dict):
         assert dirInfoDict is not None, errorMessage
         for dname in dict.__getitem__(dirInfoDict, "directories").keys():
             yield os.path.join(relativePath, dname)
-            
-    def initialize(self, path, replace=False, save=True): 
-        """
-        Initialize a repository in a directory
-        
-        :Parameters:
-            #. path (string): The path of the directory where to create a repository.
-            #. replace (boolean): Whether to replace any existing repository.
-            #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
-        """
-        if path.strip() in ('','.'):
-            path = os.getcwd()
-        realPath = os.path.realpath( os.path.expanduser(path) )
-        if not replace:
-            assert not self.is_repository(realPath), "A repository already exist in this path. Force re-initialization using by setting replace flag to True"
-        self.__reset_repository()
-        # set path
-        self.__path = realPath
-        # save repository
-        if save:
-            self.save()
     
     def synchronize(self, verbose=False):
         """
@@ -512,7 +491,29 @@ class Repository(dict):
         tarHandler.add(os.path.join(self.__path,".pyrepinfo"), arcname=".pyrepinfo")
         # close tar file
         tarHandler.close()
+     
+    def initialize(self, path, replace=False, save=True): 
+        """
+        Initialize a repository in a directory
         
+        :Parameters:
+            #. path (string): The path of the directory where to create a repository.
+            #. replace (boolean): Whether to replace any existing repository.
+            #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
+        """
+        if path.strip() in ('','.'):
+            path = os.getcwd()
+        realPath = os.path.realpath( os.path.expanduser(path) )
+        self.__path = realPath
+        # reset if replace is set to True
+        if not replace and self.is_repository(realPath):
+            warnings.warn("replace is set to False and a pyrep Repository already exists in the given path '%s'"%path)
+        else:
+            self.__reset_repository()
+            # save repository
+            if save:
+                self.save()
+                   
     def create_repository(self, path, replace=False, checkout=True):
         """
         Create a repository at given real path.
@@ -527,7 +528,6 @@ class Repository(dict):
             #. checkout (boolean): Whether to checkout the current Repository instance to the newly created one
         """
         realPath = os.path.realpath( os.path.expanduser(path) )
-        assert not self.is_repository(realPath), "A pyrep Repository already exists in the given path '%s'"%path
         # create directory
         if not os.path.isdir(realPath):
             os.makedirs(realPath)
@@ -537,6 +537,8 @@ class Repository(dict):
         # checkout
         if checkout:
             self.__update_repository(repo)
+        # return created repository
+        return repo
     
     def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
         """
@@ -737,7 +739,7 @@ class Repository(dict):
                 else:
                     paths = path
                     break
-        return path
+        return paths
         
     def get_file_info_by_name(self, name, skip=0): 
         """
@@ -775,7 +777,7 @@ class Repository(dict):
                     paths = path
                     infos = info
                     break
-        return path, info
+        return paths, infos
         
     def add_directory(self, relativePath):
         """
@@ -842,7 +844,9 @@ class Repository(dict):
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         if dict.__getitem__(dirInfoDict, "files").has_key(name):
-            assert replace, "a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name)
+            if replace:
+                warning.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
+                return
         # convert dump and pull methods to strings
         if dump is None:
             dump="pickle.dump( value, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
