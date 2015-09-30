@@ -4,6 +4,8 @@ import uuid
 import warnings
 import tarfile
 import datetime
+import tempfile
+import shutil
 try:
     import cPickle as pickle
 except:
@@ -804,7 +806,10 @@ class Repository(dict):
             currentDict = currentDict[dir]["directories"]
             currentDir  = dirPath
                         
-    def dump_file(self, value, relativePath, name=None, info=None, dump=None, pull=None, replace=False, save=True):
+    def dump_file(self, value, relativePath, name=None, 
+                       info=None, dump=None, pull=None, 
+                       replace=False, save=True,
+                       check=True, verbose=False):
         """
         Dump a file using its value to the system and creates its 
         attribute in the Repository.
@@ -853,13 +858,19 @@ class Repository(dict):
         if pull is None:
             pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
         # try to dump the file
+        if check:
+            savePath = os.path.join(tempfile.gettempdir(), name)
+        else:
+            savePath = os.path.join(realPath,name)
         try:
-            exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
+            exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
         except Exception as e:
             message = "unable to dump the file (%s)"%e
             if 'pickle.dump(' in dump:
                 message += '\nmore info: %s'%str(get_pickling_errors(value))
             raise Exception( message )
+        if check:
+            shutil.copyfile(savePath, os.path.join(realPath,name))
         # set info
         if info is None:
             info = value.__class__
@@ -877,7 +888,7 @@ class Repository(dict):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
         
-    def update_file(self, value, relativePath, name=None, info=False, save=True):
+    def update_file(self, value, relativePath, name=None, info=False, save=True, check=True):
         """
         Update the value of a file that is already in the Repository.
         If file is missing in the system, it will be regenerated as dump method is called.
@@ -908,13 +919,19 @@ class Repository(dict):
         dump = fileInfoDict["dump"]
         pull = fileInfoDict["pull"]
         # try to dump the file
+        if check:
+            savePath = os.path.join(tempfile.gettempdir(), name)
+        else:
+            savePath = os.path.join(realPath,name)
         try:
-            exec( dump.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) ) 
+            exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
         except Exception as e:
             message = "unable to dump the file (%s)"%e
             if 'pickle.dump(' in dump:
                 message += '\nmore info: %s'%str(get_pickling_errors(value))
             raise Exception( message )
+        if check:
+            shutil.copyfile(savePath, os.path.join(realPath,name))
         # update timestamp
         fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if info is not False:
