@@ -250,7 +250,7 @@ class Repository(dict):
             repr.append(directoryRepr)
         return repr
         
-    def walk_files_relative_path(self):
+    def walk_files_relative_path(self, relativePath=""):
         """Walk the repository and yield all found files relative path."""
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -261,9 +261,11 @@ class Repository(dict):
                 path = os.path.join(relativePath, k)
                 for e in walk_repository_files(d, path):
                     yield e
-        return walk_repository_files(self, relativePath="")
+        dir, errorMessage = self.get_directory_info(relativePath)
+        assert dir is not None, errorMessage
+        return walk_repository_files(dir, relativePath='')
     
-    def walk_files_info(self):
+    def walk_files_info(self, relativePath=""):
         """
         Walk the repository and yield tuples as the following: 
         (relative path joined with file name, file info dict).
@@ -277,30 +279,11 @@ class Repository(dict):
                 path = os.path.join(relativePath, k)
                 for e in walk_repository_files(d, path):
                     yield e
-        return walk_repository_files(self, relativePath="")
-        
-    def walk_directory_files_relative_path(self, relativePath):
-        """Walk a certain directory in repository and yield all found files relative path joined with file name."""
-        # get directory info dict
-        relativePath = os.path.normpath(relativePath)
-        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
-        assert dirInfoDict is not None, errorMessage
-        for fname in dict.__getitem__(dirInfoDict, "files").keys():
-            yield os.path.join(relativePath, fname)
+        dir, errorMessage = self.get_directory_info(relativePath)
+        assert dir is not None, errorMessage
+        return walk_repository_files(dir, relativePath='')
     
-    def walk_directory_files_info(self, relativePath):
-        """
-        Walk a certain directory in repository and yield tuples as the following: 
-        (relative path joined with file name, file info dict).
-        """
-        # get directory info dict
-        relativePath = os.path.normpath(relativePath)
-        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
-        assert dirInfoDict is not None, errorMessage
-        for fname, info in dict.__getitem__(dirInfoDict, "files").items():
-            yield os.path.join(relativePath, fname), info
-        
-    def walk_directories_relative_path(self):
+    def walk_directories_relative_path(self, relativePath=""):
         """
         Walk repository and yield all found directories relative path
         """
@@ -313,9 +296,48 @@ class Repository(dict):
                 path = os.path.join(relativePath, k)
                 for e in walk_repository_files(d, path):
                     yield e
-        return walk_repository_files(self, relativePath="")
+        dir, errorMessage = self.get_directory_info(relativePath)
+        assert dir is not None, errorMessage
+        return walk_repository_files(dir, relativePath='')
     
-    def walk_directory_directories_relative_path(self, relativePath):
+    def walk_directories_info(self, relativePath=""):
+        """
+        Walk repository and yield all found directories relative path
+        """
+        def walk_repository_directories(directory, relativePath):
+            directories = dict.__getitem__(directory, 'directories')
+            for fname, info in directories.items():
+                yield os.path.join(relativePath, fname), info
+            for k,d in dict.items(directories):
+                path = os.path.join(relativePath, k)
+                for e in walk_repository_directories(d, path):
+                    yield e
+        dir, errorMessage = self.get_directory_info(relativePath)
+        assert dir is not None, errorMessage
+        return walk_repository_directories(dir, relativePath='')
+        
+    def walk_directory_files_relative_path(self, relativePath=""):
+        """Walk a certain directory in repository and yield all found files relative path joined with file name."""
+        # get directory info dict
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for fname in dict.__getitem__(dirInfoDict, "files").keys():
+            yield os.path.join(relativePath, fname)
+    
+    def walk_directory_files_info(self, relativePath=""):
+        """
+        Walk a certain directory in repository and yield tuples as the following: 
+        (relative path joined with file name, file info dict).
+        """
+        # get directory info dict
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for fname, info in dict.__getitem__(dirInfoDict, "files").items():
+            yield os.path.join(relativePath, fname), info
+        
+    def walk_directory_directories_relative_path(self, relativePath=""):
         """
         Walk a certain directory in repository and yield all found directories relative path
         """
@@ -327,6 +349,18 @@ class Repository(dict):
         for dname in dict.__getitem__(dirInfoDict, "directories").keys():
             yield os.path.join(relativePath, dname)
     
+    def walk_directory_directories_info(self, relativePath=""):
+        """
+        Walk a certain directory in repository and yield tuples as the following: 
+        (relative path joined with directory name, file info dict).
+        """
+        # get directory info dict
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        for fname, info in dict.__getitem__(dirInfoDict, "directories").items():
+            yield os.path.join(relativePath, fname), info
+            
     def synchronize(self, verbose=False):
         """
         Synchronizes the Repository information with the directory.
@@ -554,8 +588,7 @@ class Repository(dict):
             self.initialize(realPath, verbose=verbose)
         else:
             self.load(realPath)
-
-    
+ 
     def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
         """
         Remove .pyrepinfo file from path if exists and related files and directories 
@@ -652,6 +685,27 @@ class Repository(dict):
             dirInfoDict = val       
         return dirInfoDict, ""
     
+    def get_parent_directory_info(self, relativePath): 
+        """
+        get parent directory info of a file or directory from the Repository.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the file or directory of which the parent directory info is requested.
+        
+        :Returns:
+            #. info (None, dictionary): The directory information dictionary.
+               If None, it means an error has occurred.
+            #. error (string): The error message if any error occurred.
+        """
+        relativePath = os.path.normpath(relativePath)
+        # if root directory
+        if relativePath in ('','.'):
+            return self, "relativePath is empty pointing to the repostitory itself."
+        # split path
+        parentDirPath, _ = os.path.split(relativePath)
+        # get parent directory info
+        return self.get_directory_info(parentDirPath)
+
     def get_file_info(self, relativePath, name=None): 
         """
         get file information dict from the repository given its relative path and name.
@@ -800,11 +854,15 @@ class Repository(dict):
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory to add in the repository.
+        
+        :Returns:
+            #. info (dict): The directory info dict.
         """
         path = os.path.normpath(relativePath)
         # create directories
         currentDir  = self.path
-        currentDict = dict.__getitem__(self,"directories")
+        #currentDict = dict.__getitem__(self,"directories")
+        currentDict = self
         if path in ("","."):
             return currentDict
         for dir in path.split(os.sep):
@@ -813,11 +871,98 @@ class Repository(dict):
             if not os.path.exists(dirPath):
                  os.mkdir(dirPath)
             # create dictionary key
+            currentDict = dict.__getitem__(currentDict,"directories")
             if currentDict.get(dir, None) is None:    
                 currentDict[dir] = {"directories":{}, "files":{}, "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            currentDict = currentDict[dir]["directories"]
+            currentDict = currentDict[dir]
             currentDir  = dirPath
-                        
+        return currentDict
+        
+    def remove_directory(self, relativePath, removeFromSystem=False):
+        """
+        Remove directory from repository.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the directory to remove from the repository.
+            #. removeFromSystem (boolean): Whether to also remove directory and all files from the system.\n
+               Only files saved in the repository will be removed and empty left directories.
+        """
+        # get parent directory info
+        relativePath = os.path.normpath(relativePath)
+        parentDirInfoDict, errorMessage = self.get_parent_directory_info(relativePath)
+        assert parentDirInfoDict is not None, errorMessage
+        # split path
+        path, name = os.path.split(relativePath)
+        if dict.__getitem__(parentDirInfoDict, 'directories').pop(name, None) is None:
+            raise Exception("'%s' is not a registered directory in repository relative path '%s'"%(name, path))
+        # remove from system
+        if removeFromSystem:
+            # remove files
+            for rp in self.walk_files_relative_path(relativePath=relativePath):
+                ap = os.path.join(self.__path, rp)
+                os.remove( ap )
+            # remove directories
+            for rp in self.walk_directories_relative_path(relativePath=relativePath):
+                ap = os.path.join(self.__path, rp)
+                if not len(os.listdir(ap)):
+                    os.rmdir(ap)
+        
+    def move_directory(self, relativePath, relativeDestination, replace=False, verbose=True):
+        """
+        Move a directory in the repository.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the directory to be moved.
+            #. relativeDestination (string): The new relative to the repository path of the directory.
+            #. replace (boolean): Whether to replace existing files with the same name in the new created directory. 
+            #. verbose (boolean): Whether to through warnings and information.
+        """
+        # normalize path
+        relativePath    = os.path.normpath(relativePath)
+        relativeDestination = os.path.normpath(relativeDestination)
+        # get files and directories
+        filesInfo = list( self.walk_files_info(relativePath=relativePath) )
+        dirsPath  = list( self.walk_directories_relative_path(relativePath=relativePath) )
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        # remove directory info only
+        self.remove_directory(relativePath=relativePath, removeFromSystem=False)
+        # create new relative path
+        self.add_directory(relativeDestination)
+        # move files
+        for RP, info in filesInfo:
+            source      = os.path.join(self.__path, relativePath, RP)
+            destination = os.path.join(self.__path, relativeDestination, RP)
+            # add directory
+            newDirRP, fileName = os.path.split(os.path.join(relativeDestination, RP))
+            dirInfoDict = self.add_directory( newDirRP )
+            # move file
+            if os.path.isfile(destination):
+                if replace:
+                    os.remove(destination)
+                    if verbose:
+                        warnings.warn("file '%s' is copied replacing existing one in desitnation '%s'."%(fileName, newDirRP))
+                else:
+                    if verbose:
+                        warnings.warn("file '%s' is not copied because the same file exists in destination '%s'."%(fileName,destination))
+                    continue                        
+            os.rename(source, destination)
+            # set file information
+            dict.__getitem__(dirInfoDict, "files")[fileName] = info
+
+        # save repository
+        self.save()
+    
+    def rename_directory(self, relativePath, name):
+        """
+        Move a directory in the repository.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the directory to be moved.
+            #. name (string): The new relative to the repository path of the directory.
+        """
+        raise 'not implemented yet'
+        
     def dump_file(self, value, relativePath, name=None, 
                         info=None, dump=None, pull=None, 
                         replace=False, save=True,
