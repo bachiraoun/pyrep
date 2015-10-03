@@ -949,19 +949,85 @@ class Repository(dict):
             os.rename(source, destination)
             # set file information
             dict.__getitem__(dirInfoDict, "files")[fileName] = info
-
         # save repository
         self.save()
     
-    def rename_directory(self, relativePath, name):
+    def rename_directory(self, relativePath, newName, replace=False, verbose=True):
         """
-        Move a directory in the repository.
+        Rename a directory in the repository.
         
         :Parameters:
-            #. relativePath (string): The relative to the repository path of the directory to be moved.
-            #. name (string): The new relative to the repository path of the directory.
+            #. relativePath (string): The relative to the repository path of the directory to be renamed.
+            #. newName (string): The new directory name.
+            #. replace (boolean): Whether to force renaming when new folder name exists in the system.
+               It fails when new folder name is registered in repository.
         """
-        raise 'not implemented yet'
+        # normalize path
+        relativePath    = os.path.normpath(relativePath)
+        parentDirInfoDict, errorMessage = self.get_parent_directory_info(relativePath)
+        assert parentDirInfoDict is not None, errorMessage
+        # split path
+        parentDirPath, dirName = os.path.split(relativePath)
+        # get real path
+        realPath  = os.path.join(self.__path, relativePath)
+        assert os.path.isdir( realPath ), "directory '%s' is not found in system"%realPath
+        # check directory in repository
+        assert dict.__getitem__(parentDirInfoDict, "directories").has_key(dirName), "directory '%s' is not found in repository relative path '%s'"%(dirName, parentDirPath)
+        # assert directory new name doesn't exist in repository
+        assert not dict.__getitem__(parentDirInfoDict, "directories").has_key(newName), "directory '%s' already exists relative path '%s'"%(newName, parentDirPath)
+        # check new directory in system
+        newRealPath = os.path.join(self.__path, parentDirPath, newName)
+        if os.path.isdir( newRealPath ):
+            if replace:
+                shutil.rmtree(newRealPath)
+                if verbose:
+                    warnings.warn( "directory '%s' already exists found in system, it is therefore deleted."%newRealPath )
+            else:
+                raise Exception( "directory '%s' already exists in system"%newRealPath )
+        # rename directory
+        os.rename(realPath, newRealPath)
+        dict.__setitem__( dict.__getitem__(parentDirInfoDict, "directories"),
+                          newName,
+                          dict.__getitem__(parentDirInfoDict, "directories").pop(dirName) )
+                          
+    
+    def rename_file(self, relativePath, name, newName, replace=False, verbose=True):
+        """
+        Rename a directory in the repository.
+        
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the directory where the file is located.
+            #. name (string): The file name.
+            #. newName (string): The file new name.
+            #. replace (boolean): Whether to force renaming when new folder name exists in the system.
+               It fails when new folder name is registered in repository.
+        """
+        # normalize path
+        relativePath = os.path.normpath(relativePath)
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        # check directory in repository
+        assert dict.__getitem__(dirInfoDict, "files").has_key(name), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
+        # get real path
+        realPath = os.path.join(self.__path, relativePath, name)
+        assert os.path.isfile(realPath), "file '%s' is not found in system"%realPath
+        # assert directory new name doesn't exist in repository
+        assert not dict.__getitem__(dirInfoDict, "files").has_key(newName), "file '%s' already exists in repository relative path '%s'"%(newName, relativePath)
+        # check new directory in system
+        newRealPath = os.path.join(self.__path, relativePath, newName)
+        if os.path.isfile( newRealPath ):
+            if replace:
+                os.remove(newRealPath)
+                if verbose:
+                    warnings.warn( "file '%s' already exists found in system, it is therefore deleted."%newRealPath )
+            else:
+                raise Exception( "file '%s' already exists in system"%newRealPath )
+        # rename file
+        os.rename(realPath, newRealPath)
+        dict.__setitem__( dict.__getitem__(dirInfoDict, "files"),
+                          newName,
+                          dict.__getitem__(dirInfoDict, "files").pop(name) )
+        
         
     def dump_file(self, value, relativePath, name=None, 
                         info=None, dump=None, pull=None, 
