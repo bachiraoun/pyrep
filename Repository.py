@@ -847,13 +847,14 @@ class Repository(dict):
                     break
         return paths, infos
         
-    def add_directory(self, relativePath):
+    def add_directory(self, relativePath, info=None):
         """
         Adds a directory in the repository. 
         It insures adding all the missing directories in the path.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory to add in the repository.
+            #. info (None, string, pickable object): Any random info about the folder.
         
         :Returns:
             #. info (dict): The directory info dict.
@@ -873,7 +874,11 @@ class Repository(dict):
             # create dictionary key
             currentDict = dict.__getitem__(currentDict,"directories")
             if currentDict.get(dir, None) is None:    
-                currentDict[dir] = {"directories":{}, "files":{}, "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                currentDict[dir] = {"directories":{}, "files":{}, 
+                                    "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    "id":str(uuid.uuid1()), # id add lately
+                                    "info": info} # info add lately
+                                    
             currentDict = currentDict[dir]
             currentDir  = dirPath
         return currentDict
