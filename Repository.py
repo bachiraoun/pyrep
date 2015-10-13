@@ -904,19 +904,27 @@ class Repository(dict):
         assert parentDirInfoDict is not None, errorMessage
         # split path
         path, name = os.path.split(relativePath)
-        if dict.__getitem__(parentDirInfoDict, 'directories').pop(name, None) is None:
+        if dict.__getitem__(parentDirInfoDict, 'directories').get(name, None) is None:
             raise Exception("'%s' is not a registered directory in repository relative path '%s'"%(name, path))
         # remove from system
         if removeFromSystem:
             # remove files
             for rp in self.walk_files_relative_path(relativePath=relativePath):
-                ap = os.path.join(self.__path, rp)
-                os.remove( ap )
+                ap = os.path.join(self.__path, relativePath, rp)
+                if os.path.isfile(ap):
+                    os.remove( ap )
             # remove directories
             for rp in self.walk_directories_relative_path(relativePath=relativePath):
-                ap = os.path.join(self.__path, rp)
+                ap = os.path.join(self.__path, relativePath, rp)
                 if not len(os.listdir(ap)):
                     os.rmdir(ap)
+        # pop directory from repo
+        dict.__getitem__(parentDirInfoDict, 'directories').pop(name, None)
+        ap = os.path.join(self.__path, relativePath)
+        if not len(os.listdir(ap)):
+            os.rmdir(ap)
+        # save repository
+        self.save()
         
     def move_directory(self, relativePath, relativeDestination, replace=False, verbose=True):
         """
@@ -1000,7 +1008,8 @@ class Repository(dict):
         dict.__setitem__( dict.__getitem__(parentDirInfoDict, "directories"),
                           newName,
                           dict.__getitem__(parentDirInfoDict, "directories").pop(dirName) )
-                          
+        # save repository
+        self.save()                  
     
     def rename_file(self, relativePath, name, newName, replace=False, verbose=True):
         """
@@ -1038,8 +1047,44 @@ class Repository(dict):
         dict.__setitem__( dict.__getitem__(dirInfoDict, "files"),
                           newName,
                           dict.__getitem__(dirInfoDict, "files").pop(name) )
+        # save repository
+        self.save()
+    
+    def remove_file(self, relativePath, name=None, removeFromSystem=False):
+        """
+        Remove file from repository.
         
-        
+        :Parameters:
+            #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+               If relativePath does not exist, it will be created automatically.
+            #. name (string): The file name.
+               If None is given, name will be split from relativePath.
+            #. removeFromSystem (boolean): Whether to also remove directory and all files from the system.\n
+               Only files saved in the repository will be removed and empty left directories.
+        """
+        # get relative path normalized
+        relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+            assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+        if name is None:
+            assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
+            relativePath, name = os.path.split(relativePath)
+        # get file info dict
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        # check directory in repository
+        assert dict.__getitem__(dirInfoDict, "files").has_key(name), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
+        # remove file from repo
+        dict.__getitem__(dirInfoDict, "files").pop(name)
+        # remove file from system
+        if removeFromSystem: 
+            ap = os.path.join(self.__path, relativePath, name )
+            if os.path.isfile(ap):
+                os.remove( ap )
+        # save repository
+        self.save()    
+                    
     def dump_file(self, value, relativePath, name=None, 
                         info=None, dump=None, pull=None, 
                         replace=False, save=True,
@@ -1156,7 +1201,7 @@ class Repository(dict):
                a temporary path first and then moving it to the desired path.
             #. verbose (boolean): Whether to through warnings and information.
         """
-        # get relative path normalized=
+        # get relative path normalized
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
             relativePath = ''
