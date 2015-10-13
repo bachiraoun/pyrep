@@ -255,11 +255,12 @@ class Repository(dict):
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
-            for f in files:
+            for f in sorted(files):
                 yield os.path.join(relativePath, f)
-            for k,d in dict.items(directories):
+            for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
-                for e in walk_repository_files(d, path):
+                dir  = directories.__getitem__(k)
+                for e in walk_repository_files(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
@@ -273,11 +274,13 @@ class Repository(dict):
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
-            for fname, info in files.items():
+            for fname in sorted(files.keys()):
+                info = dict.__getitem__(files,fname)
                 yield os.path.join(relativePath, fname), info
-            for k,d in dict.items(directories):
+            for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
-                for e in walk_repository_files(d, path):
+                dir  = dict.__getitem__(directories, k)
+                for e in walk_repository_files(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
@@ -290,11 +293,12 @@ class Repository(dict):
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             dirNames = dict.keys(directories)
-            for d in dirNames:
+            for d in sorted(dirNames):
                 yield os.path.join(relativePath, d)
-            for k,d in dict.items(directories):
+            for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
-                for e in walk_repository_files(d, path):
+                dir  = dict.__getitem__(directories, k)
+                for e in walk_repository_files(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
@@ -306,11 +310,13 @@ class Repository(dict):
         """
         def walk_repository_directories(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
-            for fname, info in directories.items():
+            for fname in sorted(directories.keys()):
+                info = dict.__getitem__(directories,fname)
                 yield os.path.join(relativePath, fname), info
-            for k,d in dict.items(directories):
+            for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
-                for e in walk_repository_directories(d, path):
+                dir  = dict.__getitem__(directories, k)
+                for e in walk_repository_directories(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
