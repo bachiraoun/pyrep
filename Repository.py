@@ -1188,6 +1188,7 @@ class Repository(dict):
         
     def update_file(self, value, relativePath, name=None, 
                           description=False, klass=False,
+                          dump=False, pull=False, 
                           ACID=True, verbose=False):
         """
         Update the value and the utc timestamp of a file that is already in the Repository.\n
@@ -1204,6 +1205,8 @@ class Repository(dict):
                otherwise it will be update to what description argument value is.
             #. klass (None, class): The dumped object class. If False is given, 
                the class info won't be updated, otherwise it will be update to what klass argument value is.
+            #. dump (False, string): The new dump method. If False is given, the old one will be used.
+            #. pull (False, string): The new pull method. If False is given, the old one will be used.
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
@@ -1227,8 +1230,10 @@ class Repository(dict):
             if not os.path.isfile( os.path.join(realPath, name) ):
                 warnings.warn("file '%s' is in repository but does not exist in the system. It is therefore being recreated."%os.path.join(realPath, name))
         # convert dump and pull methods to strings
-        dump = fileInfoDict["dump"]
-        pull = fileInfoDict["pull"]
+        if not dump:
+            dump = fileInfoDict["dump"]
+        if not pull:
+            pull = fileInfoDict["pull"]
         # get savePath
         if ACID:
             savePath = os.path.join(tempfile.gettempdir(), name)
