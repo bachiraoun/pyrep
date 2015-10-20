@@ -3,9 +3,10 @@ import os
 import uuid
 import warnings
 import tarfile
-import datetime
 import tempfile
 import shutil
+import inspect
+from datetime import datetime
 try:
     import cPickle as pickle
 except:
@@ -855,7 +856,8 @@ class Repository(dict):
         
     def add_directory(self, relativePath, info=None):
         """
-        Adds a directory in the repository. 
+        Adds a directory in the repository and creates its 
+        attribute in the Repository with utc timestamp.
         It insures adding all the missing directories in the path.
         
         :Parameters:
@@ -881,7 +883,7 @@ class Repository(dict):
             currentDict = dict.__getitem__(currentDict,"directories")
             if currentDict.get(dir, None) is None:    
                 currentDict[dir] = {"directories":{}, "files":{}, 
-                                    "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    "timestamp":datetime.utcnow(),
                                     "id":str(uuid.uuid1()), # id add lately
                                     "info": info} # info add lately
                                     
@@ -1086,12 +1088,12 @@ class Repository(dict):
         self.save()    
                     
     def dump_file(self, value, relativePath, name=None, 
-                        info=None, dump=None, pull=None, 
-                        replace=False, save=True,
-                        ACID=True, verbose=False):
+                        description=None, klass=None,
+                        dump=None, pull=None, 
+                        replace=False, ACID=True, verbose=False):
         """
         Dump a file using its value to the system and creates its 
-        attribute in the Repository.
+        attribute in the Repository with utc timestamp.
         
         :Parameters:
             #. value (object): The value of a file to dump and add to the repository. It is any python object or file.
@@ -1099,7 +1101,9 @@ class Repository(dict):
                If relativePath does not exist, it will be created automatically.
             #. name (string): The file name.
                If None is given, name will be split from relativePath.
-            #. info (None, string, pickable object): Any random info about the file.
+            #. description (None, string, pickable object): Any random description about the file.
+            #. klass (None, class): The dumped object class. If None is given 
+               klass will take be automatically set to the following value.__class__
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
@@ -1112,7 +1116,6 @@ class Repository(dict):
                and finally a PULLED_DATA variable.\n
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
             #. replace (boolean): Whether to replace any existing file with the same name if existing.
-            #. save (boolean): Whether to save repository .pyrepinfo to disk.
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
@@ -1166,25 +1169,28 @@ class Repository(dict):
                 return
             os.remove(savePath)
         # set info
-        if info is None:
-            info = value.__class__
+        if klass is None:
+            klass = value.__class__
+        assert inspect.isclass(klass), "klass must be a class definition"
         # save the new file to the repository
         dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,
                                                         "pull":pull,
-                                                        "timestamp":datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                        "timestamp":datetime.utcnow(),
                                                         "id":str(uuid.uuid1()),
-                                                        "info":info}
+                                                        "class": klass,
+                                                        "description":description}
         # save repository
-        if save:
-            self.save()
+        self.save()
     
     def dump(self, *args, **kwargs):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
         
-    def update_file(self, value, relativePath, name=None, info=False, save=True, ACID=True, verbose=True):
+    def update_file(self, value, relativePath, name=None, 
+                          description=False, klass=False,
+                          ACID=True, verbose=False):
         """
-        Update the value of a file that is already in the Repository.\n
+        Update the value and the utc timestamp of a file that is already in the Repository.\n
         If file is not registered in repository, and error will be thrown.\n
         If file is missing in the system, it will be regenerated as dump method is called.
         
@@ -1193,9 +1199,11 @@ class Repository(dict):
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
             #. name (string): The file name.
                If None is given, name will be split from relativePath.
-            #. info (None, string, pickable object): Any random info about the file. 
-               If False is given, the info won't be updated.
-            #. save (boolean): Whether to save repository .pyrepinfo to disk.
+            #. description (None, string, pickable object): Any random description about the file.
+               If False is given, the description info won't be updated, 
+               otherwise it will be update to what description argument value is.
+            #. klass (None, class): The dumped object class. If False is given, 
+               the class info won't be updated, otherwise it will be update to what klass argument value is.
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
@@ -1245,12 +1253,14 @@ class Repository(dict):
                 return
             os.remove(savePath)
         # update timestamp
-        fileInfoDict["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        if info is not False:
-            fileInfoDict["info"] = info
+        fileInfoDict["timestamp"] = datetime.utcnow()
+        if description is not False:
+            fileInfoDict["description"] = description
+        if klass is not False:
+            assert inspect.isclass(klass), "klass must be a class definition"
+            fileInfoDict["class"] = klass
         # save repository
-        if save:
-            self.save()
+        self.save()
     
     def update(self, *args, **kwargs):
         """Alias to update_file"""
