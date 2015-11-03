@@ -185,8 +185,7 @@ class Repository(dict):
             self.__update_repository(repo)
         elif isinstance(repo, basestring):
             repo = str(repo)
-            if self.is_repository(repo):
-                self.load(repo)
+            self.load(repo)
         else:
             raise Exception("If not None, repo must be a Repository instance or a path. '%s' is given"%str(repo))
     
