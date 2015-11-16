@@ -16,8 +16,8 @@ setup(
     author_email="bachir.aoun@e-aoun.com",
     # Include additional files into the package
     include_package_data=True,
-    # Details
-    url="https://github.com/bachiraoun/pyrep",
+    # download url
+    download_url = 'https://github.com/bachiraoun/pyrep/tarball/0.1.0'
     # license file
     license="LICENSE.txt",
     # short description
