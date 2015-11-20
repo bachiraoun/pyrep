@@ -5,7 +5,8 @@ try:
     from setuptools import setup
 except:
     from distutils.core import setup
-import os
+from distutils.util import convert_path
+import os, sys
 
 # set package path and name
 PACKAGE_PATH = '.'
@@ -34,11 +35,11 @@ commands = [# include MANIFEST.in
             'global-exclude .git/*',
             # include all LICENCE files
             '\n# include all license files found',
-            'global-include %s/*LICENSE.*'%PACKAGE_NAME,
+            'global-include ./*LICENSE.*',
             # include all README files
             '\n# include all readme files found',
-            'global-include %s/*README.*'%PACKAGE_NAME,
-            'global-include %s/*readme.*'%PACKAGE_NAME]         
+            'global-include ./*README.*',
+            'global-include ./*readme.*']         
 with open('MANIFEST.in','w') as fd:
     for l in commands:
         fd.write(l)
@@ -89,8 +90,8 @@ metadata = dict(name = PACKAGE_NAME,
                 author_email="bachir.aoun@e-aoun.com",
                 description = "\n".join(DESCRIPTION),
                 long_description = "\n".join(LONG_DESCRIPTION),
-                url = "",
-                download_url = "",
+                url = "http://bachiraoun.github.io/pyrep/",
+                download_url = "https://github.com/bachiraoun/pyrep",
                 license = 'GNU',
                 classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
                 platforms = ["Windows", "Linux", "Mac OS-X", "Unix"], )
