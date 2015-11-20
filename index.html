@@ -1,0 +1,1145 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Welcome to pyrep’s documentation! &mdash; pyrep 0.1.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="pyrep 0.1.1 documentation" href="#" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li><a href="#">pyrep 0.1.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+          <div class="body">
+            
+  <div class="section" id="welcome-to-pyrep-s-documentation">
+<h1>Welcome to pyrep&#8217;s documentation!<a class="headerlink" href="#welcome-to-pyrep-s-documentation" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># standard distribution imports</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="c"># numpy imports</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="c"># import Repository</span>
+<span class="kn">from</span> <span class="nn">pyrep</span> <span class="kn">import</span> <span class="n">Repository</span>
+
+<span class="c"># set IGNORE_REP</span>
+<span class="n">IGNORE_DIR_NOT_REP</span> <span class="o">=</span> <span class="bp">True</span>
+
+<span class="c"># initialize Repository instance</span>
+<span class="n">REP</span><span class="o">=</span><span class="n">Repository</span><span class="p">()</span>
+
+<span class="c"># create a path pointing to user home</span>
+<span class="n">PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s">&quot;~&quot;</span><span class="p">),</span> <span class="s">&#39;pyrepTest_canBeDeleted&#39;</span><span class="p">)</span>
+
+<span class="c"># check if directory exist</span>
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">PATH</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">IGNORE_DIR_NOT_REP</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&quot;Directory exists and it&#39;s not a pyrep repository. Set IGNORE_DIR_NOT_REP to True.&quot;</span><span class="p">)</span>
+            <span class="nb">exit</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># remove repository from directory if repository exist.</span>
+        <span class="n">REP</span><span class="o">.</span><span class="n">remove_repository</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">PATH</span><span class="p">,</span> <span class="n">relatedFiles</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">relatedFolders</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+
+<span class="c"># print repository path</span>
+<span class="k">print</span> <span class="s">&quot;repository path --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+
+<span class="c"># create repository in path</span>
+<span class="k">print</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">Is path &#39;</span><span class="si">%s</span><span class="s">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">create_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository path --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+
+<span class="c"># add directories</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;folder1/archive1/archive2/archive3/archive3&quot;</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;directory1/directory2&quot;</span><span class="p">)</span>
+
+<span class="c"># dump files</span>
+<span class="n">value</span> <span class="o">=</span> <span class="s">&quot;This is a string data to pickle and store in the repository&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump_file</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+<span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">dump</span><span class="o">=</span><span class="s">&quot;import numpy as np; np.savetxt(fname=&#39;$FILE_PATH&#39;, X=value, fmt=&#39;</span><span class="si">%.6e</span><span class="s">&#39;)&quot;</span>
+<span class="n">pull</span><span class="o">=</span><span class="s">&quot;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#39;$FILE_PATH&#39;)&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;text.dat&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="n">pull</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;folder3Pickled.pkl&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive1Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive1Pickled2&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1/archive2&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive2Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+<span class="c"># pull data</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;text.dat&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pulled text data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;folder3Pickled.pkl&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pulled pickled data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="c"># update</span>
+<span class="n">value</span> <span class="o">=</span> <span class="s">&quot;This is an updated string&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Update pickled data to --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">value</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pull updated pickled data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="c"># walk repository files</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">walk repository files relative path&#39;</span>
+<span class="k">print</span> <span class="s">&#39;------------------------------------&#39;</span>
+<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">REP</span><span class="o">.</span><span class="n">walk_files_relative_path</span><span class="p">():</span>
+    <span class="k">print</span> <span class="n">f</span>
+
+<span class="c"># walk repository, directories</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">walk repository directories relative path&#39;</span>
+<span class="k">print</span> <span class="s">&#39;------------------------------------------&#39;</span>
+<span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">REP</span><span class="o">.</span><span class="n">walk_directories_relative_path</span><span class="p">():</span>
+    <span class="k">print</span> <span class="n">d</span>
+
+
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository print --&gt;&#39;</span>
+<span class="k">print</span> <span class="n">REP</span>
+
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository representation --&gt;&#39;</span>
+<span class="k">print</span> <span class="nb">repr</span><span class="p">(</span><span class="n">REP</span><span class="p">)</span>
+
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository to list --&gt;&#39;</span>
+<span class="k">print</span>  <span class="n">REP</span><span class="o">.</span><span class="n">get_list_representation</span><span class="p">()</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">create_package</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
+
+<span class="c"># Try to load</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">REP</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">PATH</span><span class="p">)</span>
+<span class="k">except</span><span class="p">:</span>
+    <span class="n">loadable</span> <span class="o">=</span> <span class="bp">False</span>
+<span class="k">finally</span><span class="p">:</span>
+    <span class="n">loadable</span> <span class="o">=</span> <span class="bp">True</span>
+<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Is repository loadable --&gt;&#39;</span><span class="p">,</span><span class="n">loadable</span> 
+
+<span class="c"># remove all repo data</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">remove_repository</span><span class="p">(</span><span class="n">relatedFiles</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">relatedFolders</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+<span class="c"># check if there is a repository in path</span>
+<span class="k">print</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">Is path &#39;</span><span class="si">%s</span><span class="s">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="output">
+<h2>output<a class="headerlink" href="#output" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><div class="highlight"><pre>repository path --&gt; None
+
+Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
+
+Repository path --&gt; C:\Users\aoun\pyrepTest_canBeDeleted
+
+Pulled text data --&gt; [ 0.5270431   0.6661849   0.06717668]
+
+Pulled pickled data --&gt; [ 0.52704312  0.66618488  0.06717668]
+
+Update pickled data to --&gt; This is an updated string
+Pull updated pickled data --&gt; This is an updated string
+
+walk repository files relative path
+------------------------------------
+pickled
+text.dat
+folder1\archive1\archive1Pickled1
+folder1\archive1\archive1Pickled2
+folder1\archive1\archive2\archive2Pickled1
+folder1\folder2\folder3\folder3Pickled.pkl
+
+walk repository directories relative path
+------------------------------------------
+directory1
+folder1
+directory1\directory2
+folder1\archive1
+folder1\folder2
+folder1\archive1\archive2
+folder1\archive1\archive2\archive3
+folder1\archive1\archive2\archive3\archive3
+folder1\folder2\folder3
+
+Repository print --&gt;
+C:\Users\aoun\pyrepTest_canBeDeleted
+  text.dat
+  pickled
+  \directory1
+    \directory2
+  \folder1
+    \archive1
+      archive1Pickled1
+      archive1Pickled2
+      \archive2
+        archive2Pickled1
+        \archive3
+          \archive3
+    \folder2
+      \folder3
+        folder3Pickled.pkl
+
+Repository representation --&gt;
+Repository (Version 0.1.1)
+C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled] ; directory1:[] ; directory1\directory2:[] ; folder1:[] ; folder1\ar
+chive1:[archive1Pickled1,archive1Pickled2] ; folder1\archive1\archive2:[archive2Pickled1] ; folder1\archive1\archive2r
+chive3:[] ; folder1\archive1\archive2\archive3\archive3:[] ; folder1\folder2:[] ; folder1\folder2\folder3:[folder3Pickle
+d]
+
+Repository to list --&gt;
+[&#39;C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled]&#39;, &#39;directory1:[]&#39;, &#39;directory1\directory2:[]&#39;, &#39;folder1:[]&#39;, &#39;
+folder1\archive1:[archive1Pickled1,archive1Pickled2]&#39;, &#39;folder1\archive1\archive2:[archive2Pickled1]&#39;, &#39;folder1\arch
+ive1\archive2\archive3:[]&#39;, &#39;folder1\archive1\archive2\archive3\archive3:[]&#39;, &#39;folder1\folder2:[]&#39;, &#39;folder1\fol
+der2\folder3:[folder3Pickled.pkl]&#39;]
+
+Is repository loadable --&gt; True
+
+Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
+</pre></div>
+</div>
+<dl class="function">
+<dt>
+<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">path_required</tt><big>(</big><em>func</em><big>)</big></dt>
+<dd><p>Decorate methods when repository path is required.</p>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">unlock_required</tt><big>(</big><em>func</em><big>)</big></dt>
+<dd><p>Decorate methods when unlocking repository is required.</p>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">get_pickling_errors</tt><big>(</big><em>obj</em>, <em>seen=None</em><big>)</big></dt>
+<dd><p>Investigate pickling errors.</p>
+</dd></dl>
+
+<dl class="class">
+<dt>
+<em class="property">class </em><tt class="descclassname">pyrep.Repository.</tt><tt class="descname">Repository</tt><big>(</big><em>repo=None</em><big>)</big></dt>
+<dd><p>This is a pythonic way to organize dumping and pulling python objects 
+or any type of files to a folder or directory that we call repository. 
+Any directory can be a repository, it suffices to initialize a Repository 
+instance in a directory to start dumping and pulling object into it. 
+Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">repo (None, path, Repository): This is used to initialize a Repository instance.</p>
+<p>If None, Repository is initialized but not assigned to any directory.</p>
+<p>If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.</p>
+<p>If Repository, current instance will cast the given Repository instance.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt>
+<tt class="descname">keys</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Keys is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">values</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>values is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">items</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>items is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">pop</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>pop is a locked method and modified to be a private method only callable from within the instance.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">popitem</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>popitem is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">viewkeys</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">viewvalues</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">LOCK</tt></dt>
+<dd><p>Get the lock value.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">path</tt></dt>
+<dd><p>Get the path of this repository instance which points to the folder and directory where .pyrepinfo is.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">version</tt></dt>
+<dd><p>Get the version of this repository.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<tt class="descname">id</tt></dt>
+<dd><p>Get the universally unique id of this repository.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_list_representation</tt><big>(</big><big>)</big></dt>
+<dd><p>Gets a representation of the Repository content in a list of directories(files) format.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>repr (list): The list representation of the Repository content.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_files_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk the repository and yield all found files relative path joined with file name.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path from which start the walk.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_files_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk the repository and yield tuples as the following:</p>
+<p>(relative path joined with file name, file info dict).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path from which start the walk.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directories_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk repository and yield all found directories relative path</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path from which start the walk.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directories_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk repository and yield all found directories relative path.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path from which start the walk.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directory_files_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk a certain directory in repository and yield all found 
+files relative path joined with file name.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path of the directory.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directory_files_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk a certain directory in repository and yield tuples as the following:</p>
+<p>(relative path joined with file name, file info dict).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path of the directory.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directory_directories_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk a certain directory in repository and yield all found directories relative path.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path of the directory.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">walk_directory_directories_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<dd><p>Walk a certain directory in repository and yield tuples as the following:</p>
+<p>(relative path joined with directory name, file info dict).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (str): The relative path of the directory.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">synchronize</tt><big>(</big><em>verbose=False</em><big>)</big></dt>
+<dd><p>Synchronizes the Repository information with the directory.
+All registered but missing files and directories in the directory, 
+will be automatically removed from the Repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">load</tt><big>(</big><em>path</em><big>)</big></dt>
+<dd><p>Load repository from a directory path and update the current instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (string): The path of the directory from where to load the repository.
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">save</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Save repository .pyrepinfo to disk.</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">create_package</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Create a tar file package of all the repository files and directories. 
+Only files and directories that are stored in the repository info 
+are stored in the package tar file.</p>
+<p><strong>N.B. On some systems packaging requires root permissions.</strong></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (None, string): The real absolute path where to create the package.
+If None, it will be created in the same directory as the repository
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+<li>name (None, string): The name to give to the package file
+If None, the package directory name will be used with the appropriate extension added.</li>
+<li>mode (None, string): The writing mode of the tarfile.
+If None, automatically the best compression mode will be chose.
+Available modes are (&#8216;w&#8217;, &#8216;w:&#8217;, &#8216;w:gz&#8217;, &#8216;w:bz2&#8217;)</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">initialize</tt><big>(</big><em>path</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Initialize a repository in a directory.
+This method insures the creation of the directory in the system if it is missing.</p>
+<p><strong>N.B. This method erases existing pyrep repository in the path but not the repository files.</strong></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (string): The real absolute path where to create the Repository.
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+<li>save (boolean): Whether to save the repository .pyrepinfo file upon initializing.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">create_repository</tt><big>(</big><em>path</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Create a repository at given real path.
+This method insures the creation of the directory in the system if it is missing.</p>
+<p>Unlike initialize, this method doesn&#8217;t erase any existing repository in the path
+but loads it instead.</p>
+<p><strong>N.B. On some systems and some paths, creating a directory may requires root permissions.</strong></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (string): The real absolute path where to create the Repository.
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">remove_repository</tt><big>(</big><em>path=None</em>, <em>relatedFiles=False</em>, <em>relatedFolders=False</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Remove .pyrepinfo file from path if exists and related files and directories 
+when respective flags are set to True.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (None, string): The path of the directory where to remove an existing repository.
+If None, current repository is removed if initialized.</li>
+<li>relatedFiles (boolean): Whether to also remove all related files from system as well.</li>
+<li>relatedFolders (boolean): Whether to also remove all related directories from system as well.
+Directories will be removed only if they are left empty after removing the files.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">is_repository</tt><big>(</big><em>path</em><big>)</big></dt>
+<dd><p>Check if there is a Repository in path.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>path (string): The real path of the directory where to check if there is a repository.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>result (boolean): Whether its a repository or not.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_directory_info</tt><big>(</big><em>relativePath</em><big>)</big></dt>
+<dd><p>get directory info from the Repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>info (None, dictionary): The directory information dictionary.
+If None, it means an error has occurred.</li>
+<li>error (string): The error message if any error occurred.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_parent_directory_info</tt><big>(</big><em>relativePath</em><big>)</big></dt>
+<dd><p>get parent directory info of a file or directory from the Repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>relativePath (string): The relative to the repository path of the file or directory of which the parent directory info is requested.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>info (None, dictionary): The directory information dictionary.
+If None, it means an error has occurred.</li>
+<li>error (string): The error message if any error occurred.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_file_info</tt><big>(</big><em>relativePath</em>, <em>name=None</em><big>)</big></dt>
+<dd><p>get file information dict from the repository given its relative path and name.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory where the file is.</li>
+<li>name (string): The file name.
+If None is given, name will be split from relativePath.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>info (None, dictionary): The file information dictionary.
+If None, it means an error has occurred.</li>
+<li>errorMessage (string): The error message if any error occurred.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_file_info_by_id</tt><big>(</big><em>id</em><big>)</big></dt>
+<dd><p>Given an id, get the corresponding file info as the following:</p>
+<p>(relative path joined with file name, file info dict)</p>
+<dl class="docutils">
+<dt>Parameters:</dt>
+<dd><ol class="first last arabic simple">
+<li>id (string): The file unique id string.</li>
+</ol>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (string): The file relative path joined with file name.
+If None, it means file was not found.</li>
+<li>info (None, dictionary): The file information dictionary.
+If None, it means file was not found.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_file_relative_path_by_id</tt><big>(</big><em>id</em><big>)</big></dt>
+<dd><p>Given an id, get the corresponding file info relative path joined with file name.</p>
+<dl class="docutils">
+<dt>Parameters:</dt>
+<dd><ol class="first last arabic simple">
+<li>id (string): The file unique id string.</li>
+</ol>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (string): The file relative path joined with file name.
+If None, it means file was not found.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_file_relative_path_by_name</tt><big>(</big><em>name</em>, <em>skip=0</em><big>)</big></dt>
+<dd><p>Get file relative path given the file name. If file name is redundant in different 
+directories in the repository, this method ensures to return all or some of the 
+files according to skip value.</p>
+<dl class="docutils">
+<dt>Parameters:</dt>
+<dd><ol class="first last arabic">
+<li><p class="first">name (string): The file name.</p>
+</li>
+<li><p class="first">skip (None, integer): As file names can be identical, skip determines 
+the number of satisfying files name to skip before returning.</p>
+<p>If None is given, a list of all files relative path will be returned.</p>
+</li>
+</ol>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">relativePath (string, list): The file relative path.
+If None, it means file was not found.</p>
+<p>If skip is None a list of all found files relative paths will be returned.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">get_file_info_by_name</tt><big>(</big><em>name</em>, <em>skip=0</em><big>)</big></dt>
+<dd><p>Get file information tuple given the file name. If file name is redundant in different 
+directories in the repository, this method ensures to return all or some of the 
+files infos according to skip value.</p>
+<dl class="docutils">
+<dt>Parameters:</dt>
+<dd><ol class="first last arabic">
+<li><p class="first">name (string): The file name.</p>
+</li>
+<li><p class="first">skip (None, integer): As file names can be identical, skip determines 
+the number of satisfying files name to skip before returning.</p>
+<p>If None is given, a list of all files relative path will be returned.</p>
+</li>
+</ol>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">relativePath (string, list): The file relative path joined with file name.
+If None, it means file was not found.</p>
+<p>If skip is None a list of all found files relative paths will be returned.</p>
+</li>
+<li><p class="first">info (None, dictionary, list): The file information dictionary.
+If None, it means file was not found.</p>
+<p>If skip is None a list of all found files info dicts will be returned.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">add_directory</tt><big>(</big><em>relativePath</em>, <em>info=None</em><big>)</big></dt>
+<dd><p>Adds a directory in the repository and creates its 
+attribute in the Repository with utc timestamp.
+It insures adding all the missing directories in the path.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory to add in the repository.</li>
+<li>info (None, string, pickable object): Any random info about the folder.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>info (dict): The directory info dict.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">remove_directory</tt><big>(</big><em>relativePath</em>, <em>removeFromSystem=False</em><big>)</big></dt>
+<dd><p>Remove directory from repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">relativePath (string): The relative to the repository path of the directory to remove from the repository.</p>
+</li>
+<li><p class="first">removeFromSystem (boolean): Whether to also remove directory and all files from the system.</p>
+<p>Only files saved in the repository will be removed and empty left directories.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">move_directory</tt><big>(</big><em>relativePath</em>, <em>relativeDestination</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Move a directory in the repository from one place to another. It insures moving all the
+files and subdirectories in the system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory to be moved.</li>
+<li>relativeDestination (string): The new relative to the repository path of the directory.</li>
+<li>replace (boolean): Whether to replace existing files with the same name in the new created directory.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">rename_directory</tt><big>(</big><em>relativePath</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Rename a directory in the repository. It insures renaming the directory in the system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory to be renamed.</li>
+<li>newName (string): The new directory name.</li>
+<li>replace (boolean): Whether to force renaming when new name exists in the system.
+It fails when new folder name is registered in repository.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">rename_file</tt><big>(</big><em>relativePath</em>, <em>name</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<dd><p>Rename a directory in the repository. It insures renaming the file in the system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory where the file is located.</li>
+<li>name (string): The file name.</li>
+<li>newName (string): The file new name.</li>
+<li>replace (boolean): Whether to force renaming when new folder name exists in the system.
+It fails when new folder name is registered in repository.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">remove_file</tt><big>(</big><em>relativePath</em>, <em>name=None</em>, <em>removeFromSystem=False</em><big>)</big></dt>
+<dd><p>Remove file from repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">relativePath (string): The relative to the repository path of the directory where the file should be dumped.
+If relativePath does not exist, it will be created automatically.</p>
+</li>
+<li><p class="first">name (string): The file name.
+If None is given, name will be split from relativePath.</p>
+</li>
+<li><p class="first">removeFromSystem (boolean): Whether to also remove directory and all files from the system.</p>
+<p>Only files saved in the repository will be removed and empty left directories.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">dump_file</tt><big>(</big><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>klass=None</em>, <em>dump=None</em>, <em>pull=None</em>, <em>replace=False</em>, <em>ACID=True</em>, <em>verbose=False</em><big>)</big></dt>
+<dd><p>Dump a file using its value to the system and creates its 
+attribute in the Repository with utc timestamp.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic">
+<li><p class="first">value (object): The value of a file to dump and add to the repository. It is any python object or file.</p>
+</li>
+<li><p class="first">relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+If relativePath does not exist, it will be created automatically.</p>
+</li>
+<li><p class="first">name (string): The file name.
+If None is given, name will be split from relativePath.</p>
+</li>
+<li><p class="first">description (None, string, pickable object): Any random description about the file.</p>
+</li>
+<li><p class="first">klass (None, class): The dumped object class. If None is given 
+klass will be automatically set to the following value.__class__</p>
+</li>
+<li><p class="first">dump (None, string): The dumping method. 
+If None it will be set automatically to pickle and therefore the object must be pickleable.
+If a string is given, the string should include all the necessary imports 
+and a &#8216;$FILE_PATH&#8217; that replaces the absolute file path when the dumping will be performed.</p>
+<p>e.g. &#8220;import numpy as np; np.savetxt(fname=&#8217;$FILE_PATH&#8217;, X=value, fmt=&#8217;%.6e&#8217;)&#8221;</p>
+</li>
+<li><p class="first">pull (None, string): The pulling method. 
+If None it will be set automatically to pickle and therefore the object must be pickleable.
+If a string is given, the string should include all the necessary imports, 
+a &#8216;$FILE_PATH&#8217; that replaces the absolute file path when the dumping will be performed
+and finally a PULLED_DATA variable.</p>
+<p>e.g &#8220;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#8217;$FILE_PATH&#8217;)&#8221;</p>
+</li>
+<li><p class="first">replace (boolean): Whether to replace any existing file with the same name if existing.</p>
+</li>
+<li><p class="first">ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+properties of the repository upon dumping a file. This is ensured by dumping the file in
+a temporary path first and then moving it to the desired path.</p>
+</li>
+<li><p class="first">verbose (boolean): Whether to be warn and informed about any abnormalities.</p>
+</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">dump</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Alias to dump_file</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">update_file</tt><big>(</big><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=False</em>, <em>klass=False</em>, <em>dump=False</em>, <em>pull=False</em>, <em>ACID=True</em>, <em>verbose=False</em><big>)</big></dt>
+<dd><p>Update the value and the utc timestamp of a file that is already in the Repository.</p>
+<p>If file is not registered in repository, and error will be thrown.</p>
+<p>If file is missing in the system, it will be regenerated as dump method is called.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>value (object): The value of the file to update. It is any python object or a file.</li>
+<li>relativePath (str): The relative to the repository path of the directory where the file should be dumped.</li>
+<li>name (string): The file name.
+If None is given, name will be split from relativePath.</li>
+<li>description (None, string, pickable object): Any random description about the file.
+If False is given, the description info won&#8217;t be updated, 
+otherwise it will be update to what description argument value is.</li>
+<li>klass (None, class): The dumped object class. If False is given, 
+the class info won&#8217;t be updated, otherwise it will be update to what klass argument value is.</li>
+<li>dump (False, string): The new dump method. If False is given, the old one will be used.</li>
+<li>pull (False, string): The new pull method. If False is given, the old one will be used.</li>
+<li>ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+properties of the repository upon dumping a file. This is ensured by dumping the file in
+a temporary path first and then moving it to the desired path.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">update</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Alias to update_file</p>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">pull_file</tt><big>(</big><em>relativePath</em>, <em>name=None</em>, <em>pull=None</em>, <em>update=True</em><big>)</big></dt>
+<dd><p>Pull a file&#8217;s data from the Repository.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>relativePath (string): The relative to the repository path of the directory where the file should be pulled.</li>
+<li>name (string): The file name.
+If None is given, name will be split from relativePath.</li>
+<li>pull (None, string): The pulling method. 
+If None, the pull method saved in the file info will be used.
+If a string is given, the string should include all the necessary imports, 
+a &#8216;$FILE_PATH&#8217; that replaces the absolute file path when the dumping will be performed
+and finally a PULLED_DATA variable.
+e.g &#8220;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#8217;$FILE_PATH&#8217;)&#8221;</li>
+<li>update (boolean): If pull is not None, Whether to update the pull method stored in the file info by the given pull method.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>data (object): The pulled data from the file.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<tt class="descname">pull</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<dd><p>Alias to pull_file</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li><a href="#">pyrep 0.1.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Bachir Aoun.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
