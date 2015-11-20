@@ -1,3 +1,194 @@
+"""
+Usage
+=====
+.. code-block:: python
+
+        # standard distribution imports
+        import os
+        import warnings
+        
+        # numpy imports
+        import numpy as np
+        
+        # import Repository
+        from pyrep import Repository
+        
+        # set IGNORE_REP
+        IGNORE_DIR_NOT_REP = True
+        
+        # initialize Repository instance
+        REP=Repository()
+        
+        # create a path pointing to user home
+        PATH = os.path.join(os.path.expanduser("~"), 'pyrepTest_canBeDeleted')
+        
+        # check if directory exist
+        if os.path.isdir(PATH):
+            if not REP.is_repository(PATH):
+                if not IGNORE_DIR_NOT_REP:
+                    warnings.warn("Directory exists and it's not a pyrep repository. Set IGNORE_DIR_NOT_REP to True.")
+                    exit()
+            else:
+                # remove repository from directory if repository exist.
+                REP.remove_repository(path=PATH, relatedFiles=False, relatedFolders=False)
+        
+        
+        # print repository path
+        print "repository path --> %s"%str(REP.path)
+        
+        # create repository in path
+        print "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
+        REP.create_repository(PATH)
+        print '\\nRepository path --> %s'%str(REP.path)
+        
+        # add directories
+        REP.add_directory("folder1/folder2/folder3")
+        REP.add_directory("folder1/archive1/archive2/archive3/archive3")
+        REP.add_directory("directory1/directory2")
+        
+        # dump files
+        value = "This is a string data to pickle and store in the repository"
+        REP.dump_file(value, relativePath='.', name='pickled', dump=None, pull=None, replace=True)
+        
+        value = np.random.random(3)
+        dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
+        pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+        REP.dump(value, relativePath='.', name='text.dat', dump=dump, pull=pull, replace=True)
+        REP.dump(value, relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl', replace=True)
+        REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled1', replace=True)
+        REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled2', replace=True)
+        REP.dump(value, relativePath="folder1/archive1/archive2", name='archive2Pickled1', replace=True)
+        
+        # pull data
+        data = REP.pull(relativePath='.', name='text.dat')
+        print '\\nPulled text data --> %s'%str(data)
+        
+        data = REP.pull(relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl')
+        print '\\nPulled pickled data --> %s'%str(data)
+        
+        # update
+        value = "This is an updated string"
+        REP.update(value, relativePath='.', name='pickled')
+        print '\\nUpdate pickled data to --> %s'%value
+        
+        data = REP.pull(relativePath='.', name='pickled')
+        print '\\nPull updated pickled data --> %s'%str(data)
+
+        # walk repository files
+        print '\\nwalk repository files relative path'
+        print '------------------------------------'
+        for f in REP.walk_files_relative_path():
+            print f
+        
+        # walk repository, directories
+        print '\\nwalk repository directories relative path'
+        print '------------------------------------------'
+        for d in REP.walk_directories_relative_path():
+            print d
+        
+        
+        print '\\nRepository print -->'
+        print REP
+        
+        print '\\nRepository representation -->'
+        print repr(REP)
+        
+        print '\\nRepository to list -->'
+        print  REP.get_list_representation()
+        REP.create_package(path=None, name=None)
+        
+        # Try to load
+        try:
+            REP.load(PATH)
+        except:
+            loadable = False
+        finally:
+            loadable = True
+        print '\\nIs repository loadable -->',loadable 
+        
+        # remove all repo data
+        REP.remove_repository(relatedFiles=True, relatedFolders=True)
+        
+        # check if there is a repository in path
+        print "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
+
+
+        
+output
+====== 
+.. code-block:: python
+      
+        repository path --> None
+        
+        Is path 'C:\\Users\\aoun\\pyrepTest_canBeDeleted' a repository --> False
+        
+        Repository path --> C:\\Users\\aoun\\pyrepTest_canBeDeleted
+        
+        Pulled text data --> [ 0.5270431   0.6661849   0.06717668]
+        
+        Pulled pickled data --> [ 0.52704312  0.66618488  0.06717668]
+        
+        Update pickled data to --> This is an updated string
+        Pull updated pickled data --> This is an updated string
+        
+        walk repository files relative path
+        ------------------------------------
+        pickled
+        text.dat
+        folder1\\archive1\\archive1Pickled1
+        folder1\\archive1\\archive1Pickled2
+        folder1\\archive1\\archive2\\archive2Pickled1
+        folder1\\folder2\\folder3\\folder3Pickled.pkl
+        
+        walk repository directories relative path
+        ------------------------------------------
+        directory1
+        folder1
+        directory1\\directory2
+        folder1\\archive1
+        folder1\\folder2
+        folder1\\archive1\\archive2
+        folder1\\archive1\\archive2\\archive3
+        folder1\\archive1\\archive2\\archive3\\archive3
+        folder1\\folder2\\folder3
+        
+        Repository print -->
+        C:\\Users\\aoun\\pyrepTest_canBeDeleted
+          text.dat
+          pickled
+          \\directory1
+            \\directory2
+          \\folder1
+            \\archive1
+              archive1Pickled1
+              archive1Pickled2
+              \\archive2
+                archive2Pickled1
+                \\archive3
+                  \\archive3
+            \\folder2
+              \\folder3
+                folder3Pickled.pkl
+        
+        Repository representation -->
+        Repository (Version 0.1.1)
+        C:\\Users\\aoun\\pyrepTest_canBeDeleted:[text.dat,pickled] ; directory1:[] ; directory1\\directory2:[] ; folder1:[] ; folder1\\ar
+        chive1:[archive1Pickled1,archive1Pickled2] ; folder1\\archive1\\archive2:[archive2Pickled1] ; folder1\\archive1\\archive2\ar
+        chive3:[] ; folder1\\archive1\\archive2\\archive3\\archive3:[] ; folder1\\folder2:[] ; folder1\\folder2\\folder3:[folder3Pickle
+        d]
+        
+        Repository to list -->
+        ['C:\\Users\\aoun\\pyrepTest_canBeDeleted:[text.dat,pickled]', 'directory1:[]', 'directory1\\directory2:[]', 'folder1:[]', '
+        folder1\\archive1:[archive1Pickled1,archive1Pickled2]', 'folder1\\archive1\\archive2:[archive2Pickled1]', 'folder1\\arch
+        ive1\\archive2\\archive3:[]', 'folder1\\archive1\\archive2\\archive3\\archive3:[]', 'folder1\\folder2:[]', 'folder1\\fol
+        der2\\folder3:[folder3Pickled.pkl]']
+        
+        Is repository loadable --> True
+        
+        Is path 'C:\\Users\\aoun\\pyrepTest_canBeDeleted' a repository --> False
+
+"""
+
 # standard distribution imports
 import os
 import uuid
@@ -7,6 +198,7 @@ import tempfile
 import shutil
 import inspect
 from datetime import datetime
+from functools import wraps
 try:
     import cPickle as pickle
 except:
@@ -17,6 +209,8 @@ from pyrep import __version__
     
 #### Define decorators ###
 def path_required(func):
+    """Decorate methods when repository path is required."""
+    @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.path is None:
             warnings.warn('Must load or initialize the repository first !')
@@ -25,6 +219,8 @@ def path_required(func):
     return wrapper
 
 def unlock_required(func):
+    """Decorate methods when unlocking repository is required."""
+    @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.LOCK:
             warnings.warn("Repository class '%s' method '%s' is locked!"%(self.__class__.__name__,func.__name__))
@@ -34,6 +230,7 @@ def unlock_required(func):
 
 ### get pickling errors method ###
 def get_pickling_errors(obj, seen=None):
+    """Investigate pickling errors."""
     if seen == None:
         seen = []
     if hasattr(obj, "__getstate__"):
@@ -68,16 +265,16 @@ def get_pickling_errors(obj, seen=None):
 class Repository(dict):
     """
     This is a pythonic way to organize dumping and pulling python objects 
-    or any type of files to a repository. Any directory can be a repository, 
-    it suffices to initialize a Repository instance in a directory to start 
-    dumping and pulling object into it. Any directory that has .pyrepinfo 
-    binary file in it is theoretically a pyrep Repository.
+    or any type of files to a folder or directory that we call repository. 
+    Any directory can be a repository, it suffices to initialize a Repository 
+    instance in a directory to start dumping and pulling object into it. 
+    Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Repository.
     
     :Parameters:
-        #. repo (None, path, Repository): This is used to initialize a Repository instance.
-           If None, Repository is initialized but not assigned to any directory.
-           If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.
-           If Repository, current instance will cast the given Repository instance.
+        #. repo (None, path, Repository): This is used to initialize a Repository instance.\n
+           If None, Repository is initialized but not assigned to any directory.\n
+           If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.\n
+           If Repository, current instance will cast the given Repository instance.\n
     """
     __LOCK = True 
     def __init__(self, repo=None):
@@ -139,17 +336,17 @@ class Repository(dict):
      
     @unlock_required
     def keys(self, *args, **kwargs):
-        """Keys is a locked method and modified to be a private method only callable from within the instance."""
+        """Keys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.keys(self)
     
     @unlock_required
     def values(self, *args, **kwargs):
-        """values is a locked method and modified to be a private method only callable from within the instance."""
+        """values is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.values(self)
         
     @unlock_required
     def items(self, *args, **kwargs):
-        """items is a locked method and modified to be a private method only callable from within the instance."""
+        """items is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.items(self)
     
     @unlock_required
@@ -159,22 +356,22 @@ class Repository(dict):
     
     @unlock_required
     def update(self, *args, **kwargs):
-        """update is a locked method and modified to be a private method only callable from within the instance."""
+        """update is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.pop(self, *args, **kwargs)
     
     @unlock_required
     def popitem(self, *args, **kwargs):
-        """popitem is a locked method and modified to be a private method only callable from within the instance."""
+        """popitem is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.popitem(self, *args, **kwargs)
     
     @unlock_required
     def viewkeys(self, *args, **kwargs):
-        """viewkeys is a locked method and modified to be a private method only callable from within the instance."""
+        """viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.viewkeys(self, *args, **kwargs)
     
     @unlock_required
     def viewvalues(self, *args, **kwargs):
-        """viewvalues is a locked method and modified to be a private method only callable from within the instance."""
+        """viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return viewvalues.viewkeys(self, *args, **kwargs)  
     
     def __cast(self, repo):
@@ -217,7 +414,7 @@ class Repository(dict):
             
     @property
     def path(self):
-        """Get the path of this repository."""
+        """Get the path of this repository instance which points to the folder and directory where .pyrepinfo is."""
         return self.__path
     
     @property
@@ -251,7 +448,12 @@ class Repository(dict):
         return repr
         
     def walk_files_relative_path(self, relativePath=""):
-        """Walk the repository and yield all found files relative path."""
+        """
+        Walk the repository and yield all found files relative path joined with file name.
+        
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
+        """
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
@@ -268,8 +470,11 @@ class Repository(dict):
     
     def walk_files_info(self, relativePath=""):
         """
-        Walk the repository and yield tuples as the following: 
+        Walk the repository and yield tuples as the following:\n 
         (relative path joined with file name, file info dict).
+        
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
         """
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -289,6 +494,9 @@ class Repository(dict):
     def walk_directories_relative_path(self, relativePath=""):
         """
         Walk repository and yield all found directories relative path
+        
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
         """
         def walk_repository_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -306,7 +514,10 @@ class Repository(dict):
     
     def walk_directories_info(self, relativePath=""):
         """
-        Walk repository and yield all found directories relative path
+        Walk repository and yield all found directories relative path.
+        
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
         """
         def walk_repository_directories(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
@@ -323,7 +534,13 @@ class Repository(dict):
         return walk_repository_directories(dir, relativePath='')
         
     def walk_directory_files_relative_path(self, relativePath=""):
-        """Walk a certain directory in repository and yield all found files relative path joined with file name."""
+        """
+        Walk a certain directory in repository and yield all found 
+        files relative path joined with file name.
+        
+        :parameters:
+            #. relativePath (str): The relative path of the directory.
+        """
         # get directory info dict
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
@@ -333,8 +550,11 @@ class Repository(dict):
     
     def walk_directory_files_info(self, relativePath=""):
         """
-        Walk a certain directory in repository and yield tuples as the following: 
+        Walk a certain directory in repository and yield tuples as the following:\n
         (relative path joined with file name, file info dict).
+        
+        :parameters:
+            #. relativePath (str): The relative path of the directory.
         """
         # get directory info dict
         relativePath = os.path.normpath(relativePath)
@@ -345,7 +565,10 @@ class Repository(dict):
         
     def walk_directory_directories_relative_path(self, relativePath=""):
         """
-        Walk a certain directory in repository and yield all found directories relative path
+        Walk a certain directory in repository and yield all found directories relative path.
+        
+        :parameters:
+            #. relativePath (str): The relative path of the directory.
         """
         # get directory info dict
         errorMessage = ""
@@ -357,8 +580,11 @@ class Repository(dict):
     
     def walk_directory_directories_info(self, relativePath=""):
         """
-        Walk a certain directory in repository and yield tuples as the following: 
+        Walk a certain directory in repository and yield tuples as the following:\n 
         (relative path joined with directory name, file info dict).
+        
+        :parameters:
+            #. relativePath (str): The relative path of the directory.
         """
         # get directory info dict
         relativePath = os.path.normpath(relativePath)
@@ -370,8 +596,11 @@ class Repository(dict):
     def synchronize(self, verbose=False):
         """
         Synchronizes the Repository information with the directory.
-        All registered but missing files and directories in the directory 
+        All registered but missing files and directories in the directory, 
         will be automatically removed from the Repository.
+        
+        :parameters:
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         if self.__path is None:
             return
@@ -541,15 +770,15 @@ class Repository(dict):
     def initialize(self, path, verbose=True): 
         """
         Initialize a repository in a directory.
-        This method insures the creation of the directory in the system.\n
+        This method insures the creation of the directory in the system if it is missing.\n
         
-        **N.B. This method erases existing repository in the path but not the repository files.** 
+        **N.B. This method erases existing pyrep repository in the path but not the repository files.** 
         
         :Parameters:
             #. path (string): The real absolute path where to create the Repository.
                If '.' or an empty string is passed, the current working directory will be used.
             #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
-            #. verbose (boolean): Whether to through warnings and information. 
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # get real path
         if path.strip() in ('','.'):
@@ -571,7 +800,7 @@ class Repository(dict):
     def create_repository(self, path, verbose=True):
         """
         Create a repository at given real path.
-        This method insures the creation of the directory in the system.\n
+        This method insures the creation of the directory in the system if it is missing.\n
         Unlike initialize, this method doesn't erase any existing repository in the path
         but loads it instead.
         
@@ -580,7 +809,7 @@ class Repository(dict):
         :Parameters:
             #. path (string): The real absolute path where to create the Repository.
                If '.' or an empty string is passed, the current working directory will be used.
-            #. verbose (boolean): Whether to through warnings and information.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # get real path
         if path.strip() in ('','.'):
@@ -606,6 +835,7 @@ class Repository(dict):
             #. relatedFiles (boolean): Whether to also remove all related files from system as well.
             #. relatedFolders (boolean): Whether to also remove all related directories from system as well.
                Directories will be removed only if they are left empty after removing the files.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         if path is not None:
             realPath = os.path.realpath( os.path.expanduser(path) )
@@ -748,13 +978,14 @@ class Repository(dict):
     
     def get_file_info_by_id(self, id): 
         """
-        Get file information tuple given the file id.
+        Given an id, get the corresponding file info as the following:\n
+        (relative path joined with file name, file info dict)
         
         Parameters:
             #. id (string): The file unique id string.
         
         :Returns:
-            #. relativePath (string): The file relative path.
+            #. relativePath (string): The file relative path joined with file name.
                If None, it means file was not found.
             #. info (None, dictionary): The file information dictionary.
                If None, it means file was not found.
@@ -767,30 +998,30 @@ class Repository(dict):
     
     def get_file_relative_path_by_id(self, id): 
         """
-        Get file relativePath given the file id.
+        Given an id, get the corresponding file info relative path joined with file name.
         
         Parameters:
             #. id (string): The file unique id string.
         
         :Returns:
-            #. relativePath (string): The file relative path.
-               If None, it means file was not found.
-            #. info (None, dictionary): The file information dictionary.
+            #. relativePath (string): The file relative path joined with file name.
                If None, it means file was not found.
         """
         for path, info in self.walk_files_info():
             if info['id']==id:
                 return path
         # none was found
-        return None, None
+        return None
     
     def get_file_relative_path_by_name(self, name, skip=0): 
         """
-        Get file relative path given the file name.
+        Get file relative path given the file name. If file name is redundant in different 
+        directories in the repository, this method ensures to return all or some of the 
+        files according to skip value.
         
         Parameters:
             #. name (string): The file name.
-            #. skip (None, int): As file names can be identical, skip determines 
+            #. skip (None, integer): As file names can be identical, skip determines 
                the number of satisfying files name to skip before returning.\n
                If None is given, a list of all files relative path will be returned.
         
@@ -817,16 +1048,18 @@ class Repository(dict):
         
     def get_file_info_by_name(self, name, skip=0): 
         """
-        Get file information tuple given the file name
+        Get file information tuple given the file name. If file name is redundant in different 
+        directories in the repository, this method ensures to return all or some of the 
+        files infos according to skip value.
         
         Parameters:
             #. name (string): The file name.
-            #. skip (None, int): As file names can be identical, skip determines 
+            #. skip (None, integer): As file names can be identical, skip determines 
                the number of satisfying files name to skip before returning.\n
                If None is given, a list of all files relative path will be returned.
         
         :Returns:
-            #. relativePath (string, list): The file relative path.
+            #. relativePath (string, list): The file relative path joined with file name.
                If None, it means file was not found.\n
                If skip is None a list of all found files relative paths will be returned.
             #. info (None, dictionary, list): The file information dictionary.
@@ -883,8 +1116,8 @@ class Repository(dict):
             if currentDict.get(dir, None) is None:    
                 currentDict[dir] = {"directories":{}, "files":{}, 
                                     "timestamp":datetime.utcnow(),
-                                    "id":str(uuid.uuid1()), # id add lately
-                                    "info": info} # info add lately
+                                    "id":str(uuid.uuid1()), 
+                                    "info": info} 
                                     
             currentDict = currentDict[dir]
             currentDir  = dirPath
@@ -929,13 +1162,14 @@ class Repository(dict):
         
     def move_directory(self, relativePath, relativeDestination, replace=False, verbose=True):
         """
-        Move a directory in the repository.
+        Move a directory in the repository from one place to another. It insures moving all the
+        files and subdirectories in the system.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory to be moved.
             #. relativeDestination (string): The new relative to the repository path of the directory.
             #. replace (boolean): Whether to replace existing files with the same name in the new created directory. 
-            #. verbose (boolean): Whether to through warnings and information.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # normalize path
         relativePath    = os.path.normpath(relativePath)
@@ -961,7 +1195,7 @@ class Repository(dict):
                 if replace:
                     os.remove(destination)
                     if verbose:
-                        warnings.warn("file '%s' is copied replacing existing one in desitnation '%s'."%(fileName, newDirRP))
+                        warnings.warn("file '%s' is copied replacing existing one in destination '%s'."%(fileName, newDirRP))
                 else:
                     if verbose:
                         warnings.warn("file '%s' is not copied because the same file exists in destination '%s'."%(fileName,destination))
@@ -974,13 +1208,14 @@ class Repository(dict):
     
     def rename_directory(self, relativePath, newName, replace=False, verbose=True):
         """
-        Rename a directory in the repository.
+        Rename a directory in the repository. It insures renaming the directory in the system.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory to be renamed.
             #. newName (string): The new directory name.
-            #. replace (boolean): Whether to force renaming when new folder name exists in the system.
+            #. replace (boolean): Whether to force renaming when new name exists in the system.
                It fails when new folder name is registered in repository.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # normalize path
         relativePath    = os.path.normpath(relativePath)
@@ -994,7 +1229,7 @@ class Repository(dict):
         # check directory in repository
         assert dict.__getitem__(parentDirInfoDict, "directories").has_key(dirName), "directory '%s' is not found in repository relative path '%s'"%(dirName, parentDirPath)
         # assert directory new name doesn't exist in repository
-        assert not dict.__getitem__(parentDirInfoDict, "directories").has_key(newName), "directory '%s' already exists relative path '%s'"%(newName, parentDirPath)
+        assert not dict.__getitem__(parentDirInfoDict, "directories").has_key(newName), "directory '%s' already exists in repository, relative path '%s'"%(newName, parentDirPath)
         # check new directory in system
         newRealPath = os.path.join(self.__path, parentDirPath, newName)
         if os.path.isdir( newRealPath ):
@@ -1014,7 +1249,7 @@ class Repository(dict):
     
     def rename_file(self, relativePath, name, newName, replace=False, verbose=True):
         """
-        Rename a directory in the repository.
+        Rename a directory in the repository. It insures renaming the file in the system.
         
         :Parameters:
             #. relativePath (string): The relative to the repository path of the directory where the file is located.
@@ -1022,6 +1257,7 @@ class Repository(dict):
             #. newName (string): The file new name.
             #. replace (boolean): Whether to force renaming when new folder name exists in the system.
                It fails when new folder name is registered in repository.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # normalize path
         relativePath = os.path.normpath(relativePath)
@@ -1056,7 +1292,7 @@ class Repository(dict):
         Remove file from repository.
         
         :Parameters:
-            #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+            #. relativePath (string): The relative to the repository path of the directory where the file should be dumped.
                If relativePath does not exist, it will be created automatically.
             #. name (string): The file name.
                If None is given, name will be split from relativePath.
@@ -1102,7 +1338,7 @@ class Repository(dict):
                If None is given, name will be split from relativePath.
             #. description (None, string, pickable object): Any random description about the file.
             #. klass (None, class): The dumped object class. If None is given 
-               klass will take be automatically set to the following value.__class__
+               klass will be automatically set to the following value.__class__
             #. dump (None, string): The dumping method. 
                If None it will be set automatically to pickle and therefore the object must be pickleable.
                If a string is given, the string should include all the necessary imports 
@@ -1118,7 +1354,7 @@ class Repository(dict):
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
-            #. verbose (boolean): Whether to through warnings and information.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
@@ -1209,7 +1445,7 @@ class Repository(dict):
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
-            #. verbose (boolean): Whether to through warnings and information.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
         # get relative path normalized
         relativePath = os.path.normpath(relativePath)
