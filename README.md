@@ -42,6 +42,9 @@ print REP.pull(relativePath='folder1/archive1/archive2', name='numpy_test')
            [ 0.56458421]])
 ```
 
+## Online Documentation
+http://bachiraoun.github.io/pyrep/
+
 ## Author
 Bachir Aoun
 
