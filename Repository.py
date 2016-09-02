@@ -99,7 +99,7 @@ Usage
         
         # Try to load
         try:
-            REP.load(PATH)
+            REP.load_repository(PATH)
         except:
             loadable = False
         finally:
@@ -199,6 +199,7 @@ import shutil
 import inspect
 from datetime import datetime
 from functools import wraps
+import copy
 try:
     import cPickle as pickle
 except:
@@ -224,6 +225,7 @@ def unlock_required(func):
     def wrapper(self, *args, **kwargs):
         if self.LOCK:
             warnings.warn("Repository class '%s' method '%s' is locked!"%(self.__class__.__name__,func.__name__))
+            #warnings.warn("Repository class '%s' method '%s' passed with args (%s) and kwargs (%s) is locked!"%(self.__class__.__name__,func.__name__))
             return
         return func(self, *args, **kwargs)
     return wrapper
@@ -279,6 +281,7 @@ class Repository(dict):
     __LOCK = True 
     def __init__(self, repo=None):
         self.__path = None
+        self.__info = None
         self.__reset_repository()
         self.__cast(repo)
         self.__LOCK = True
@@ -382,7 +385,7 @@ class Repository(dict):
             self.__update_repository(repo)
         elif isinstance(repo, basestring):
             repo = str(repo)
-            self.load(repo)
+            self.load_repository(repo)
         else:
             raise Exception("If not None, repo must be a Repository instance or a path. '%s' is given"%str(repo))
     
@@ -406,6 +409,7 @@ class Repository(dict):
             return
         dict.update(self, repo)
         self.__path = repo.path
+        self.__info = repo.info
     
     @property
     def LOCK(self):
@@ -416,6 +420,11 @@ class Repository(dict):
     def path(self):
         """Get the path of this repository instance which points to the folder and directory where .pyrepinfo is."""
         return self.__path
+    
+    @property
+    def info(self):
+        """Get the unique user defined information of this repository instance."""
+        return copy.deepcopy( self.__info )
     
     @property
     def version(self):
@@ -600,7 +609,7 @@ class Repository(dict):
         will be automatically removed from the Repository.
         
         :parameters:
-            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
+            #. verbose (boolean): Whether to be warn and inform about any abnormalities.
         """
         if self.__path is None:
             return
@@ -645,7 +654,7 @@ class Repository(dict):
                 if files is not None:      
                     dict.pop( files, keys[-1], None ) 
 
-    def load(self, path):
+    def load_repository(self, path):
         """
         Load repository from a directory path and update the current instance.
         
@@ -683,8 +692,121 @@ class Repository(dict):
             # update info path
             self.__reset_repository()
             self.__update_repository(repo)
-            self.__path = repoPath
+            #self.__path = repoPath
     
+    def create_repository(self, path, info=None, verbose=True): 
+        """
+        create a repository in a directory.
+        This method insures the creation of the directory in the system if it is missing.\n
+        
+        **N.B. This method erases existing pyrep repository in the path but not the repository files.** 
+        
+        :Parameters:
+            #. path (string): The real absolute path where to create the Repository.
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. info (None, object): Any information that can identify the repository.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
+        """
+        try:
+            info = copy.deepcopy( info )
+        except:
+            raise Exception("Repository info must be a copyable python object.") 
+        # get real path
+        if path.strip() in ('','.'):
+            path = os.getcwd()
+        realPath = os.path.realpath( os.path.expanduser(path) )
+        # create directory if not existing
+        if not os.path.isdir(realPath):
+            os.makedirs(realPath)
+        self.__path = realPath
+        self.__info = info
+        # reset if replace is set to True
+        if self.is_repository(realPath):
+            if verbose:
+                warnings.warn("A pyrep Repository already exists in the given path '%s' and therefore it has been erased and replaced by a fresh repository."%path)
+        # reset repository
+        self.__reset_repository()
+        # save repository
+        self.save()
+                   
+    def get_repository(self, path, info=None, verbose=True):
+        """
+        Create a repository at given real path or load any existing one.
+        This method insures the creation of the directory in the system if it is missing.\n
+        Unlike create_repository, this method doesn't erase any existing repository 
+        in the path but loads it instead.
+        
+        **N.B. On some systems and some paths, creating a directory may requires root permissions.**  
+        
+        :Parameters:
+            #. path (string): The real absolute path where to create the Repository.
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. info (None, object): Any information that can identify the repository.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
+        """
+        # get real path
+        if path.strip() in ('','.'):
+            path = os.getcwd()
+        realPath = os.path.realpath( os.path.expanduser(path) )
+        # create directory if not existing
+        if not os.path.isdir(realPath):
+            os.makedirs(realPath)
+        # create Repository
+        if not self.is_repository(realPath):
+            self.create_repository(realPath, info=info, verbose=verbose)
+        else:
+            self.load_repository(realPath)
+ 
+    def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
+        """
+        Remove .pyrepinfo file from path if exists and related files and directories 
+        when respective flags are set to True. 
+        
+        :Parameters:
+            #. path (None, string): The path of the directory where to remove an existing repository.
+               If None, current repository is removed if initialized.
+            #. relatedFiles (boolean): Whether to also remove all related files from system as well.
+            #. relatedFolders (boolean): Whether to also remove all related directories from system as well.
+               Directories will be removed only if they are left empty after removing the files.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
+        """
+        if path is not None:
+            realPath = os.path.realpath( os.path.expanduser(path) )
+        else:
+            realPath = self.__path
+        if realPath is None:
+            if verbose: warnings.warn('path is None and current Repository is not initialized!')
+            return
+        if not self.is_repository(realPath):
+            if verbose: warnings.warn("No repository found in '%s'!"%realPath)
+            return
+        # check for security  
+        if realPath == os.path.realpath('/..') :
+            if verbose: warnings.warn('You are about to wipe out your system !!! action aboarded')
+            return
+        # get repo
+        if path is not None:
+            repo = Repository()
+            repo.load_repository(realPath)
+        else:
+            repo = self
+        # delete files
+        if relatedFiles:
+            for relativePath in repo.walk_files_relative_path():
+                os.remove( os.path.join(repo.path, relativePath) )
+        # delete directories
+        if relatedFolders:
+            for relativePath in reversed(list(repo.walk_directories_relative_path())):
+                realPath = os.path.join(repo.path, relativePath)
+                # protect from wiping out the system
+                if not len(os.listdir(realPath)):
+                    os.rmdir( realPath )
+        # delete repository       
+        os.remove( os.path.join(repo.path,".pyrepinfo") )  
+        # reset repository
+        repo.__reset_repository() 
+        
+
     @path_required
     def save(self):
         """ Save repository .pyrepinfo to disk. """
@@ -765,113 +887,7 @@ class Repository(dict):
         # save repository .pyrepinfo
         tarHandler.add(os.path.join(self.__path,".pyrepinfo"), arcname=".pyrepinfo")
         # close tar file
-        tarHandler.close()
-     
-    def initialize(self, path, verbose=True): 
-        """
-        Initialize a repository in a directory.
-        This method insures the creation of the directory in the system if it is missing.\n
-        
-        **N.B. This method erases existing pyrep repository in the path but not the repository files.** 
-        
-        :Parameters:
-            #. path (string): The real absolute path where to create the Repository.
-               If '.' or an empty string is passed, the current working directory will be used.
-            #. save (boolean): Whether to save the repository .pyrepinfo file upon initializing.
-            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
-        """
-        # get real path
-        if path.strip() in ('','.'):
-            path = os.getcwd()
-        realPath = os.path.realpath( os.path.expanduser(path) )
-        # create directory if not existing
-        if not os.path.isdir(realPath):
-            os.makedirs(realPath)
-        self.__path = realPath
-        # reset if replace is set to True
-        if self.is_repository(realPath):
-            if verbose:
-                warnings.warn("A pyrep Repository already exists in the given path '%s' and therefore it has been erased and replaced by a fresh repository."%path)
-        # reset repository
-        self.__reset_repository()
-        # save repository
-        self.save()
-                   
-    def create_repository(self, path, verbose=True):
-        """
-        Create a repository at given real path.
-        This method insures the creation of the directory in the system if it is missing.\n
-        Unlike initialize, this method doesn't erase any existing repository in the path
-        but loads it instead.
-        
-        **N.B. On some systems and some paths, creating a directory may requires root permissions.**  
-        
-        :Parameters:
-            #. path (string): The real absolute path where to create the Repository.
-               If '.' or an empty string is passed, the current working directory will be used.
-            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
-        """
-        # get real path
-        if path.strip() in ('','.'):
-            path = os.getcwd()
-        realPath = os.path.realpath( os.path.expanduser(path) )
-        # create directory if not existing
-        if not os.path.isdir(realPath):
-            os.makedirs(realPath)
-        # create Repository
-        if not self.is_repository(realPath):
-            self.initialize(realPath, verbose=verbose)
-        else:
-            self.load(realPath)
- 
-    def remove_repository(self, path=None, relatedFiles=False, relatedFolders=False, verbose=True):
-        """
-        Remove .pyrepinfo file from path if exists and related files and directories 
-        when respective flags are set to True. 
-        
-        :Parameters:
-            #. path (None, string): The path of the directory where to remove an existing repository.
-               If None, current repository is removed if initialized.
-            #. relatedFiles (boolean): Whether to also remove all related files from system as well.
-            #. relatedFolders (boolean): Whether to also remove all related directories from system as well.
-               Directories will be removed only if they are left empty after removing the files.
-            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
-        """
-        if path is not None:
-            realPath = os.path.realpath( os.path.expanduser(path) )
-        else:
-            realPath = self.__path
-        if realPath is None:
-            if verbose: warnings.warn('path is None and current Repository is not initialized!')
-            return
-        if not self.is_repository(realPath):
-            if verbose: warnings.warn("No repository found in '%s'!"%realPath)
-            return
-        # check for security  
-        if realPath == os.path.realpath('/..') :
-            if verbose: warnings.warn('You are about to wipe out your system !!! action aboarded')
-            return
-        # get repo
-        if path is not None:
-            repo = Repository()
-            repo.load(realPath)
-        else:
-            repo = self
-        # delete files
-        if relatedFiles:
-            for relativePath in repo.walk_files_relative_path():
-                os.remove( os.path.join(repo.path, relativePath) )
-        # delete directories
-        if relatedFolders:
-            for relativePath in reversed(list(repo.walk_directories_relative_path())):
-                realPath = os.path.join(repo.path, relativePath)
-                # protect from wiping out the system
-                if not len(os.listdir(realPath)):
-                    os.rmdir( realPath )
-        # delete repository       
-        os.remove( os.path.join(repo.path,".pyrepinfo") )  
-        # reset repository
-        repo.__reset_repository()             
+        tarHandler.close()            
             
     def is_repository(self, path):
         """
@@ -1261,6 +1277,8 @@ class Repository(dict):
         """
         # normalize path
         relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         # check directory in repository
@@ -1276,9 +1294,9 @@ class Repository(dict):
             if replace:
                 os.remove(newRealPath)
                 if verbose:
-                    warnings.warn( "file '%s' already exists found in system, it is therefore deleted."%newRealPath )
+                    warnings.warn( "file '%s' already exists found in system, it is now replaced by '%s' because 'replace' flag is True."%(newRealPath,realPath) )
             else:
-                raise Exception( "file '%s' already exists in system"%newRealPath )
+                raise Exception( "file '%s' already exists in system but not registered in repository."%newRealPath )
         # rename file
         os.rename(realPath, newRealPath)
         dict.__setitem__( dict.__getitem__(dirInfoDict, "files"),
