@@ -463,7 +463,7 @@ class Repository(dict):
         :parameters:
             #. relativePath (str): The relative path from which start the walk.
         """
-        def walk_repository_files(directory, relativePath):
+        def walk_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
             for f in sorted(files):
@@ -471,11 +471,11 @@ class Repository(dict):
             for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
                 dir  = directories.__getitem__(k)
-                for e in walk_repository_files(dir, path):
+                for e in walk_files(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
-        return walk_repository_files(dir, relativePath='')
+        return walk_files(dir, relativePath='')
     
     def walk_files_info(self, relativePath=""):
         """
@@ -485,7 +485,7 @@ class Repository(dict):
         :parameters:
             #. relativePath (str): The relative path from which start the walk.
         """
-        def walk_repository_files(directory, relativePath):
+        def walk_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
             for fname in sorted(files.keys()):
@@ -494,11 +494,11 @@ class Repository(dict):
             for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
                 dir  = dict.__getitem__(directories, k)
-                for e in walk_repository_files(dir, path):
+                for e in walk_files(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
-        return walk_repository_files(dir, relativePath='')
+        return walk_files(dir, relativePath='')
     
     def walk_directories_relative_path(self, relativePath=""):
         """
@@ -507,7 +507,7 @@ class Repository(dict):
         :parameters:
             #. relativePath (str): The relative path from which start the walk.
         """
-        def walk_repository_files(directory, relativePath):
+        def walk_directories(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             dirNames = dict.keys(directories)
             for d in sorted(dirNames):
@@ -515,11 +515,11 @@ class Repository(dict):
             for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
                 dir  = dict.__getitem__(directories, k)
-                for e in walk_repository_files(dir, path):
+                for e in walk_directories(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
-        return walk_repository_files(dir, relativePath='')
+        return walk_directories(dir, relativePath='')
     
     def walk_directories_info(self, relativePath=""):
         """
@@ -528,7 +528,7 @@ class Repository(dict):
         :parameters:
             #. relativePath (str): The relative path from which start the walk.
         """
-        def walk_repository_directories(directory, relativePath):
+        def walk_directories(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             for fname in sorted(directories.keys()):
                 info = dict.__getitem__(directories,fname)
@@ -536,11 +536,11 @@ class Repository(dict):
             for k in sorted(dict.keys(directories)):
                 path = os.path.join(relativePath, k)
                 dir  = dict.__getitem__(directories, k)
-                for e in walk_repository_directories(dir, path):
+                for e in walk_directories(dir, path):
                     yield e
         dir, errorMessage = self.get_directory_info(relativePath)
         assert dir is not None, errorMessage
-        return walk_repository_directories(dir, relativePath='')
+        return walk_directories(dir, relativePath='')
         
     def walk_directory_files_relative_path(self, relativePath=""):
         """
@@ -661,6 +661,9 @@ class Repository(dict):
         :Parameters:
             #. path (string): The path of the directory from where to load the repository.
                If '.' or an empty string is passed, the current working directory will be used.
+        
+        :Returns:
+             #. repository (pyrep.Repository): returns self repository with loaded data.
         """
         # try to open
         if path.strip() in ('','.'):
@@ -693,6 +696,8 @@ class Repository(dict):
             self.__reset_repository()
             self.__update_repository(repo)
             #self.__path = repoPath
+        # return 
+        return self
     
     def create_repository(self, path, info=None, verbose=True): 
         """
@@ -1339,7 +1344,64 @@ class Repository(dict):
                 os.remove( ap )
         # save repository
         self.save()    
-                    
+    
+    def dump_copy(self, path, relativePath, name=None, 
+                        description=None,
+                        replace=False, verbose=False):
+        """
+        Copy an exisitng system file to the repository.
+        attribute in the Repository with utc timestamp.
+        
+        :Parameters:
+            #. path (str): The full path of the file to copy into the repository.
+            #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+               If relativePath does not exist, it will be created automatically.
+            #. name (string): The file name.
+               If None is given, name will be split from path.
+            #. description (None, string, pickable object): Any random description about the file.
+            #. replace (boolean): Whether to replace any existing file with the same name if existing.
+            #. verbose (boolean): Whether to be warn and informed about any abnormalities.
+        """
+        relativePath = os.path.normpath(relativePath)
+        if relativePath == '.':
+            relativePath = ''
+        if name is None:
+            _,name = os.path.split(path)
+        # ensure directory added
+        self.add_directory(relativePath)
+        # ger real path
+        realPath = os.path.join(self.__path, relativePath)
+        # get directory info dict
+        dirInfoDict, errorMessage = self.get_directory_info(relativePath)
+        assert dirInfoDict is not None, errorMessage
+        if dict.__getitem__(dirInfoDict, "files").has_key(name):
+            if not replace:
+                if verbose:
+                    warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
+                return
+        # convert dump and pull methods to strings
+        dump = "raise Exception(\"dump is ambiguous for copied file '$FILE_PATH' \")"
+        pull = "raise Exception(\"pull is ambiguous for copied file '$FILE_PATH' \")"
+        # dump file
+        try:
+            shutil.copyfile(path, os.path.join(realPath,name))
+        except Exception as e:
+            if verbose:
+                warnings.warn(e)
+            return
+        # set info
+        klass = None
+        # save the new file to the repository
+        dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,
+                                                        "pull":pull,
+                                                        "timestamp":datetime.utcnow(),
+                                                        "id":str(uuid.uuid1()),
+                                                        "class": klass,
+                                                        "description":description}
+        # save repository
+        self.save()
+        
+                               
     def dump_file(self, value, relativePath, name=None, 
                         description=None, klass=None,
                         dump=None, pull=None, 
@@ -1383,7 +1445,7 @@ class Repository(dict):
             relativePath,name = os.path.split(relativePath)
         # ensure directory added
         self.add_directory(relativePath)
-        # ger real path
+        # get real path
         realPath = os.path.join(self.__path, relativePath)
         # get directory info dict
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
@@ -1566,7 +1628,8 @@ class Repository(dict):
         try:
             exec( pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) )
         except Exception as e:
-            raise Exception( "unable to pull data from file (%s)"%e )
+            m = pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) 
+            raise Exception( "unable to pull data using '%s' from file (%s)"%(m,e) )
         # update
         if update:
             fileInfo["pull"] = pull
