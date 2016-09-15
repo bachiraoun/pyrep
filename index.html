@@ -6,15 +6,15 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Welcome to pyrep’s documentation! &mdash; pyrep 0.1.1 documentation</title>
+    <title>Welcome to pyrep’s documentation! &#8212; PYthon REPository package. pyrep v0.2.0</title>
     
-    <link rel="stylesheet" href="_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '0.1.1',
+        VERSION:     '0.2.0',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,141 +23,191 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="pyrep 0.1.1 documentation" href="#" /> 
+    <link rel="top" title="PYthon REPository package. pyrep v0.2.0" href="#" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
   </head>
-  <body>
-    <div class="related">
-      <h3>Navigation</h3>
-      <ul>
-        <li class="right" style="margin-right: 10px">
-          <a href="genindex.html" title="General Index"
-             accesskey="I">index</a></li>
-        <li><a href="#">pyrep 0.1.1 documentation</a> &raquo;</li> 
-      </ul>
-    </div>
+  <body role="document">
+  
 
     <div class="document">
       <div class="documentwrapper">
-          <div class="body">
+          <div class="body" role="main">
             
-  <div class="section" id="welcome-to-pyrep-s-documentation">
-<h1>Welcome to pyrep&#8217;s documentation!<a class="headerlink" href="#welcome-to-pyrep-s-documentation" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-pyrep">
+<span id="welcome-to-pyrep-s-documentation"></span><h1>Welcome to pyrep&#8217;s documentation!<a class="headerlink" href="#module-pyrep" title="Permalink to this headline">¶</a></h1>
+<p>PYthon REPository or pyrep package provides a pythonic way to organize dumping and pulling 
+python objects and other type of files to a folder or a directory that is called 
+repository. A Repository can be created in any directory or folder, it suffices to 
+initialize a Repository instance in a directory to start dumping and pulling objects into 
+it. Any directory or a folder that contains a .pyrepinfo binary file in it, is 
+theoretically a pyrep Repository. By default dump and pull methods use pickle to 
+serialize storing python objects. Practically any other method can be used simply by 
+providing the means and the required libraries in a simple form of string.</p>
+<div class="section" id="installation-guide">
+<h2>Installation guide:<a class="headerlink" href="#installation-guide" title="Permalink to this headline">¶</a></h2>
+<p>pyrep is a pure python 2.7.x module that needs no particular installation. One can either 
+fork pyrep&#8217;s <a class="reference external" href="https://github.com/bachiraoun/pyrep/">github repository</a> and copy the 
+package to python&#8217;s site-packages or use pip as the following:</p>
+<div class="highlight-console"><div class="highlight"><pre><span></span><span class="go">pip install pyrep</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="package-functions">
+<h2>Package Functions:<a class="headerlink" href="#package-functions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="pyrep.get_version">
+<code class="descclassname">pyrep.</code><code class="descname">get_version</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_version" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep&#8217;s version number.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyrep.get_author">
+<code class="descclassname">pyrep.</code><code class="descname">get_author</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_author" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep&#8217;s author&#8217;s name.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyrep.get_email">
+<code class="descclassname">pyrep.</code><code class="descname">get_email</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_email" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep&#8217;s author&#8217;s email.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyrep.get_doc">
+<code class="descclassname">pyrep.</code><code class="descname">get_doc</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_doc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep&#8217;s official online documentation link.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyrep.get_repository">
+<code class="descclassname">pyrep.</code><code class="descname">get_repository</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_repository" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep&#8217;s official online repository link.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyrep.get_pypi">
+<code class="descclassname">pyrep.</code><code class="descname">get_pypi</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyrep.get_pypi" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get pyrep pypi&#8217;s link.</p>
+</dd></dl>
+
+</div>
 <div class="section" id="usage">
-<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python"><div class="highlight"><pre><span class="c"># standard distribution imports</span>
+<h2>Usage:<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># standard distribution imports</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 
-<span class="c"># numpy imports</span>
+<span class="c1"># numpy imports</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
 
-<span class="c"># import Repository</span>
+<span class="c1"># import Repository</span>
 <span class="kn">from</span> <span class="nn">pyrep</span> <span class="kn">import</span> <span class="n">Repository</span>
 
-<span class="c"># set IGNORE_REP</span>
-<span class="n">IGNORE_DIR_NOT_REP</span> <span class="o">=</span> <span class="bp">True</span>
-
-<span class="c"># initialize Repository instance</span>
+<span class="c1"># initialize Repository instance</span>
 <span class="n">REP</span><span class="o">=</span><span class="n">Repository</span><span class="p">()</span>
 
-<span class="c"># create a path pointing to user home</span>
-<span class="n">PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s">&quot;~&quot;</span><span class="p">),</span> <span class="s">&#39;pyrepTest_canBeDeleted&#39;</span><span class="p">)</span>
+<span class="c1"># create a path pointing to user home</span>
+<span class="n">PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">&quot;~&quot;</span><span class="p">),</span> <span class="s1">&#39;pyrepTest_canBeDeleted&#39;</span><span class="p">)</span>
 
-<span class="c"># check if directory exist</span>
+<span class="c1"># check if directory exist</span>
 <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">PATH</span><span class="p">):</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">IGNORE_DIR_NOT_REP</span><span class="p">:</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&quot;Directory exists and it&#39;s not a pyrep repository. Set IGNORE_DIR_NOT_REP to True.&quot;</span><span class="p">)</span>
-            <span class="nb">exit</span><span class="p">()</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Directory exists and it&#39;s not a pyrep repository.&quot;</span><span class="p">)</span>
+        <span class="nb">exit</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c"># remove repository from directory if repository exist.</span>
+        <span class="c1"># remove repository from directory if repository exist.</span>
         <span class="n">REP</span><span class="o">.</span><span class="n">remove_repository</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">PATH</span><span class="p">,</span> <span class="n">relatedFiles</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">relatedFolders</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
 
-<span class="c"># print repository path</span>
-<span class="k">print</span> <span class="s">&quot;repository path --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+<span class="c1"># print repository path</span>
+<span class="k">print</span> <span class="s2">&quot;repository path --&gt; </span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
 
-<span class="c"># create repository in path</span>
-<span class="k">print</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">Is path &#39;</span><span class="si">%s</span><span class="s">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
+<span class="c1"># create repository in path</span>
+<span class="k">print</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Is path &#39;</span><span class="si">%s</span><span class="s2">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
 <span class="n">REP</span><span class="o">.</span><span class="n">create_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository path --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Repository path --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
 
-<span class="c"># add directories</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;folder1/archive1/archive2/archive3/archive3&quot;</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s">&quot;directory1/directory2&quot;</span><span class="p">)</span>
+<span class="c1"># add directories</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s2">&quot;folder1/folder2/folder3&quot;</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s2">&quot;folder1/archive1/archive2/archive3/archive3&quot;</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">add_directory</span><span class="p">(</span><span class="s2">&quot;directory1/directory2&quot;</span><span class="p">)</span>
 
-<span class="c"># dump files</span>
-<span class="n">value</span> <span class="o">=</span> <span class="s">&quot;This is a string data to pickle and store in the repository&quot;</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump_file</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="c1"># dump files</span>
+<span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;This is a string data to pickle and store in the repository&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump_file</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pickled&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 
 <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">dump</span><span class="o">=</span><span class="s">&quot;import numpy as np; np.savetxt(fname=&#39;$FILE_PATH&#39;, X=value, fmt=&#39;</span><span class="si">%.6e</span><span class="s">&#39;)&quot;</span>
-<span class="n">pull</span><span class="o">=</span><span class="s">&quot;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#39;$FILE_PATH&#39;)&quot;</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;text.dat&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="n">pull</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;folder3Pickled.pkl&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive1Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive1Pickled2&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/archive1/archive2&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;archive2Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">dump</span><span class="o">=</span><span class="s2">&quot;import numpy as np; np.savetxt(fname=&#39;$FILE_PATH&#39;, X=value, fmt=&#39;</span><span class="si">%.6e</span><span class="s2">&#39;)&quot;</span>
+<span class="n">pull</span><span class="o">=</span><span class="s2">&quot;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#39;$FILE_PATH&#39;)&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;text.dat&#39;</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">,</span> <span class="n">pull</span><span class="o">=</span><span class="n">pull</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s2">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;folder3Pickled.pkl&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s2">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;archive1Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s2">&quot;folder1/archive1&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;archive1Pickled2&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s2">&quot;folder1/archive1/archive2&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;archive2Pickled1&#39;</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 
-<span class="c"># pull data</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;text.dat&#39;</span><span class="p">)</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pulled text data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="c1"># pull data</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;text.dat&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Pulled text data --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
-<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;folder3Pickled.pkl&#39;</span><span class="p">)</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pulled pickled data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s2">&quot;folder1/folder2/folder3&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;folder3Pickled.pkl&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Pulled pickled data --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
-<span class="c"># update</span>
-<span class="n">value</span> <span class="o">=</span> <span class="s">&quot;This is an updated string&quot;</span>
-<span class="n">REP</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">)</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Update pickled data to --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="n">value</span>
+<span class="c1"># update</span>
+<span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;This is an updated string&quot;</span>
+<span class="n">REP</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">relativePath</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pickled&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Update pickled data to --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">value</span>
 
-<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;pickled&#39;</span><span class="p">)</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Pull updated pickled data --&gt; </span><span class="si">%s</span><span class="s">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">REP</span><span class="o">.</span><span class="n">pull</span><span class="p">(</span><span class="n">relativePath</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pickled&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Pull updated pickled data --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span><span class="o">%</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
-<span class="c"># walk repository files</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">walk repository files relative path&#39;</span>
-<span class="k">print</span> <span class="s">&#39;------------------------------------&#39;</span>
+<span class="c1"># walk repository files</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">walk repository files relative path&#39;</span>
+<span class="k">print</span> <span class="s1">&#39;------------------------------------&#39;</span>
 <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">REP</span><span class="o">.</span><span class="n">walk_files_relative_path</span><span class="p">():</span>
     <span class="k">print</span> <span class="n">f</span>
 
-<span class="c"># walk repository, directories</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">walk repository directories relative path&#39;</span>
-<span class="k">print</span> <span class="s">&#39;------------------------------------------&#39;</span>
+<span class="c1"># walk repository, directories</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">walk repository directories relative path&#39;</span>
+<span class="k">print</span> <span class="s1">&#39;------------------------------------------&#39;</span>
 <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">REP</span><span class="o">.</span><span class="n">walk_directories_relative_path</span><span class="p">():</span>
     <span class="k">print</span> <span class="n">d</span>
 
 
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository print --&gt;&#39;</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Repository print --&gt;&#39;</span>
 <span class="k">print</span> <span class="n">REP</span>
 
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository representation --&gt;&#39;</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Repository representation --&gt;&#39;</span>
 <span class="k">print</span> <span class="nb">repr</span><span class="p">(</span><span class="n">REP</span><span class="p">)</span>
 
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Repository to list --&gt;&#39;</span>
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Repository to list --&gt;&#39;</span>
 <span class="k">print</span>  <span class="n">REP</span><span class="o">.</span><span class="n">get_list_representation</span><span class="p">()</span>
 <span class="n">REP</span><span class="o">.</span><span class="n">create_package</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
 
-<span class="c"># Try to load</span>
+<span class="c1"># Try to load</span>
 <span class="k">try</span><span class="p">:</span>
-    <span class="n">REP</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">PATH</span><span class="p">)</span>
+    <span class="n">REP</span><span class="o">.</span><span class="n">load_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)</span>
 <span class="k">except</span><span class="p">:</span>
     <span class="n">loadable</span> <span class="o">=</span> <span class="bp">False</span>
 <span class="k">finally</span><span class="p">:</span>
     <span class="n">loadable</span> <span class="o">=</span> <span class="bp">True</span>
-<span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">Is repository loadable --&gt;&#39;</span><span class="p">,</span><span class="n">loadable</span> 
+<span class="k">print</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Is repository loadable --&gt;&#39;</span><span class="p">,</span><span class="n">loadable</span> 
 
-<span class="c"># remove all repo data</span>
+<span class="c1"># remove all repo data</span>
 <span class="n">REP</span><span class="o">.</span><span class="n">remove_repository</span><span class="p">(</span><span class="n">relatedFiles</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">relatedFolders</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 
-<span class="c"># check if there is a repository in path</span>
-<span class="k">print</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">Is path &#39;</span><span class="si">%s</span><span class="s">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
+<span class="c1"># check if there is a repository in path</span>
+<span class="k">print</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Is path &#39;</span><span class="si">%s</span><span class="s2">&#39; a repository --&gt; </span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="p">(</span><span class="n">PATH</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REP</span><span class="o">.</span><span class="n">is_repository</span><span class="p">(</span><span class="n">PATH</span><span class="p">)))</span>
 </pre></div>
 </div>
 </div>
 <div class="section" id="output">
 <h2>output<a class="headerlink" href="#output" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python"><div class="highlight"><pre>repository path --&gt; None
+<div class="highlight-python"><div class="highlight"><pre><span></span>repository path --&gt; None
 
 Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
 
@@ -227,28 +277,32 @@ Is repository loadable --&gt; True
 Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
 </pre></div>
 </div>
+</div>
+<div class="section" id="repository-main-module">
+<h2>Repository main module:<a class="headerlink" href="#repository-main-module" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt>
-<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">path_required</tt><big>(</big><em>func</em><big>)</big></dt>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">path_required</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
 <dd><p>Decorate methods when repository path is required.</p>
 </dd></dl>
 
 <dl class="function">
 <dt>
-<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">unlock_required</tt><big>(</big><em>func</em><big>)</big></dt>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">unlock_required</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
 <dd><p>Decorate methods when unlocking repository is required.</p>
 </dd></dl>
 
 <dl class="function">
 <dt>
-<tt class="descclassname">pyrep.Repository.</tt><tt class="descname">get_pickling_errors</tt><big>(</big><em>obj</em>, <em>seen=None</em><big>)</big></dt>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">get_pickling_errors</code><span class="sig-paren">(</span><em>obj</em>, <em>seen=None</em><span class="sig-paren">)</span></dt>
 <dd><p>Investigate pickling errors.</p>
 </dd></dl>
 
 <dl class="class">
 <dt>
-<em class="property">class </em><tt class="descclassname">pyrep.Repository.</tt><tt class="descname">Repository</tt><big>(</big><em>repo=None</em><big>)</big></dt>
-<dd><p>This is a pythonic way to organize dumping and pulling python objects 
+<em class="property">class </em><code class="descclassname">pyrep.Repository.</code><code class="descname">Repository</code><span class="sig-paren">(</span><em>repo=None</em><span class="sig-paren">)</span></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">dict</span></code></p>
+<p>This is a pythonic way to organize dumping and pulling python objects 
 or any type of files to a folder or directory that we call repository. 
 Any directory can be a repository, it suffices to initialize a Repository 
 instance in a directory to start dumping and pulling object into it. 
@@ -270,73 +324,79 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 </table>
 <dl class="method">
 <dt>
-<tt class="descname">keys</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">keys</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Keys is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">values</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">values</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>values is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">items</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">items</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>items is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">pop</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">pop</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>pop is a locked method and modified to be a private method only callable from within the instance.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">popitem</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">popitem</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>popitem is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">viewkeys</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">viewkeys</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">viewvalues</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">viewvalues</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
-<tt class="descname">LOCK</tt></dt>
+<code class="descname">LOCK</code></dt>
 <dd><p>Get the lock value.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
-<tt class="descname">path</tt></dt>
+<code class="descname">path</code></dt>
 <dd><p>Get the path of this repository instance which points to the folder and directory where .pyrepinfo is.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
-<tt class="descname">version</tt></dt>
+<code class="descname">info</code></dt>
+<dd><p>Get the unique user defined information of this repository instance.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">version</code></dt>
 <dd><p>Get the version of this repository.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
-<tt class="descname">id</tt></dt>
+<code class="descname">id</code></dt>
 <dd><p>Get the universally unique id of this repository.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_list_representation</tt><big>(</big><big>)</big></dt>
+<code class="descname">get_list_representation</code><span class="sig-paren">(</span><span class="sig-paren">)</span></dt>
 <dd><p>Gets a representation of the Repository content in a list of directories(files) format.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -353,7 +413,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_files_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_files_relative_path</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk the repository and yield all found files relative path joined with file name.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -370,7 +430,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_files_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_files_info</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk the repository and yield tuples as the following:</p>
 <p>(relative path joined with file name, file info dict).</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -388,7 +448,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directories_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directories_relative_path</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk repository and yield all found directories relative path</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -405,7 +465,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directories_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directories_info</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk repository and yield all found directories relative path.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -422,7 +482,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directory_files_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directory_files_relative_path</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk a certain directory in repository and yield all found 
 files relative path joined with file name.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -440,7 +500,7 @@ files relative path joined with file name.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directory_files_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directory_files_info</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk a certain directory in repository and yield tuples as the following:</p>
 <p>(relative path joined with file name, file info dict).</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -458,7 +518,7 @@ files relative path joined with file name.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directory_directories_relative_path</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directory_directories_relative_path</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk a certain directory in repository and yield all found directories relative path.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -475,7 +535,7 @@ files relative path joined with file name.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">walk_directory_directories_info</tt><big>(</big><em>relativePath=''</em><big>)</big></dt>
+<code class="descname">walk_directory_directories_info</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk a certain directory in repository and yield tuples as the following:</p>
 <p>(relative path joined with directory name, file info dict).</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -493,7 +553,7 @@ files relative path joined with file name.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">synchronize</tt><big>(</big><em>verbose=False</em><big>)</big></dt>
+<code class="descname">synchronize</code><span class="sig-paren">(</span><em>verbose=False</em><span class="sig-paren">)</span></dt>
 <dd><p>Synchronizes the Repository information with the directory.
 All registered but missing files and directories in the directory, 
 will be automatically removed from the Repository.</p>
@@ -502,6 +562,51 @@ will be automatically removed from the Repository.</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>verbose (boolean): Whether to be warn and inform about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">load_repository</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span></dt>
+<dd><p>Load repository from a directory path and update the current instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first arabic simple">
+<li>path (string): The path of the directory from where to load the repository.
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+</ol>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ol class="first last arabic simple">
+<li>repository (pyrep.Repository): returns self repository with loaded data.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">create_repository</code><span class="sig-paren">(</span><em>path</em>, <em>info=None</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<dd><p>create a repository in a directory.
+This method insures the creation of the directory in the system if it is missing.</p>
+<p><strong>N.B. This method erases existing pyrep repository in the path but not the repository files.</strong></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (string): The real absolute path where to create the Repository.
+If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+<li>info (None, object): Any information that can identify the repository.</li>
 <li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
 </ol>
 </td>
@@ -512,15 +617,21 @@ will be automatically removed from the Repository.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">load</tt><big>(</big><em>path</em><big>)</big></dt>
-<dd><p>Load repository from a directory path and update the current instance.</p>
+<code class="descname">get_repository</code><span class="sig-paren">(</span><em>path</em>, <em>info=None</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<dd><p>Create a repository at given real path or load any existing one.
+This method insures the creation of the directory in the system if it is missing.</p>
+<p>Unlike create_repository, this method doesn&#8217;t erase any existing repository 
+in the path but loads it instead.</p>
+<p><strong>N.B. On some systems and some paths, creating a directory may requires root permissions.</strong></p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
-<li>path (string): The path of the directory from where to load the repository.
+<li>path (string): The real absolute path where to create the Repository.
 If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
+<li>info (None, object): Any information that can identify the repository.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
 </ol>
 </td>
 </tr>
@@ -530,13 +641,36 @@ If &#8216;.&#8217; or an empty string is passed, the current working directory w
 
 <dl class="method">
 <dt>
-<tt class="descname">save</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">remove_repository</code><span class="sig-paren">(</span><em>path=None</em>, <em>relatedFiles=False</em>, <em>relatedFolders=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<dd><p>Remove .pyrepinfo file from path if exists and related files and directories 
+when respective flags are set to True.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (None, string): The path of the directory where to remove an existing repository.
+If None, current repository is removed if initialized.</li>
+<li>relatedFiles (boolean): Whether to also remove all related files from system as well.</li>
+<li>relatedFolders (boolean): Whether to also remove all related directories from system as well.
+Directories will be removed only if they are left empty after removing the files.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">save</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Save repository .pyrepinfo to disk.</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">create_package</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">create_package</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Create a tar file package of all the repository files and directories. 
 Only files and directories that are stored in the repository info 
 are stored in the package tar file.</p>
@@ -563,75 +697,7 @@ Available modes are (&#8216;w&#8217;, &#8216;w:&#8217;, &#8216;w:gz&#8217;, &#82
 
 <dl class="method">
 <dt>
-<tt class="descname">initialize</tt><big>(</big><em>path</em>, <em>verbose=True</em><big>)</big></dt>
-<dd><p>Initialize a repository in a directory.
-This method insures the creation of the directory in the system if it is missing.</p>
-<p><strong>N.B. This method erases existing pyrep repository in the path but not the repository files.</strong></p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
-<li>path (string): The real absolute path where to create the Repository.
-If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
-<li>save (boolean): Whether to save the repository .pyrepinfo file upon initializing.</li>
-<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
-</ol>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt>
-<tt class="descname">create_repository</tt><big>(</big><em>path</em>, <em>verbose=True</em><big>)</big></dt>
-<dd><p>Create a repository at given real path.
-This method insures the creation of the directory in the system if it is missing.</p>
-<p>Unlike initialize, this method doesn&#8217;t erase any existing repository in the path
-but loads it instead.</p>
-<p><strong>N.B. On some systems and some paths, creating a directory may requires root permissions.</strong></p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
-<li>path (string): The real absolute path where to create the Repository.
-If &#8216;.&#8217; or an empty string is passed, the current working directory will be used.</li>
-<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
-</ol>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt>
-<tt class="descname">remove_repository</tt><big>(</big><em>path=None</em>, <em>relatedFiles=False</em>, <em>relatedFolders=False</em>, <em>verbose=True</em><big>)</big></dt>
-<dd><p>Remove .pyrepinfo file from path if exists and related files and directories 
-when respective flags are set to True.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
-<li>path (None, string): The path of the directory where to remove an existing repository.
-If None, current repository is removed if initialized.</li>
-<li>relatedFiles (boolean): Whether to also remove all related files from system as well.</li>
-<li>relatedFolders (boolean): Whether to also remove all related directories from system as well.
-Directories will be removed only if they are left empty after removing the files.</li>
-<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
-</ol>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt>
-<tt class="descname">is_repository</tt><big>(</big><em>path</em><big>)</big></dt>
+<code class="descname">is_repository</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span></dt>
 <dd><p>Check if there is a Repository in path.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -653,7 +719,7 @@ Directories will be removed only if they are left empty after removing the files
 
 <dl class="method">
 <dt>
-<tt class="descname">get_directory_info</tt><big>(</big><em>relativePath</em><big>)</big></dt>
+<code class="descname">get_directory_info</code><span class="sig-paren">(</span><em>relativePath</em><span class="sig-paren">)</span></dt>
 <dd><p>get directory info from the Repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -677,7 +743,7 @@ If None, it means an error has occurred.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_parent_directory_info</tt><big>(</big><em>relativePath</em><big>)</big></dt>
+<code class="descname">get_parent_directory_info</code><span class="sig-paren">(</span><em>relativePath</em><span class="sig-paren">)</span></dt>
 <dd><p>get parent directory info of a file or directory from the Repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -701,7 +767,7 @@ If None, it means an error has occurred.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_file_info</tt><big>(</big><em>relativePath</em>, <em>name=None</em><big>)</big></dt>
+<code class="descname">get_file_info</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name=None</em><span class="sig-paren">)</span></dt>
 <dd><p>get file information dict from the repository given its relative path and name.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -727,7 +793,7 @@ If None, it means an error has occurred.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_file_info_by_id</tt><big>(</big><em>id</em><big>)</big></dt>
+<code class="descname">get_file_info_by_id</code><span class="sig-paren">(</span><em>id</em><span class="sig-paren">)</span></dt>
 <dd><p>Given an id, get the corresponding file info as the following:</p>
 <p>(relative path joined with file name, file info dict)</p>
 <dl class="docutils">
@@ -755,7 +821,7 @@ If None, it means file was not found.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_file_relative_path_by_id</tt><big>(</big><em>id</em><big>)</big></dt>
+<code class="descname">get_file_relative_path_by_id</code><span class="sig-paren">(</span><em>id</em><span class="sig-paren">)</span></dt>
 <dd><p>Given an id, get the corresponding file info relative path joined with file name.</p>
 <dl class="docutils">
 <dt>Parameters:</dt>
@@ -780,7 +846,7 @@ If None, it means file was not found.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_file_relative_path_by_name</tt><big>(</big><em>name</em>, <em>skip=0</em><big>)</big></dt>
+<code class="descname">get_file_relative_path_by_name</code><span class="sig-paren">(</span><em>name</em>, <em>skip=0</em><span class="sig-paren">)</span></dt>
 <dd><p>Get file relative path given the file name. If file name is redundant in different 
 directories in the repository, this method ensures to return all or some of the 
 files according to skip value.</p>
@@ -814,7 +880,7 @@ If None, it means file was not found.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">get_file_info_by_name</tt><big>(</big><em>name</em>, <em>skip=0</em><big>)</big></dt>
+<code class="descname">get_file_info_by_name</code><span class="sig-paren">(</span><em>name</em>, <em>skip=0</em><span class="sig-paren">)</span></dt>
 <dd><p>Get file information tuple given the file name. If file name is redundant in different 
 directories in the repository, this method ensures to return all or some of the 
 files infos according to skip value.</p>
@@ -852,7 +918,7 @@ If None, it means file was not found.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">add_directory</tt><big>(</big><em>relativePath</em>, <em>info=None</em><big>)</big></dt>
+<code class="descname">add_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>info=None</em><span class="sig-paren">)</span></dt>
 <dd><p>Adds a directory in the repository and creates its 
 attribute in the Repository with utc timestamp.
 It insures adding all the missing directories in the path.</p>
@@ -877,7 +943,7 @@ It insures adding all the missing directories in the path.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">remove_directory</tt><big>(</big><em>relativePath</em>, <em>removeFromSystem=False</em><big>)</big></dt>
+<code class="descname">remove_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>removeFromSystem=False</em><span class="sig-paren">)</span></dt>
 <dd><p>Remove directory from repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -898,7 +964,7 @@ It insures adding all the missing directories in the path.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">move_directory</tt><big>(</big><em>relativePath</em>, <em>relativeDestination</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<code class="descname">move_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>relativeDestination</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
 <dd><p>Move a directory in the repository from one place to another. It insures moving all the
 files and subdirectories in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -919,7 +985,7 @@ files and subdirectories in the system.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">rename_directory</tt><big>(</big><em>relativePath</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<code class="descname">rename_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
 <dd><p>Rename a directory in the repository. It insures renaming the directory in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -940,7 +1006,7 @@ It fails when new folder name is registered in repository.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">rename_file</tt><big>(</big><em>relativePath</em>, <em>name</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><big>)</big></dt>
+<code class="descname">rename_file</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
 <dd><p>Rename a directory in the repository. It insures renaming the file in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -962,7 +1028,7 @@ It fails when new folder name is registered in repository.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">remove_file</tt><big>(</big><em>relativePath</em>, <em>name=None</em>, <em>removeFromSystem=False</em><big>)</big></dt>
+<code class="descname">remove_file</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name=None</em>, <em>removeFromSystem=False</em><span class="sig-paren">)</span></dt>
 <dd><p>Remove file from repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -987,7 +1053,32 @@ If None is given, name will be split from relativePath.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">dump_file</tt><big>(</big><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>klass=None</em>, <em>dump=None</em>, <em>pull=None</em>, <em>replace=False</em>, <em>ACID=True</em>, <em>verbose=False</em><big>)</big></dt>
+<code class="descname">dump_copy</code><span class="sig-paren">(</span><em>path</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>replace=False</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
+<dd><p>Copy an exisitng system file to the repository.
+attribute in the Repository with utc timestamp.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
+<li>path (str): The full path of the file to copy into the repository.</li>
+<li>relativePath (str): The relative to the repository path of the directory where the file should be dumped.
+If relativePath does not exist, it will be created automatically.</li>
+<li>name (string): The file name.
+If None is given, name will be split from path.</li>
+<li>description (None, string, pickable object): Any random description about the file.</li>
+<li>replace (boolean): Whether to replace any existing file with the same name if existing.</li>
+<li>verbose (boolean): Whether to be warn and informed about any abnormalities.</li>
+</ol>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">dump_file</code><span class="sig-paren">(</span><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>klass=None</em>, <em>dump=None</em>, <em>pull=None</em>, <em>replace=False</em>, <em>ACID=True</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
 <dd><p>Dump a file using its value to the system and creates its 
 attribute in the Repository with utc timestamp.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1038,13 +1129,13 @@ a temporary path first and then moving it to the desired path.</p>
 
 <dl class="method">
 <dt>
-<tt class="descname">dump</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">dump</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Alias to dump_file</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">update_file</tt><big>(</big><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=False</em>, <em>klass=False</em>, <em>dump=False</em>, <em>pull=False</em>, <em>ACID=True</em>, <em>verbose=False</em><big>)</big></dt>
+<code class="descname">update_file</code><span class="sig-paren">(</span><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=False</em>, <em>klass=False</em>, <em>dump=False</em>, <em>pull=False</em>, <em>ACID=True</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
 <dd><p>Update the value and the utc timestamp of a file that is already in the Repository.</p>
 <p>If file is not registered in repository, and error will be thrown.</p>
 <p>If file is missing in the system, it will be regenerated as dump method is called.</p>
@@ -1055,12 +1146,12 @@ a temporary path first and then moving it to the desired path.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ol class="first last arabic simple">
 <li>value (object): The value of the file to update. It is any python object or a file.</li>
 <li>relativePath (str): The relative to the repository path of the directory where the file should be dumped.</li>
-<li>name (string): The file name.
+<li>name (None, string): The file name.
 If None is given, name will be split from relativePath.</li>
-<li>description (None, string, pickable object): Any random description about the file.
+<li>description (False, string, pickable object): Any random description about the file.
 If False is given, the description info won&#8217;t be updated, 
 otherwise it will be update to what description argument value is.</li>
-<li>klass (None, class): The dumped object class. If False is given, 
+<li>klass (False, class): The dumped object class. If False is given, 
 the class info won&#8217;t be updated, otherwise it will be update to what klass argument value is.</li>
 <li>dump (False, string): The new dump method. If False is given, the old one will be used.</li>
 <li>pull (False, string): The new pull method. If False is given, the old one will be used.</li>
@@ -1077,13 +1168,13 @@ a temporary path first and then moving it to the desired path.</li>
 
 <dl class="method">
 <dt>
-<tt class="descname">update</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">update</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Alias to update_file</p>
 </dd></dl>
 
 <dl class="method">
 <dt>
-<tt class="descname">pull_file</tt><big>(</big><em>relativePath</em>, <em>name=None</em>, <em>pull=None</em>, <em>update=True</em><big>)</big></dt>
+<code class="descname">pull_file</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name=None</em>, <em>pull=None</em>, <em>update=True</em><span class="sig-paren">)</span></dt>
 <dd><p>Pull a file&#8217;s data from the Repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1114,7 +1205,7 @@ e.g &#8220;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#8217;$FILE_PATH&#8
 
 <dl class="method">
 <dt>
-<tt class="descname">pull</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big></dt>
+<code class="descname">pull</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Alias to pull_file</p>
 </dd></dl>
 
@@ -1128,18 +1219,17 @@ e.g &#8220;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#8217;$FILE_PATH&#8
       </div>
       <div class="clearer"></div>
     </div>
-    <div class="related">
-      <h3>Navigation</h3>
-      <ul>
-        <li class="right" style="margin-right: 10px">
-          <a href="genindex.html" title="General Index"
-             >index</a></li>
-        <li><a href="#">pyrep 0.1.1 documentation</a> &raquo;</li> 
-      </ul>
-    </div>
     <div class="footer">
-        &copy; Copyright 2015, Bachir Aoun.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+      &copy;2016, Bachir Aoun.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
     </div>
+
+    
+
+    
   </body>
 </html>
