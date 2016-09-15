@@ -1,6 +1,6 @@
 """
-Usage
-=====
+Usage:
+======
 .. code-block:: python
 
         # standard distribution imports
@@ -13,9 +13,6 @@ Usage
         # import Repository
         from pyrep import Repository
         
-        # set IGNORE_REP
-        IGNORE_DIR_NOT_REP = True
-        
         # initialize Repository instance
         REP=Repository()
         
@@ -25,9 +22,8 @@ Usage
         # check if directory exist
         if os.path.isdir(PATH):
             if not REP.is_repository(PATH):
-                if not IGNORE_DIR_NOT_REP:
-                    warnings.warn("Directory exists and it's not a pyrep repository. Set IGNORE_DIR_NOT_REP to True.")
-                    exit()
+                warnings.warn("Directory exists and it's not a pyrep repository.")
+                exit()
             else:
                 # remove repository from directory if repository exist.
                 REP.remove_repository(path=PATH, relatedFiles=False, relatedFolders=False)
@@ -187,6 +183,9 @@ output
         
         Is path 'C:\\Users\\aoun\\pyrepTest_canBeDeleted' a repository --> False
 
+
+Repository main module:
+=======================
 """
 
 # standard distribution imports
@@ -1513,12 +1512,12 @@ class Repository(dict):
         :Parameters:
             #. value (object): The value of the file to update. It is any python object or a file.
             #. relativePath (str): The relative to the repository path of the directory where the file should be dumped.
-            #. name (string): The file name.
+            #. name (None, string): The file name.
                If None is given, name will be split from relativePath.
-            #. description (None, string, pickable object): Any random description about the file.
+            #. description (False, string, pickable object): Any random description about the file.
                If False is given, the description info won't be updated, 
                otherwise it will be update to what description argument value is.
-            #. klass (None, class): The dumped object class. If False is given, 
+            #. klass (False, class): The dumped object class. If False is given, 
                the class info won't be updated, otherwise it will be update to what klass argument value is.
             #. dump (False, string): The new dump method. If False is given, the old one will be used.
             #. pull (False, string): The new pull method. If False is given, the old one will be used.
