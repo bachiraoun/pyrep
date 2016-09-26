@@ -82,19 +82,20 @@ with open(ver_path) as ver_file:
 
 
 # create meta data
-metadata = dict(name = PACKAGE_NAME,
-                packages=[PACKAGE_NAME],
-                package_dir={PACKAGE_NAME: '.'},
-                version= PACKAGE_INFO['__version__'] ,
-                author="Bachir AOUN",
-                author_email="bachir.aoun@e-aoun.com",
-                description = "\n".join(DESCRIPTION),
+metadata = dict(name             = PACKAGE_NAME,
+                packages         = [PACKAGE_NAME],
+                package_dir      = {PACKAGE_NAME: '.'},
+                version          = PACKAGE_INFO['__version__'] ,
+                author           = "Bachir AOUN",
+                author_email     = "bachir.aoun@e-aoun.com",
+                description      = "\n".join(DESCRIPTION),
                 long_description = "\n".join(LONG_DESCRIPTION),
-                url = "http://bachiraoun.github.io/pyrep/",
-                download_url = "https://github.com/bachiraoun/pyrep",
-                license = 'GNU',
-                classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-                platforms = ["Windows", "Linux", "Mac OS-X", "Unix"], )
+                url              = "http://bachiraoun.github.io/pyrep/",
+                download_url     = "https://github.com/bachiraoun/pyrep",
+                license          = 'GNU',
+                install_requires = ["pylocker",]
+                classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
+                platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"], )
                 
 # setup              
 setup(**metadata)

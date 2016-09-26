@@ -204,6 +204,9 @@ try:
 except:
     import pickle
 
+# import pylocker
+from pylocker import Locker
+
 # pyrep imports
 from pyrep import __version__
     
@@ -218,15 +221,29 @@ def path_required(func):
         return func(self, *args, **kwargs)
     return wrapper
 
-def unlock_required(func):
+def unhide_dict_required(func):
     """Decorate methods when unlocking repository is required."""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        if self.LOCK:
-            warnings.warn("Repository class '%s' method '%s' is locked!"%(self.__class__.__name__,func.__name__))
-            #warnings.warn("Repository class '%s' method '%s' passed with args (%s) and kwargs (%s) is locked!"%(self.__class__.__name__,func.__name__))
+        if self.DICT_HIDE:
+            warnings.warn("Repository class '%s' method '%s' is hidden!"%(self.__class__.__name__,func.__name__))
             return
         return func(self, *args, **kwargs)
+    return wrapper
+
+def acquire_lock(func):
+    """Decorate methods when unlocking repository is required."""
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        with self.locker as r:
+            # get the result
+            acquired, code, _  = r
+            if acquired:
+                r = func(self, *args, **kwargs)
+            else:
+                warnings.warn("Unable to aquire the lock, code %s. You may try again!"%code)
+                r = None
+        return r
     return wrapper
 
 ### get pickling errors method ###
@@ -277,14 +294,23 @@ class Repository(dict):
            If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.\n
            If Repository, current instance will cast the given Repository instance.\n
     """
-    __LOCK = True 
+    __DICT_HIDE = True 
     def __init__(self, repo=None):
-        self.__path = None
-        self.__info = None
+        self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
+        self.__path   = None
+        self.__info   = None
         self.__reset_repository()
         self.__cast(repo)
-        self.__LOCK = True
+        self.__DICT_HIDE = True
     
+    #def __getstate__(self):
+    #    state = {}
+    #    for k, v in self.__dict__.items():
+    #        if k in ('_Repository__locker',):
+    #            v = None
+    #        state[k] = v
+    #    return state
+        
     def __str__(self):
         if self.__path is None:
             return ""
@@ -328,50 +354,50 @@ class Repository(dict):
         repr += " ; ".join(lrepr)
         return repr 
         
-    @unlock_required
+    @unhide_dict_required
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
     
-    @unlock_required
+    @unhide_dict_required
     def __getitem__(self, key):
         dict.__getitem__(self, key)
      
-    @unlock_required
+    @unhide_dict_required
     def keys(self, *args, **kwargs):
         """Keys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.keys(self)
     
-    @unlock_required
+    @unhide_dict_required
     def values(self, *args, **kwargs):
         """values is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.values(self)
         
-    @unlock_required
+    @unhide_dict_required
     def items(self, *args, **kwargs):
         """items is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.items(self)
     
-    @unlock_required
+    @unhide_dict_required
     def pop(self, *args, **kwargs):
         """pop is a locked method and modified to be a private method only callable from within the instance."""
         return dict.pop(self, *args, **kwargs)
     
-    @unlock_required
+    @unhide_dict_required
     def update(self, *args, **kwargs):
         """update is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.pop(self, *args, **kwargs)
     
-    @unlock_required
+    @unhide_dict_required
     def popitem(self, *args, **kwargs):
         """popitem is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.popitem(self, *args, **kwargs)
     
-    @unlock_required
+    @unhide_dict_required
     def viewkeys(self, *args, **kwargs):
         """viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.viewkeys(self, *args, **kwargs)
     
-    @unlock_required
+    @unhide_dict_required
     def viewvalues(self, *args, **kwargs):
         """viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return viewvalues.viewkeys(self, *args, **kwargs)  
@@ -409,12 +435,23 @@ class Repository(dict):
         dict.update(self, repo)
         self.__path = repo.path
         self.__info = repo.info
+        # update locker
+        lp = '.pyreplock'
+        if self.__path is not None:
+            lp = os.path.join(self.__path,lp)
+        self.__locker.set_lock_path(lp)
+        self.__locker.set_lock_pass(str(uuid.uuid1()))
     
     @property
-    def LOCK(self):
+    def DICT_HIDE(self):
         """Get the lock value."""
-        return self.__LOCK 
+        return self.__DICT_HIDE 
             
+    @property
+    def locker(self):
+        """Get locker manager."""
+        return self.__locker
+        
     @property
     def path(self):
         """Get the path of this repository instance which points to the folder and directory where .pyrepinfo is."""
@@ -479,7 +516,7 @@ class Repository(dict):
     def walk_files_info(self, relativePath=""):
         """
         Walk the repository and yield tuples as the following:\n 
-        (relative path joined with file name, file info dict).
+        (relative path to relativePath joined with file name, file info dict).
         
         :parameters:
             #. relativePath (str): The relative path from which start the walk.
@@ -600,7 +637,8 @@ class Repository(dict):
         assert dirInfoDict is not None, errorMessage
         for fname, info in dict.__getitem__(dirInfoDict, "directories").items():
             yield os.path.join(relativePath, fname), info
-            
+    
+    @acquire_lock
     def synchronize(self, verbose=False):
         """
         Synchronizes the Repository information with the directory.
@@ -678,15 +716,16 @@ class Repository(dict):
             raise Exception("unable to open repository file(%s)"%e)   
         # unpickle file
         try:
-            Repository.__LOCK = False
+            Repository.__DICT_HIDE = False
             repo = pickle.load( fd )
         except Exception as e:
             fd.close()
-            Repository.__LOCK = True
+            Repository.__DICT_HIDE = True
             raise Exception("unable to pickle load repository (%s)"%e)  
         finally:
             fd.close()
-            Repository.__LOCK = False
+            #Repository.__DICT_HIDE = False
+            Repository.__DICT_HIDE = True
         # check if it's a PyrepInfo instance
         if not isinstance(repo, Repository): 
             raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
@@ -729,7 +768,13 @@ class Repository(dict):
             if verbose:
                 warnings.warn("A pyrep Repository already exists in the given path '%s' and therefore it has been erased and replaced by a fresh repository."%path)
         # reset repository
-        self.__reset_repository()
+        self.__reset_repository()  
+        # update locker because normally this is done in __update_repository method
+        lp = '.pyreplock'
+        if self.__path is not None:
+            lp = os.path.join(self.__path,lp)
+        self.__locker.set_lock_path(lp)
+        self.__locker.set_lock_pass(str(uuid.uuid1()))      
         # save repository
         self.save()
                    
@@ -797,21 +842,35 @@ class Repository(dict):
         # delete files
         if relatedFiles:
             for relativePath in repo.walk_files_relative_path():
-                os.remove( os.path.join(repo.path, relativePath) )
+                realPath = os.path.join(repo.path, relativePath)
+                if not os.path.isfile(realPath):
+                    continue
+                if not os.path.exists(realPath):
+                    continue
+                os.remove( realPath )
         # delete directories
         if relatedFolders:
             for relativePath in reversed(list(repo.walk_directories_relative_path())):
                 realPath = os.path.join(repo.path, relativePath)
                 # protect from wiping out the system
+                if not os.path.isdir(realPath):
+                    continue
+                if not os.path.exists(realPath):
+                    continue
                 if not len(os.listdir(realPath)):
                     os.rmdir( realPath )
         # delete repository       
         os.remove( os.path.join(repo.path,".pyrepinfo") )  
+        # remove main directory if empty
+        if os.path.isdir(repo.path):
+            if not len(os.listdir(repo.path)):
+                os.rmdir( repo.path )
         # reset repository
         repo.__reset_repository() 
         
 
     @path_required
+    @acquire_lock
     def save(self):
         """ Save repository .pyrepinfo to disk. """
         # open file
@@ -825,7 +884,7 @@ class Repository(dict):
             pickle.dump( self, fd, protocol=pickle.HIGHEST_PROTOCOL )
         except Exception as e:
             fd.close()
-            raise Exception( LOGGER.error("Unable to save repository info (%s)"%e) )
+            raise Exception( "Unable to save repository info (%s)"%e )
         finally:
             fd.close()
     
@@ -993,7 +1052,7 @@ class Repository(dict):
         # get file info
         fileInfo = dict.__getitem__(dirInfoDict, "files").get(name, None)
         if fileInfo is None:
-            errorMessage = "file %s does not exist in relative path %s"%(name, relativePath)
+            errorMessage = "file %s does not exist in relative path '%s'"%(name, relativePath)
         return fileInfo, errorMessage
     
     def get_file_info_by_id(self, id): 
@@ -1105,7 +1164,8 @@ class Repository(dict):
                     infos = info
                     break
         return paths, infos
-        
+    
+    @acquire_lock
     def add_directory(self, relativePath, info=None):
         """
         Adds a directory in the repository and creates its 
@@ -1126,23 +1186,30 @@ class Repository(dict):
         currentDict = self
         if path in ("","."):
             return currentDict
+        save = False
         for dir in path.split(os.sep):
             dirPath = os.path.join(currentDir, dir)
             # create directory
             if not os.path.exists(dirPath):
                  os.mkdir(dirPath)
             # create dictionary key
-            currentDict = dict.__getitem__(currentDict,"directories")
+            currentDict = dict.__getitem__(currentDict, "directories")
             if currentDict.get(dir, None) is None:    
+                save = True
                 currentDict[dir] = {"directories":{}, "files":{}, 
                                     "timestamp":datetime.utcnow(),
                                     "id":str(uuid.uuid1()), 
-                                    "info": info} 
+                                    "info": info} # INFO MUST BE SET ONLY FOR THE LAST DIRECTORY
                                     
             currentDict = currentDict[dir]
             currentDir  = dirPath
+        # save repository
+        if save:
+            self.save()
+        # return currentDict
         return currentDict
-        
+    
+    @acquire_lock
     def remove_directory(self, relativePath, removeFromSystem=False):
         """
         Remove directory from repository.
@@ -1165,21 +1232,31 @@ class Repository(dict):
             # remove files
             for rp in self.walk_files_relative_path(relativePath=relativePath):
                 ap = os.path.join(self.__path, relativePath, rp)
+                if not os.path.isfile(ap):
+                    continue
+                if not os.path.exists(ap):
+                    continue
                 if os.path.isfile(ap):
                     os.remove( ap )
             # remove directories
             for rp in self.walk_directories_relative_path(relativePath=relativePath):
                 ap = os.path.join(self.__path, relativePath, rp)
+                if not os.path.isdir(ap):
+                    continue
+                if not os.path.exists(ap):
+                    continue
                 if not len(os.listdir(ap)):
                     os.rmdir(ap)
         # pop directory from repo
         dict.__getitem__(parentDirInfoDict, 'directories').pop(name, None)
         ap = os.path.join(self.__path, relativePath)
-        if not len(os.listdir(ap)):
-            os.rmdir(ap)
+        if not os.path.isdir(ap):
+            if not len(os.listdir(ap)):
+                os.rmdir(ap)
         # save repository
         self.save()
-        
+    
+    @acquire_lock
     def move_directory(self, relativePath, relativeDestination, replace=False, verbose=True):
         """
         Move a directory in the repository from one place to another. It insures moving all the
@@ -1226,6 +1303,7 @@ class Repository(dict):
         # save repository
         self.save()
     
+    @acquire_lock
     def rename_directory(self, relativePath, newName, replace=False, verbose=True):
         """
         Rename a directory in the repository. It insures renaming the directory in the system.
@@ -1267,6 +1345,7 @@ class Repository(dict):
         # save repository
         self.save()                  
     
+    @acquire_lock
     def rename_file(self, relativePath, name, newName, replace=False, verbose=True):
         """
         Rename a directory in the repository. It insures renaming the file in the system.
@@ -1309,6 +1388,7 @@ class Repository(dict):
         # save repository
         self.save()
     
+    @acquire_lock
     def remove_file(self, relativePath, name=None, removeFromSystem=False):
         """
         Remove file from repository.
@@ -1344,6 +1424,7 @@ class Repository(dict):
         # save repository
         self.save()    
     
+    @acquire_lock
     def dump_copy(self, path, relativePath, name=None, 
                         description=None,
                         replace=False, verbose=False):
@@ -1400,7 +1481,7 @@ class Repository(dict):
         # save repository
         self.save()
         
-                               
+    @acquire_lock
     def dump_file(self, value, relativePath, name=None, 
                         description=None, klass=None,
                         dump=None, pull=None, 
@@ -1483,9 +1564,11 @@ class Repository(dict):
                 return
             os.remove(savePath)
         # set info
-        if klass is None:
+        if klass is None and value is not None:
             klass = value.__class__
-        assert inspect.isclass(klass), "klass must be a class definition"
+        if klass is not None:
+            assert inspect.isclass(klass), "klass must be a class definition"
+        # MUST TRY PICLKING KLASS TEMPORARILY FIRST
         # save the new file to the repository
         dict.__getitem__(dirInfoDict, "files")[name] = {"dump":dump,
                                                         "pull":pull,
@@ -1499,7 +1582,8 @@ class Repository(dict):
     def dump(self, *args, **kwargs):
         """Alias to dump_file"""
         self.dump_file(*args, **kwargs)
-        
+    
+    @acquire_lock
     def update_file(self, value, relativePath, name=None, 
                           description=False, klass=False,
                           dump=False, pull=False, 

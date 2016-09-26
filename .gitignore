@@ -1,5 +1,8 @@
 *.pyc
 .svn
 *.log
-
-# sub packages
+MANIFEST.in
+dist/
+docs/build/
+pyrep.egg-info/
+.DS_Store
