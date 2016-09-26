@@ -221,8 +221,8 @@ def path_required(func):
         return func(self, *args, **kwargs)
     return wrapper
 
-def unhide_dict_required(func):
-    """Decorate methods when unlocking repository is required."""
+def hide_dict_required(func):
+    """Decorate methods when hiding repository dictionnary methods is required."""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.DICT_HIDE:
@@ -232,7 +232,7 @@ def unhide_dict_required(func):
     return wrapper
 
 def acquire_lock(func):
-    """Decorate methods when unlocking repository is required."""
+    """Decorate methods when locking repository is required."""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         with self.locker as r:
@@ -241,7 +241,7 @@ def acquire_lock(func):
             if acquired:
                 r = func(self, *args, **kwargs)
             else:
-                warnings.warn("Unable to aquire the lock, code %s. You may try again!"%code)
+                warnings.warn("code %s. Unable to aquire the lock when calling '%s'. You may try again!"%(code,func.__name__) )
                 r = None
         return r
     return wrapper
@@ -354,50 +354,50 @@ class Repository(dict):
         repr += " ; ".join(lrepr)
         return repr 
         
-    @unhide_dict_required
+    @hide_dict_required
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
     
-    @unhide_dict_required
+    @hide_dict_required
     def __getitem__(self, key):
         dict.__getitem__(self, key)
      
-    @unhide_dict_required
+    @hide_dict_required
     def keys(self, *args, **kwargs):
         """Keys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.keys(self)
     
-    @unhide_dict_required
+    @hide_dict_required
     def values(self, *args, **kwargs):
         """values is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.values(self)
         
-    @unhide_dict_required
+    @hide_dict_required
     def items(self, *args, **kwargs):
         """items is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.items(self)
     
-    @unhide_dict_required
+    @hide_dict_required
     def pop(self, *args, **kwargs):
         """pop is a locked method and modified to be a private method only callable from within the instance."""
         return dict.pop(self, *args, **kwargs)
     
-    @unhide_dict_required
+    @hide_dict_required
     def update(self, *args, **kwargs):
         """update is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.pop(self, *args, **kwargs)
     
-    @unhide_dict_required
+    @hide_dict_required
     def popitem(self, *args, **kwargs):
         """popitem is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.popitem(self, *args, **kwargs)
     
-    @unhide_dict_required
+    @hide_dict_required
     def viewkeys(self, *args, **kwargs):
         """viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return dict.viewkeys(self, *args, **kwargs)
     
-    @unhide_dict_required
+    @hide_dict_required
     def viewvalues(self, *args, **kwargs):
         """viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return viewvalues.viewkeys(self, *args, **kwargs)  
@@ -736,6 +736,10 @@ class Repository(dict):
             #self.__path = repoPath
         # return 
         return self
+    
+    def connect(self, path):
+        """Alias to load_repository"""
+        return self.load_repository(path)
     
     def create_repository(self, path, info=None, verbose=True): 
         """
