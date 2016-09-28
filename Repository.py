@@ -190,6 +190,7 @@ Repository main module:
 
 # standard distribution imports
 import os
+import time
 import uuid
 import warnings
 import tarfile
@@ -208,8 +209,11 @@ except:
 from pylocker import Locker
 
 # pyrep imports
-from pyrep import __version__
+from __pkginfo__ import __version__
     
+# set warnings filter
+warnings.simplefilter('always')
+
 #### Define decorators ###
 def path_required(func):
     """Decorate methods when repository path is required."""
@@ -245,6 +249,25 @@ def acquire_lock(func):
                 r = None
         return r
     return wrapper
+
+def sync_required(func):
+    """Decorate methods when synchronizing repository is required."""
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not self._keepSynchronized:
+            r = func(self, *args, **kwargs)
+        else:
+            state = self._load_state()
+            if state is None:
+                r = func(self, *args, **kwargs)
+            elif state == self.state:
+                r = func(self, *args, **kwargs)
+            else:
+                warnings.warn("Repository at '%s' is out of date. Need to load it again to avoid conflict."%self.path)
+                r = None
+        return r
+    return wrapper
+    
 
 ### get pickling errors method ###
 def get_pickling_errors(obj, seen=None):
@@ -299,6 +322,8 @@ class Repository(dict):
         self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
         self.__path   = None
         self.__info   = None
+        self.__state  = time.time()
+        self._keepSynchronized = True
         self.__reset_repository()
         self.__cast(repo)
         self.__DICT_HIDE = True
@@ -401,7 +426,7 @@ class Repository(dict):
     def viewvalues(self, *args, **kwargs):
         """viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition."""
         return viewvalues.viewkeys(self, *args, **kwargs)  
-    
+        
     def __cast(self, repo):
         if repo is None:
             return
@@ -442,6 +467,44 @@ class Repository(dict):
         self.__locker.set_lock_path(lp)
         self.__locker.set_lock_pass(str(uuid.uuid1()))
     
+    def _load_state(self):
+        repoTimePath = os.path.join(self.__path, ".pyrepstate")
+        # get state
+        state = None
+        if os.path.isfile(repoTimePath):
+            try:
+                state = float( open(repoTimePath).readline().strip() )
+            except Exception as e:
+                warnings.warn("unable to open repository time stamp for reading (%s)"%e)
+                state = None
+        return state
+       
+    def _get_or_create_state(self, forceCreate=False):
+        create = forceCreate
+        repoTimePath = os.path.join(self.__path, ".pyrepstate")
+        # get state
+        if not create:
+            state = self._load_state()
+            if state is None:
+                create = True
+        # create state
+        if create:
+            try:
+                state = time.time()
+                with open(repoTimePath, 'w') as fdtime:
+                    fdtime.write( '%.6f'%state  )
+                    fdtime.flush()
+                    os.fsync(fdtime.fileno())
+            except Exception as e:
+                raise Exception("unable to open repository time stamp for saving (%s)"%e) 
+        # return
+        return state
+        
+    @property
+    def state(self):
+        """Repository state."""
+        return self.__state
+        
     @property
     def DICT_HIDE(self):
         """Get the lock value."""
@@ -690,7 +753,7 @@ class Repository(dict):
                 files = dict.get(dirInfoDict, 'files', None)
                 if files is not None:      
                     dict.pop( files, keys[-1], None ) 
-
+                
     def load_repository(self, path):
         """
         Load repository from a directory path and update the current instance.
@@ -714,26 +777,43 @@ class Repository(dict):
             fd = open(repoInfoPath, 'rb')
         except Exception as e:
             raise Exception("unable to open repository file(%s)"%e)   
-        # unpickle file
+        # before doing anything try to lock repository 
+        # can't decorate with @acquire_lock because this will point to old repository
+        # path or to current working directory which might not be the path anyways
+        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(repoPath, ".pyreplock"))
+        acquired, code = L.acquire_lock()
+        # check if acquired.
+        if not acquired:
+            warnings.warn("code %s. Unable to aquire the lock when calling 'load_repository'. You may try again!"%(code,) )
+            return
         try:
-            Repository.__DICT_HIDE = False
-            repo = pickle.load( fd )
+            # unpickle file
+            try:
+                Repository.__DICT_HIDE = False
+                repo = pickle.load( fd )
+            except Exception as e:
+                fd.close()
+                Repository.__DICT_HIDE = True
+                raise Exception("unable to pickle load repository (%s)"%e)  
+            finally:
+                fd.close()
+                #Repository.__DICT_HIDE = False
+                Repository.__DICT_HIDE = True
+            # check if it's a PyrepInfo instance
+            if not isinstance(repo, Repository): 
+                raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
+            else:
+                # update info path
+                self.__reset_repository()
+                self.__update_repository(repo)
+                #self.__path = repoPath
+            # set timestamp
+            self.__state = self._get_or_create_state()
         except Exception as e:
-            fd.close()
-            Repository.__DICT_HIDE = True
-            raise Exception("unable to pickle load repository (%s)"%e)  
+            L.release_lock()
+            raise Exception(e)  
         finally:
-            fd.close()
-            #Repository.__DICT_HIDE = False
-            Repository.__DICT_HIDE = True
-        # check if it's a PyrepInfo instance
-        if not isinstance(repo, Repository): 
-            raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
-        else:
-            # update info path
-            self.__reset_repository()
-            self.__update_repository(repo)
-            #self.__path = repoPath
+            L.release_lock()
         # return 
         return self
     
@@ -863,8 +943,12 @@ class Repository(dict):
                     continue
                 if not len(os.listdir(realPath)):
                     os.rmdir( realPath )
-        # delete repository       
-        os.remove( os.path.join(repo.path,".pyrepinfo") )  
+        # delete repository    
+        os.remove( os.path.join(repo.path, ".pyrepinfo" ) )
+        for fname in (".pyrepstate", ".pyreplock"):
+            p = os.path.join(repo.path, fname )
+            if os.path.exists( p ):
+                os.remove( p ) 
         # remove main directory if empty
         if os.path.isdir(repo.path):
             if not len(os.listdir(repo.path)):
@@ -875,22 +959,37 @@ class Repository(dict):
 
     @path_required
     @acquire_lock
+    @sync_required
     def save(self):
         """ Save repository .pyrepinfo to disk. """
         # open file
         repoInfoPath = os.path.join(self.__path, ".pyrepinfo")
         try:
-            fd = open(repoInfoPath, 'wb')
+            fdinfo = open(repoInfoPath, 'wb')
         except Exception as e:
             raise Exception("unable to open repository info for saving (%s)"%e)   
         # save repository
         try:
-            pickle.dump( self, fd, protocol=pickle.HIGHEST_PROTOCOL )
+            pickle.dump( self, fdinfo, protocol=pickle.HIGHEST_PROTOCOL )
         except Exception as e:
-            fd.close()
+            fdinfo.flush()
+            os.fsync(fdinfo.fileno())
+            fdinfo.close()
             raise Exception( "Unable to save repository info (%s)"%e )
         finally:
-            fd.close()
+            fdinfo.flush()
+            os.fsync(fdinfo.fileno())
+            fdinfo.close()
+        # save timestamp
+        repoTimePath = os.path.join(self.__path, ".pyrepstate")
+        try:
+            self.__state = time.time()
+            with open(repoTimePath, 'w') as fdtime:
+                fdtime.write( '%.6f'%self.__state  )
+                fdtime.flush()
+                os.fsync(fdtime.fileno())
+        except Exception as e:
+            raise Exception("unable to open repository time stamp for saving (%s)"%e)
     
     @path_required
     def create_package(self, path=None, name=None, mode=None):
@@ -1170,6 +1269,7 @@ class Repository(dict):
         return paths, infos
     
     @acquire_lock
+    @sync_required
     def add_directory(self, relativePath, info=None):
         """
         Adds a directory in the repository and creates its 
@@ -1214,6 +1314,7 @@ class Repository(dict):
         return currentDict
     
     @acquire_lock
+    @sync_required
     def remove_directory(self, relativePath, removeFromSystem=False):
         """
         Remove directory from repository.
@@ -1261,6 +1362,7 @@ class Repository(dict):
         self.save()
     
     @acquire_lock
+    @sync_required
     def move_directory(self, relativePath, relativeDestination, replace=False, verbose=True):
         """
         Move a directory in the repository from one place to another. It insures moving all the
@@ -1308,6 +1410,7 @@ class Repository(dict):
         self.save()
     
     @acquire_lock
+    @sync_required
     def rename_directory(self, relativePath, newName, replace=False, verbose=True):
         """
         Rename a directory in the repository. It insures renaming the directory in the system.
@@ -1350,6 +1453,7 @@ class Repository(dict):
         self.save()                  
     
     @acquire_lock
+    @sync_required
     def rename_file(self, relativePath, name, newName, replace=False, verbose=True):
         """
         Rename a directory in the repository. It insures renaming the file in the system.
@@ -1393,6 +1497,7 @@ class Repository(dict):
         self.save()
     
     @acquire_lock
+    @sync_required
     def remove_file(self, relativePath, name=None, removeFromSystem=False):
         """
         Remove file from repository.
@@ -1410,6 +1515,8 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+            assert name != '.pyrepstate', "'.pyrepstate' is not allowed as file name in main repository directory"
+            assert name != '.pyreplock', "'.pyreplock' is not allowed as file name in main repository directory"
         if name is None:
             assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
             relativePath, name = os.path.split(relativePath)
@@ -1429,6 +1536,7 @@ class Repository(dict):
         self.save()    
     
     @acquire_lock
+    @sync_required
     def dump_copy(self, path, relativePath, name=None, 
                         description=None,
                         replace=False, verbose=False):
@@ -1486,6 +1594,7 @@ class Repository(dict):
         self.save()
         
     @acquire_lock
+    @sync_required
     def dump_file(self, value, relativePath, name=None, 
                         description=None, klass=None,
                         dump=None, pull=None, 
@@ -1524,6 +1633,8 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+            assert name != '.pyrepstate', "'.pyrepstate' is not allowed as file name in main repository directory"
+            assert name != '.pyreplock', "'.pyreplock' is not allowed as file name in main repository directory"
         if name is None:
             assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
             relativePath,name = os.path.split(relativePath)
@@ -1588,6 +1699,7 @@ class Repository(dict):
         self.dump_file(*args, **kwargs)
     
     @acquire_lock
+    @sync_required
     def update_file(self, value, relativePath, name=None, 
                           description=False, klass=False,
                           dump=False, pull=False, 
@@ -1619,6 +1731,8 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "'.pyrepinfo' is not allowed as file name in main repository directory"
+            assert name != '.pyrepstate', "'.pyrepstate' is not allowed as file name in main repository directory"
+            assert name != '.pyreplock', "'.pyreplock' is not allowed as file name in main repository directory"
         if name is None:
             assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
             relativePath,name = os.path.split(relativePath)
@@ -1697,6 +1811,8 @@ class Repository(dict):
         if relativePath == '.':
             relativePath = ''
             assert name != '.pyrepinfo', "pulling '.pyrepinfo' from main repository directory is not allowed."
+            assert name != '.pyrepstate', "pulling '.pyrepstate' from main repository directory is not allowed."
+            assert name != '.pyreplock', "pulling '.pyreplock' from main repository directory is not allowed."
         if name is None:
             assert len(relativePath), "name must be given when relative path is given as empty string or as a simple dot '.'"
             relativePath,name = os.path.split(relativePath)
