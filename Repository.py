@@ -239,14 +239,21 @@ def acquire_lock(func):
     """Decorate methods when locking repository is required."""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
+        e = None
         with self.locker as r:
             # get the result
             acquired, code, _  = r
             if acquired:
-                r = func(self, *args, **kwargs)
+                try:
+                    r = func(self, *args, **kwargs)
+                except Exception as e:
+                    pass
             else:
                 warnings.warn("code %s. Unable to aquire the lock when calling '%s'. You may try again!"%(code,func.__name__) )
                 r = None
+        # raise error after exiting with statement and releasing the lock!
+        if e is not None:
+            raise Exception(e)
         return r
     return wrapper
 
