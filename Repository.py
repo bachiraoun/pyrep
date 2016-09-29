@@ -813,7 +813,7 @@ class Repository(dict):
                 # update info path
                 self.__reset_repository()
                 self.__update_repository(repo)
-                #self.__path = repoPath
+                self.__path = repoPath
             # set timestamp
             self.__state = self._get_or_create_state()
         except Exception as e:
