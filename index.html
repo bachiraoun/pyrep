@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Welcome to pyrep’s documentation! &#8212; PYthon REPository package. pyrep v0.2.0</title>
+    <title>Welcome to pyrep V. 1.0.2 documentation! &#8212; PYthon REPository package. pyrep v1.0.2</title>
     
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '0.2.0',
+        VERSION:     '1.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -23,7 +23,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="PYthon REPository package. pyrep v0.2.0" href="#" />
+    <link rel="top" title="PYthon REPository package. pyrep v1.0.2" href="#" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -39,7 +39,7 @@
           <div class="body" role="main">
             
   <div class="section" id="module-pyrep">
-<span id="welcome-to-pyrep-s-documentation"></span><h1>Welcome to pyrep&#8217;s documentation!<a class="headerlink" href="#module-pyrep" title="Permalink to this headline">¶</a></h1>
+<span id="welcome-to-pyrep-v-version-documentation"></span><h1>Welcome to pyrep V. 1.0.2 documentation!<a class="headerlink" href="#module-pyrep" title="Permalink to this headline">¶</a></h1>
 <p>PYthon REPository or pyrep package provides a pythonic way to organize dumping and pulling 
 python objects and other type of files to a folder or a directory that is called 
 repository. A Repository can be created in any directory or folder, it suffices to 
@@ -207,74 +207,74 @@ package to python&#8217;s site-packages or use pip as the following:</p>
 </div>
 <div class="section" id="output">
 <h2>output<a class="headerlink" href="#output" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python"><div class="highlight"><pre><span></span>repository path --&gt; None
+<div class="highlight-pycon"><div class="highlight"><pre><span></span><span class="go">repository path --&gt; None</span>
 
-Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
+<span class="go">Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False</span>
 
-Repository path --&gt; C:\Users\aoun\pyrepTest_canBeDeleted
+<span class="go">Repository path --&gt; C:\Users\aoun\pyrepTest_canBeDeleted</span>
 
-Pulled text data --&gt; [ 0.5270431   0.6661849   0.06717668]
+<span class="go">Pulled text data --&gt; [ 0.5270431   0.6661849   0.06717668]</span>
 
-Pulled pickled data --&gt; [ 0.52704312  0.66618488  0.06717668]
+<span class="go">Pulled pickled data --&gt; [ 0.52704312  0.66618488  0.06717668]</span>
 
-Update pickled data to --&gt; This is an updated string
-Pull updated pickled data --&gt; This is an updated string
+<span class="go">Update pickled data to --&gt; This is an updated string</span>
+<span class="go">Pull updated pickled data --&gt; This is an updated string</span>
 
-walk repository files relative path
-------------------------------------
-pickled
-text.dat
-folder1\archive1\archive1Pickled1
-folder1\archive1\archive1Pickled2
-folder1\archive1\archive2\archive2Pickled1
-folder1\folder2\folder3\folder3Pickled.pkl
+<span class="go">walk repository files relative path</span>
+<span class="go">------------------------------------</span>
+<span class="go">pickled</span>
+<span class="go">text.dat</span>
+<span class="go">folder1\archive1\archive1Pickled1</span>
+<span class="go">folder1\archive1\archive1Pickled2</span>
+<span class="go">folder1\archive1\archive2\archive2Pickled1</span>
+<span class="go">folder1\folder2\folder3\folder3Pickled.pkl</span>
 
-walk repository directories relative path
-------------------------------------------
-directory1
-folder1
-directory1\directory2
-folder1\archive1
-folder1\folder2
-folder1\archive1\archive2
-folder1\archive1\archive2\archive3
-folder1\archive1\archive2\archive3\archive3
-folder1\folder2\folder3
+<span class="go">walk repository directories relative path</span>
+<span class="go">------------------------------------------</span>
+<span class="go">directory1</span>
+<span class="go">folder1</span>
+<span class="go">directory1\directory2</span>
+<span class="go">folder1\archive1</span>
+<span class="go">folder1\folder2</span>
+<span class="go">folder1\archive1\archive2</span>
+<span class="go">folder1\archive1\archive2\archive3</span>
+<span class="go">folder1\archive1\archive2\archive3\archive3</span>
+<span class="go">folder1\folder2\folder3</span>
 
-Repository print --&gt;
-C:\Users\aoun\pyrepTest_canBeDeleted
-  text.dat
-  pickled
-  \directory1
-    \directory2
-  \folder1
-    \archive1
-      archive1Pickled1
-      archive1Pickled2
-      \archive2
-        archive2Pickled1
-        \archive3
-          \archive3
-    \folder2
-      \folder3
-        folder3Pickled.pkl
+<span class="go">Repository print --&gt;</span>
+<span class="go">C:\Users\aoun\pyrepTest_canBeDeleted</span>
+<span class="go">  text.dat</span>
+<span class="go">  pickled</span>
+<span class="go">  \directory1</span>
+<span class="go">    \directory2</span>
+<span class="go">  \folder1</span>
+<span class="go">    \archive1</span>
+<span class="go">      archive1Pickled1</span>
+<span class="go">      archive1Pickled2</span>
+<span class="go">      \archive2</span>
+<span class="go">        archive2Pickled1</span>
+<span class="go">        \archive3</span>
+<span class="go">          \archive3</span>
+<span class="go">    \folder2</span>
+<span class="go">      \folder3</span>
+<span class="go">        folder3Pickled.pkl</span>
 
-Repository representation --&gt;
-Repository (Version 0.1.1)
-C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled] ; directory1:[] ; directory1\directory2:[] ; folder1:[] ; folder1\ar
-chive1:[archive1Pickled1,archive1Pickled2] ; folder1\archive1\archive2:[archive2Pickled1] ; folder1\archive1\archive2r
-chive3:[] ; folder1\archive1\archive2\archive3\archive3:[] ; folder1\folder2:[] ; folder1\folder2\folder3:[folder3Pickle
-d]
+<span class="go">Repository representation --&gt;</span>
+<span class="go">Repository (Version 0.1.1)</span>
+<span class="go">C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled] ; directory1:[] ; directory1\directory2:[] ; folder1:[] ; folder1\ar</span>
+<span class="go">chive1:[archive1Pickled1,archive1Pickled2] ; folder1\archive1\archive2:[archive2Pickled1] ; folder1\archive1\archive2r</span>
+<span class="go">chive3:[] ; folder1\archive1\archive2\archive3\archive3:[] ; folder1\folder2:[] ; folder1\folder2\folder3:[folder3Pickle</span>
+<span class="go">d]</span>
 
-Repository to list --&gt;
-[&#39;C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled]&#39;, &#39;directory1:[]&#39;, &#39;directory1\directory2:[]&#39;, &#39;folder1:[]&#39;, &#39;
-folder1\archive1:[archive1Pickled1,archive1Pickled2]&#39;, &#39;folder1\archive1\archive2:[archive2Pickled1]&#39;, &#39;folder1\arch
-ive1\archive2\archive3:[]&#39;, &#39;folder1\archive1\archive2\archive3\archive3:[]&#39;, &#39;folder1\folder2:[]&#39;, &#39;folder1\fol
-der2\folder3:[folder3Pickled.pkl]&#39;]
+<span class="go">Repository to list --&gt;</span>
+<span class="go">[&#39;C:\Users\aoun\pyrepTest_canBeDeleted:[text.dat,pickled]&#39;, &#39;directory1:[]&#39;, &#39;directory1\directory2:[]&#39;, &#39;folder1:[]&#39;, &#39;</span>
+<span class="go">folder1\archive1:[archive1Pickled1,archive1Pickled2]&#39;, &#39;folder1\archive1\archive2:[archive2Pickled1]&#39;, &#39;folder1\arch</span>
+<span class="go">ive1\archive2\archive3:[]&#39;, &#39;folder1\archive1\archive2\archive3\archive3:[]&#39;, &#39;folder1\folder2:[]&#39;, &#39;folder1\fol</span>
+<span class="go">der2\folder3:[folder3Pickled.pkl]&#39;]</span>
 
-Is repository loadable --&gt; True
+<span class="go">Is repository loadable --&gt; True</span>
 
-Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
+<span class="go">Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False</span>
 </pre></div>
 </div>
 </div>
@@ -288,8 +288,20 @@ Is path &#39;C:\Users\aoun\pyrepTest_canBeDeleted&#39; a repository --&gt; False
 
 <dl class="function">
 <dt>
-<code class="descclassname">pyrep.Repository.</code><code class="descname">unlock_required</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
-<dd><p>Decorate methods when unlocking repository is required.</p>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">hide_dict_required</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
+<dd><p>Decorate methods when hiding repository dictionnary methods is required.</p>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">acquire_lock</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
+<dd><p>Decorate methods when locking repository is required.</p>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pyrep.Repository.</code><code class="descname">sync_required</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span></dt>
+<dd><p>Decorate methods when synchronizing repository is required.</p>
 </dd></dl>
 
 <dl class="function">
@@ -366,32 +378,45 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 
 <dl class="attribute">
 <dt>
-<code class="descname">LOCK</code></dt>
-<dd><p>Get the lock value.</p>
+<code class="descname">state</code></dt>
+<dd><p>Repository state.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">DICT_HIDE</code></dt>
+<dd><p>Python dictionary methods hide flag value.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">locker</code></dt>
+<dd><p>Repository locker manager.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
 <code class="descname">path</code></dt>
-<dd><p>Get the path of this repository instance which points to the folder and directory where .pyrepinfo is.</p>
+<dd><p>The repository instance path which points to the folder and 
+directory where .pyrepinfo is.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
 <code class="descname">info</code></dt>
-<dd><p>Get the unique user defined information of this repository instance.</p>
+<dd><p>The unique user defined information of this repository instance.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
 <code class="descname">version</code></dt>
-<dd><p>Get the version of this repository.</p>
+<dd><p>The version of this repository.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt>
 <code class="descname">id</code></dt>
-<dd><p>Get the universally unique id of this repository.</p>
+<dd><p>The universally unique id of this repository.</p>
 </dd></dl>
 
 <dl class="method">
@@ -432,7 +457,7 @@ Any directory that has .pyrepinfo binary file in it is theoretically a pyrep Rep
 <dt>
 <code class="descname">walk_files_info</code><span class="sig-paren">(</span><em>relativePath=''</em><span class="sig-paren">)</span></dt>
 <dd><p>Walk the repository and yield tuples as the following:</p>
-<p>(relative path joined with file name, file info dict).</p>
+<p>(relative path to relativePath joined with file name, file info dict).</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -553,7 +578,7 @@ files relative path joined with file name.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">synchronize</code><span class="sig-paren">(</span><em>verbose=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">synchronize</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Synchronizes the Repository information with the directory.
 All registered but missing files and directories in the directory, 
 will be automatically removed from the Repository.</p>
@@ -591,6 +616,12 @@ If &#8216;.&#8217; or an empty string is passed, the current working directory w
 </tr>
 </tbody>
 </table>
+</dd></dl>
+
+<dl class="method">
+<dt>
+<code class="descname">connect</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span></dt>
+<dd><p>Alias to load_repository</p>
 </dd></dl>
 
 <dl class="method">
@@ -918,7 +949,7 @@ If None, it means file was not found.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">add_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>info=None</em><span class="sig-paren">)</span></dt>
+<code class="descname">add_directory</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Adds a directory in the repository and creates its 
 attribute in the Repository with utc timestamp.
 It insures adding all the missing directories in the path.</p>
@@ -943,7 +974,7 @@ It insures adding all the missing directories in the path.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">remove_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>removeFromSystem=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">remove_directory</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Remove directory from repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -964,7 +995,7 @@ It insures adding all the missing directories in the path.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">move_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>relativeDestination</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<code class="descname">move_directory</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Move a directory in the repository from one place to another. It insures moving all the
 files and subdirectories in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -985,7 +1016,7 @@ files and subdirectories in the system.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">rename_directory</code><span class="sig-paren">(</span><em>relativePath</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<code class="descname">rename_directory</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Rename a directory in the repository. It insures renaming the directory in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1006,7 +1037,7 @@ It fails when new folder name is registered in repository.</li>
 
 <dl class="method">
 <dt>
-<code class="descname">rename_file</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name</em>, <em>newName</em>, <em>replace=False</em>, <em>verbose=True</em><span class="sig-paren">)</span></dt>
+<code class="descname">rename_file</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Rename a directory in the repository. It insures renaming the file in the system.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1028,7 +1059,7 @@ It fails when new folder name is registered in repository.</li>
 
 <dl class="method">
 <dt>
-<code class="descname">remove_file</code><span class="sig-paren">(</span><em>relativePath</em>, <em>name=None</em>, <em>removeFromSystem=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">remove_file</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Remove file from repository.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1053,7 +1084,7 @@ If None is given, name will be split from relativePath.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">dump_copy</code><span class="sig-paren">(</span><em>path</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>replace=False</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">dump_copy</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Copy an exisitng system file to the repository.
 attribute in the Repository with utc timestamp.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1078,7 +1109,7 @@ If None is given, name will be split from path.</li>
 
 <dl class="method">
 <dt>
-<code class="descname">dump_file</code><span class="sig-paren">(</span><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=None</em>, <em>klass=None</em>, <em>dump=None</em>, <em>pull=None</em>, <em>replace=False</em>, <em>ACID=True</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">dump_file</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Dump a file using its value to the system and creates its 
 attribute in the Repository with utc timestamp.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1135,7 +1166,7 @@ a temporary path first and then moving it to the desired path.</p>
 
 <dl class="method">
 <dt>
-<code class="descname">update_file</code><span class="sig-paren">(</span><em>value</em>, <em>relativePath</em>, <em>name=None</em>, <em>description=False</em>, <em>klass=False</em>, <em>dump=False</em>, <em>pull=False</em>, <em>ACID=True</em>, <em>verbose=False</em><span class="sig-paren">)</span></dt>
+<code class="descname">update_file</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span></dt>
 <dd><p>Update the value and the utc timestamp of a file that is already in the Repository.</p>
 <p>If file is not registered in repository, and error will be thrown.</p>
 <p>If file is missing in the system, it will be regenerated as dump method is called.</p>
@@ -1222,12 +1253,12 @@ e.g &#8220;import numpy as np; PULLED_DATA=np.loadtxt(fname=&#8217;$FILE_PATH&#8
     <div class="footer">
       &copy;2016, Bachir Aoun.
       
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.6</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
-      
     </div>
 
+    
+    <a href="https://github.com/bachiraoun/pyrep" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
     
 
     

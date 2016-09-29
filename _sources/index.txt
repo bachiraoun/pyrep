@@ -1,5 +1,5 @@
-Welcome to pyrep's documentation!
-=================================
+Welcome to pyrep V. |VERSION| documentation!
+============================================
 
 .. automodule:: pyrep
     :members:
@@ -9,4 +9,4 @@ Welcome to pyrep's documentation!
     :members:
     :undoc-members:
     :show-inheritance:
-    :noindex:    
+    :noindex:
