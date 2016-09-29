@@ -1,6 +1,7 @@
 """
 Usage:
 ======
+
 .. code-block:: python
 
         # standard distribution imports
@@ -112,8 +113,9 @@ Usage:
         
 output
 ====== 
-.. code-block:: python
-      
+
+.. code-block:: pycon
+
         repository path --> None
         
         Is path 'C:\\Users\\aoun\\pyrepTest_canBeDeleted' a repository --> False
@@ -211,7 +213,7 @@ from pylocker import Locker
 # pyrep imports
 from __pkginfo__ import __version__
     
-# set warnings filter
+# set warnings filter to always
 warnings.simplefilter('always')
 
 #### Define decorators ###
@@ -514,32 +516,33 @@ class Repository(dict):
         
     @property
     def DICT_HIDE(self):
-        """Get the lock value."""
+        """Python dictionary methods hide flag value."""
         return self.__DICT_HIDE 
             
     @property
     def locker(self):
-        """Get locker manager."""
+        """Repository locker manager."""
         return self.__locker
         
     @property
     def path(self):
-        """Get the path of this repository instance which points to the folder and directory where .pyrepinfo is."""
+        """The repository instance path which points to the folder and 
+        directory where .pyrepinfo is."""
         return self.__path
     
     @property
     def info(self):
-        """Get the unique user defined information of this repository instance."""
+        """The unique user defined information of this repository instance."""
         return copy.deepcopy( self.__info )
     
     @property
     def version(self):
-        """Get the version of this repository."""
+        """The version of this repository."""
         return dict.__getitem__(self,"__version__")
         
     @property
     def id(self):
-        """Get the universally unique id of this repository."""
+        """The universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
         
     def get_list_representation(self):
@@ -760,7 +763,7 @@ class Repository(dict):
                 files = dict.get(dirInfoDict, 'files', None)
                 if files is not None:      
                     dict.pop( files, keys[-1], None ) 
-                
+
     def load_repository(self, path):
         """
         Load repository from a directory path and update the current instance.
