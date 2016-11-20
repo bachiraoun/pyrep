@@ -194,6 +194,7 @@ Repository main module:
 import os
 import time
 import uuid
+import traceback
 import warnings
 import tarfile
 import tempfile
@@ -232,7 +233,8 @@ def hide_dict_required(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.DICT_HIDE:
-            warnings.warn("Repository class '%s' method '%s' is hidden!"%(self.__class__.__name__,func.__name__))
+            traceback.print_stack()
+            warnings.warn("Repository class '%s' method '%s' is hidden!\n args: %s\n kwargs: %s"%(self.__class__.__name__,func.__name__, args, kwargs))
             return
         return func(self, *args, **kwargs)
     return wrapper
@@ -763,7 +765,7 @@ class Repository(dict):
                 files = dict.get(dirInfoDict, 'files', None)
                 if files is not None:      
                     dict.pop( files, keys[-1], None ) 
-
+    
     def load_repository(self, path):
         """
         Load repository from a directory path and update the current instance.
@@ -824,6 +826,8 @@ class Repository(dict):
             raise Exception(e)  
         finally:
             L.release_lock()
+        # set loaded repo locker path to L because repository have been moved to another directory
+        self.__locker = L
         # return 
         return self
     
@@ -1839,10 +1843,14 @@ class Repository(dict):
             pull = fileInfo["pull"]
         # try to pull file
         try:
+            Repository.__DICT_HIDE = False
             exec( pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) )
         except Exception as e:
+            Repository.__DICT_HIDE = True
             m = pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) 
             raise Exception( "unable to pull data using '%s' from file (%s)"%(m,e) )
+        finally:
+            Repository.__DICT_HIDE = True
         # update
         if update:
             fileInfo["pull"] = pull
