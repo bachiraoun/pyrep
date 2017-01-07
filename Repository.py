@@ -799,18 +799,18 @@ class Repository(dict):
             warnings.warn("code %s. Unable to aquire the lock when calling 'load_repository'. You may try again!"%(code,) )
             return
         try:
+            DH = Repository.__DICT_HIDE
+            Repository.__DICT_HIDE = False
             # unpickle file
             try:
-                Repository.__DICT_HIDE = False
                 repo = pickle.load( fd )
             except Exception as e:
                 fd.close()
-                Repository.__DICT_HIDE = True
+                Repository.__DICT_HIDE = DH
                 raise Exception("unable to pickle load repository (%s)"%e)  
             finally:
                 fd.close()
-                #Repository.__DICT_HIDE = False
-                Repository.__DICT_HIDE = True
+                Repository.__DICT_HIDE = DH
             # check if it's a PyrepInfo instance
             if not isinstance(repo, Repository): 
                 raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
@@ -1842,15 +1842,16 @@ class Repository(dict):
         if pull is None:
             pull = fileInfo["pull"]
         # try to pull file
+        DH = Repository.__DICT_HIDE
+        Repository.__DICT_HIDE = False
         try:
-            Repository.__DICT_HIDE = False
             exec( pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) )
         except Exception as e:
-            Repository.__DICT_HIDE = True
             m = pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) 
+            Repository.__DICT_HIDE = DH
             raise Exception( "unable to pull data using '%s' from file (%s)"%(m,e) )
         finally:
-            Repository.__DICT_HIDE = True
+            Repository.__DICT_HIDE = DH
         # update
         if update:
             fileInfo["pull"] = pull
