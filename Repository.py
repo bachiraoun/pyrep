@@ -327,9 +327,12 @@ class Repository(dict):
            If None, Repository is initialized but not assigned to any directory.\n
            If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.\n
            If Repository, current instance will cast the given Repository instance.\n
+        #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+           properties of the repository upon dumping a file. This is ensured by dumping the file in
+           a temporary path first and then moving it to the desired path.
     """
     __DICT_HIDE = True 
-    def __init__(self, repo=None):
+    def __init__(self, repo=None, ACID=True):
         self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
         self.__path   = None
         self.__info   = None
@@ -338,6 +341,8 @@ class Repository(dict):
         self.__reset_repository()
         self.__cast(repo)
         self.__DICT_HIDE = True
+        # set properties
+        self.set_ACID(ACID=ACID)
     
     #def __getstate__(self):
     #    state = {}
@@ -546,7 +551,20 @@ class Repository(dict):
     def id(self):
         """The universally unique id of this repository."""
         return dict.__getitem__(self,"__uuid__")
-        
+    
+    def set_ACID(self, ACID):
+        """
+        Set the gobal ACID poperty of the repository.
+    
+        :parameters:
+            #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+               properties of the repository upon dumping a file. This is ensured by dumping the file in
+               a temporary path first and then moving it to the desired path.
+               
+        """
+        assert isinstance(ACID, bool), "ACID property must be boolean"
+        self.__ACID = ACID  
+          
     def get_list_representation(self):
         """
         Gets a representation of the Repository content in a list of directories(files) format.
@@ -1612,7 +1630,7 @@ class Repository(dict):
     def dump_file(self, value, relativePath, name=None, 
                         description=None, klass=None,
                         dump=None, pull=None, 
-                        replace=False, ACID=True, verbose=False):
+                        replace=False, ACID=None, verbose=False):
         """
         Dump a file using its value to the system and creates its 
         attribute in the Repository with utc timestamp.
@@ -1638,11 +1656,17 @@ class Repository(dict):
                and finally a PULLED_DATA variable.\n
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"  
             #. replace (boolean): Whether to replace any existing file with the same name if existing.
-            #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
+            #. ACID (None, boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
+               If None is given, repository ACID property will be used.
             #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
+        # check ACID
+        if ACID is None:
+            ACID = self.__ACID
+        assert isinstance(ACID, bool), "ACID must be boolean"
+        # check name and path
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
             relativePath = ''
@@ -1671,7 +1695,8 @@ class Repository(dict):
             pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
         # get savePath
         if ACID:
-            savePath = os.path.join(tempfile.gettempdir(), name)
+            #savePath = os.path.join(tempfile.gettempdir(), name)
+            savePath = os.path.join(tempfile.gettempdir(), str(uuid.uuid1()))
         else:
             savePath = os.path.join(realPath,name)
         # dump file
@@ -1717,7 +1742,7 @@ class Repository(dict):
     def update_file(self, value, relativePath, name=None, 
                           description=False, klass=False,
                           dump=False, pull=False, 
-                          ACID=True, verbose=False):
+                          ACID=None, verbose=False):
         """
         Update the value and the utc timestamp of a file that is already in the Repository.\n
         If file is not registered in repository, and error will be thrown.\n
@@ -1738,8 +1763,13 @@ class Repository(dict):
             #. ACID (boolean): Whether to ensure the ACID (Atomicity, Consistency, Isolation, Durability) 
                properties of the repository upon dumping a file. This is ensured by dumping the file in
                a temporary path first and then moving it to the desired path.
+               If None is given, repository ACID property will be used.
             #. verbose (boolean): Whether to be warn and informed about any abnormalities.
         """
+        # check ACID
+        if ACID is None:
+            ACID = self.__ACID
+        assert isinstance(ACID, bool), "ACID must be boolean"
         # get relative path normalized
         relativePath = os.path.normpath(relativePath)
         if relativePath == '.':
