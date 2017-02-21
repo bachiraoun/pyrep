@@ -4,110 +4,110 @@ Usage:
 
 .. code-block:: python
 
-        # standard distribution imports
-        import os
-        import warnings
-        
-        # numpy imports
-        import numpy as np
-        
-        # import Repository
-        from pyrep import Repository
-        
-        # initialize Repository instance
-        REP=Repository()
-        
-        # create a path pointing to user home
-        PATH = os.path.join(os.path.expanduser("~"), 'pyrepTest_canBeDeleted')
-        
-        # check if directory exist
-        if os.path.isdir(PATH):
-            if not REP.is_repository(PATH):
-                warnings.warn("Directory exists and it's not a pyrep repository.")
-                exit()
-            else:
-                # remove repository from directory if repository exist.
-                REP.remove_repository(path=PATH, relatedFiles=False, relatedFolders=False)
-        
-        
-        # print repository path
-        print "repository path --> %s"%str(REP.path)
-        
-        # create repository in path
-        print "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
-        REP.create_repository(PATH)
-        print '\\nRepository path --> %s'%str(REP.path)
-        
-        # add directories
-        REP.add_directory("folder1/folder2/folder3")
-        REP.add_directory("folder1/archive1/archive2/archive3/archive3")
-        REP.add_directory("directory1/directory2")
-        
-        # dump files
-        value = "This is a string data to pickle and store in the repository"
-        REP.dump_file(value, relativePath='.', name='pickled', dump=None, pull=None, replace=True)
-        
-        value = np.random.random(3)
-        dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
-        pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
-        REP.dump(value, relativePath='.', name='text.dat', dump=dump, pull=pull, replace=True)
-        REP.dump(value, relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl', replace=True)
-        REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled1', replace=True)
-        REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled2', replace=True)
-        REP.dump(value, relativePath="folder1/archive1/archive2", name='archive2Pickled1', replace=True)
-        
-        # pull data
-        data = REP.pull(relativePath='.', name='text.dat')
-        print '\\nPulled text data --> %s'%str(data)
-        
-        data = REP.pull(relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl')
-        print '\\nPulled pickled data --> %s'%str(data)
-        
-        # update
-        value = "This is an updated string"
-        REP.update(value, relativePath='.', name='pickled')
-        print '\\nUpdate pickled data to --> %s'%value
-        
-        data = REP.pull(relativePath='.', name='pickled')
-        print '\\nPull updated pickled data --> %s'%str(data)
-
-        # walk repository files
-        print '\\nwalk repository files relative path'
-        print '------------------------------------'
-        for f in REP.walk_files_relative_path():
-            print f
-        
-        # walk repository, directories
-        print '\\nwalk repository directories relative path'
-        print '------------------------------------------'
-        for d in REP.walk_directories_relative_path():
-            print d
-        
-        
-        print '\\nRepository print -->'
-        print REP
-        
-        print '\\nRepository representation -->'
-        print repr(REP)
-        
-        print '\\nRepository to list -->'
-        print  REP.get_list_representation()
-        REP.create_package(path=None, name=None)
-        
-        # Try to load
-        try:
-            REP.load_repository(PATH)
-        except:
-            loadable = False
-        finally:
-            loadable = True
-        print '\\nIs repository loadable -->',loadable 
-        
-        # remove all repo data
-        REP.remove_repository(relatedFiles=True, relatedFolders=True)
-        
-        # check if there is a repository in path
-        print "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
+    # standard distribution imports
+    import os
+    import warnings
+    
+    # numpy imports
+    import numpy as np
+    
+    # import Repository
+    from pyrep import Repository
+    
+    # initialize Repository instance
+    REP=Repository()
+    
+    # create a path pointing to user home
+    PATH = os.path.join(os.path.expanduser("~"), 'pyrepTest_canBeDeleted')
+    
+    # check if directory exist
+    if os.path.isdir(PATH):
+        if not REP.is_repository(PATH):
+            warnings.warn("Directory exists and it's not a pyrep repository.")
+            exit()
+        else:
+            # remove repository from directory if repository exist.
+            REP.remove_repository(path=PATH, relatedFiles=False, relatedFolders=False)
+    
+    
+    # print repository path
+    print("repository path --> %s"%str(REP.path))
+    
+    # create repository in path
+    print("\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))))
+    REP.create_repository(PATH)
+    print('\\nRepository path --> %s'%str(REP.path))
+    
+    # add directories
+    REP.add_directory("folder1/folder2/folder3")
+    REP.add_directory("folder1/archive1/archive2/archive3/archive3")
+    REP.add_directory("directory1/directory2")
+    
+    # dump files
+    value = "This is a string data to pickle and store in the repository"
+    REP.dump_file(value, relativePath='.', name='pickled', dump=None, pull=None, replace=True)
+    
+    value = np.random.random(3)
+    dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
+    pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+    REP.dump(value, relativePath='.', name='text.dat', dump=dump, pull=pull, replace=True)
+    REP.dump(value, relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl', replace=True)
+    REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled1', replace=True)
+    REP.dump(value, relativePath="folder1/archive1", name='archive1Pickled2', replace=True)
+    REP.dump(value, relativePath="folder1/archive1/archive2", name='archive2Pickled1', replace=True)
+    
+    # pull data
+    data = REP.pull(relativePath='.', name='text.dat')
+    print('\\nPulled text data --> %s'%str(data))
+    
+    data = REP.pull(relativePath="folder1/folder2/folder3", name='folder3Pickled.pkl')
+    print('\\nPulled pickled data --> %s'%str(data))
+    
+    # update
+    value = "This is an updated string"
+    REP.update(value, relativePath='.', name='pickled')
+    print('\\nUpdate pickled data to --> %s'%value)
+    
+    data = REP.pull(relativePath='.', name='pickled')
+    print('\\nPull updated pickled data --> %s'%str(data))
+    
+    # walk repository files
+    print('\\nwalk repository files relative path')
+    print('------------------------------------')
+    for f in REP.walk_files_relative_path():
+        print(f)
+    
+    # walk repository, directories
+    print('\\nwalk repository directories relative path')
+    print('------------------------------------------')
+    for d in REP.walk_directories_relative_path():
+        print(d)
+    
+    
+    print('\\nRepository print -->')
+    print(REP)
+    
+    print('\\nRepository representation -->')
+    print(repr(REP))
+    
+    print('\\nRepository to list -->')
+    print(REP.get_list_representation())
+    REP.create_package(path=None, name=None)
+    
+    # Try to load
+    try:
+        REP.load_repository(PATH)
+    except:
+        loadable = False
+    finally:
+        loadable = True
+    print('\\nIs repository loadable -->',loadable)
+    
+    # remove all repo data
+    REP.remove_repository(relatedFiles=True, relatedFolders=True)
+    
+    # check if there is a repository in path
+    print("\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
 
 
         
@@ -191,7 +191,7 @@ Repository main module:
 """
 
 # standard distribution imports
-import os
+import os, sys
 import time
 import uuid
 import traceback
@@ -212,8 +212,23 @@ except:
 from pylocker import Locker
 
 # pyrep imports
-from __pkginfo__ import __version__
-    
+from .__pkginfo__ import __version__
+
+# python version dependant imports
+if sys.version_info >= (3, 0):
+    # This is python 3
+    str        = str
+    long       = int
+    unicode    = str
+    bytes      = bytes
+    basestring = str
+else:
+    str        = str
+    unicode    = unicode
+    bytes      = str
+    long       = long
+    basestring = basestring
+        
 # set warnings filter to always
 warnings.simplefilter('always')
 
@@ -243,15 +258,16 @@ def acquire_lock(func):
     """Decorate methods when locking repository is required."""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        e = None
         with self.locker as r:
             # get the result
             acquired, code, _  = r
             if acquired:
                 try:
                     r = func(self, *args, **kwargs)
-                except Exception as e:
-                    pass
+                except Exception as err:
+                    e = err
+                else:
+                    e = None
             else:
                 warnings.warn("code %s. Unable to aquire the lock when calling '%s'. You may try again!"%(code,func.__name__) )
                 r = None

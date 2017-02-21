@@ -25,8 +25,8 @@ package to python's site-packages or use pip as the following:
 Package Functions:
 ==================
 """
-from __pkginfo__ import __version__, __author__, __email__, __onlinedoc__, __repository__, __pypi__
-from Repository import Repository
+from .__pkginfo__ import __version__, __author__, __email__, __onlinedoc__, __repository__, __pypi__
+from .Repository import Repository
 
 
 def get_version():
