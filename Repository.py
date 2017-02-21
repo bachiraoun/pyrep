@@ -107,7 +107,7 @@ Usage:
     REP.remove_repository(relatedFiles=True, relatedFolders=True)
     
     # check if there is a repository in path
-    print("\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH)))
+    print( "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))) )
 
 
         
@@ -243,17 +243,6 @@ def path_required(func):
         return func(self, *args, **kwargs)
     return wrapper
 
-def hide_dict_required(func):
-    """Decorate methods when hiding repository dictionnary methods is required."""
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if self.DICT_HIDE:
-            traceback.print_stack()
-            warnings.warn("Repository class '%s' method '%s' is hidden!\n args: %s\n kwargs: %s"%(self.__class__.__name__,func.__name__, args, kwargs))
-            return
-        return func(self, *args, **kwargs)
-    return wrapper
-
 def acquire_lock(func):
     """Decorate methods when locking repository is required."""
     @wraps(func)
@@ -265,14 +254,16 @@ def acquire_lock(func):
                 try:
                     r = func(self, *args, **kwargs)
                 except Exception as err:
-                    e = err
+                    e = str(err)
                 else:
                     e = None
             else:
                 warnings.warn("code %s. Unable to aquire the lock when calling '%s'. You may try again!"%(code,func.__name__) )
+                e = None
                 r = None
         # raise error after exiting with statement and releasing the lock!
         if e is not None:
+            traceback.print_stack()
             raise Exception(e)
         return r
     return wrapper
@@ -285,6 +276,7 @@ def sync_required(func):
             r = func(self, *args, **kwargs)
         else:
             state = self._load_state()
+            #print("----------->  ",state, self.state)
             if state is None:
                 r = func(self, *args, **kwargs)
             elif state == self.state:
@@ -322,14 +314,35 @@ def get_pickling_errors(obj, seen=None):
     result = {}    
     for i in state:
         try:
-            pickle.dumps(state[i], protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dumps(state[i], protocol=2)
         except pickle.PicklingError as e:
             if not state[i] in seen:
                 seen.append(state[i])
                 result[i]=get_pickling_errors(state[i],seen)
     return result
     
-    
+
+DEFAULT_DUMP="""
+try:
+    import cPickle as pickle
+except:
+    import pickle
+fd = open('$FILE_PATH', 'wb')
+pickle.dump( value, fd, protocol=2 )
+fd.close()
+"""
+
+DEFAULT_PULL="""
+import os
+try:
+    import cPickle as pickle
+except:
+    import pickle
+fd = open(os.path.join( '$FILE_PATH' ), 'rb')
+PULLED_DATA = pickle.load( fd )
+fd.close()
+"""
+            
 class Repository(dict):
     """
     This is a pythonic way to organize dumping and pulling python objects 
@@ -347,27 +360,17 @@ class Repository(dict):
            properties of the repository upon dumping a file. This is ensured by dumping the file in
            a temporary path first and then moving it to the desired path.
     """
-    __DICT_HIDE = True 
     def __init__(self, repo=None, ACID=True):
         self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
         self.__path   = None
         self.__info   = None
-        self.__state  = time.time()
+        self.__state  = ("%.6f"%time.time()).encode()
         self._keepSynchronized = True
         self.__reset_repository()
         self.__cast(repo)
-        self.__DICT_HIDE = True
         # set properties
         self.set_ACID(ACID=ACID)
-    
-    #def __getstate__(self):
-    #    state = {}
-    #    for k, v in self.__dict__.items():
-    #        if k in ('_Repository__locker',):
-    #            v = None
-    #        state[k] = v
-    #    return state
-        
+
     def __str__(self):
         if self.__path is None:
             return ""
@@ -410,54 +413,6 @@ class Repository(dict):
         lrepr = self.get_list_representation()
         repr += " ; ".join(lrepr)
         return repr 
-        
-    @hide_dict_required
-    def __setitem__(self, key, value):
-        dict.__setitem__(self, key, value)
-    
-    @hide_dict_required
-    def __getitem__(self, key):
-        dict.__getitem__(self, key)
-     
-    @hide_dict_required
-    def keys(self, *args, **kwargs):
-        """Keys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.keys(self)
-    
-    @hide_dict_required
-    def values(self, *args, **kwargs):
-        """values is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.values(self)
-        
-    @hide_dict_required
-    def items(self, *args, **kwargs):
-        """items is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.items(self)
-    
-    @hide_dict_required
-    def pop(self, *args, **kwargs):
-        """pop is a locked method and modified to be a private method only callable from within the instance."""
-        return dict.pop(self, *args, **kwargs)
-    
-    @hide_dict_required
-    def update(self, *args, **kwargs):
-        """update is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.pop(self, *args, **kwargs)
-    
-    @hide_dict_required
-    def popitem(self, *args, **kwargs):
-        """popitem is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.popitem(self, *args, **kwargs)
-    
-    @hide_dict_required
-    def viewkeys(self, *args, **kwargs):
-        """viewkeys is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return dict.viewkeys(self, *args, **kwargs)
-    
-    @hide_dict_required
-    def viewvalues(self, *args, **kwargs):
-        """viewvalues is a locked method and therefore behave as a private one that is only callable from within the class definition."""
-        return viewvalues.viewkeys(self, *args, **kwargs)  
         
     def __cast(self, repo):
         if repo is None:
@@ -504,11 +459,21 @@ class Repository(dict):
         # get state
         state = None
         if os.path.isfile(repoTimePath):
+            fd = None
             try:
-                state = float( open(repoTimePath).readline().strip() )
+                fd    = open(repoTimePath, 'rb')
             except Exception as e:
                 warnings.warn("unable to open repository time stamp for reading (%s)"%e)
+                fd.close()
                 state = None
+                fd    = None
+            if fd is not None:
+                try:
+                    state = fd.readline().strip()
+                except Exception as e:
+                    warnings.warn("unable to open repository time stamp for reading (%s)"%e)
+                    state = None
+                fd.close()
         return state
        
     def _get_or_create_state(self, forceCreate=False):
@@ -522,9 +487,9 @@ class Repository(dict):
         # create state
         if create:
             try:
-                state = time.time()
-                with open(repoTimePath, 'w') as fdtime:
-                    fdtime.write( '%.6f'%state  )
+                state = ("%.6f"%time.time()).encode()
+                with open(repoTimePath, 'wb') as fdtime:
+                    fdtime.write( str('%.6f'%state ).encode() )
                     fdtime.flush()
                     os.fsync(fdtime.fileno())
             except Exception as e:
@@ -536,12 +501,7 @@ class Repository(dict):
     def state(self):
         """Repository state."""
         return self.__state
-        
-    @property
-    def DICT_HIDE(self):
-        """Python dictionary methods hide flag value."""
-        return self.__DICT_HIDE 
-            
+   
     @property
     def locker(self):
         """Repository locker manager."""
@@ -833,18 +793,14 @@ class Repository(dict):
             warnings.warn("code %s. Unable to aquire the lock when calling 'load_repository'. You may try again!"%(code,) )
             return
         try:
-            DH = Repository.__DICT_HIDE
-            Repository.__DICT_HIDE = False
             # unpickle file
             try:
                 repo = pickle.load( fd )
             except Exception as e:
                 fd.close()
-                Repository.__DICT_HIDE = DH
                 raise Exception("unable to pickle load repository (%s)"%e)  
             finally:
                 fd.close()
-                Repository.__DICT_HIDE = DH
             # check if it's a PyrepInfo instance
             if not isinstance(repo, Repository): 
                 raise Exception(".pyrepinfo in '%s' is not a repository instance."%s)  
@@ -1018,7 +974,7 @@ class Repository(dict):
             raise Exception("unable to open repository info for saving (%s)"%e)   
         # save repository
         try:
-            pickle.dump( self, fdinfo, protocol=pickle.HIGHEST_PROTOCOL )
+            pickle.dump( self, fdinfo, protocol=2 )
         except Exception as e:
             fdinfo.flush()
             os.fsync(fdinfo.fileno())
@@ -1031,9 +987,9 @@ class Repository(dict):
         # save timestamp
         repoTimePath = os.path.join(self.__path, ".pyrepstate")
         try:
-            self.__state = time.time()
-            with open(repoTimePath, 'w') as fdtime:
-                fdtime.write( '%.6f'%self.__state  )
+            self.__state = ("%.6f"%time.time()).encode()
+            with open(repoTimePath, 'wb') as fdtime:
+                fdtime.write( self.__state )
                 fdtime.flush()
                 os.fsync(fdtime.fileno())
         except Exception as e:
@@ -1334,7 +1290,6 @@ class Repository(dict):
         path = os.path.normpath(relativePath)
         # create directories
         currentDir  = self.path
-        #currentDict = dict.__getitem__(self,"directories")
         currentDict = self
         if path in ("","."):
             return currentDict
@@ -1480,9 +1435,9 @@ class Repository(dict):
         realPath  = os.path.join(self.__path, relativePath)
         assert os.path.isdir( realPath ), "directory '%s' is not found in system"%realPath
         # check directory in repository
-        assert dict.__getitem__(parentDirInfoDict, "directories").has_key(dirName), "directory '%s' is not found in repository relative path '%s'"%(dirName, parentDirPath)
+        assert dirName in dict.__getitem__(parentDirInfoDict, "directories"), "directory '%s' is not found in repository relative path '%s'"%(dirName, parentDirPath)
         # assert directory new name doesn't exist in repository
-        assert not dict.__getitem__(parentDirInfoDict, "directories").has_key(newName), "directory '%s' already exists in repository, relative path '%s'"%(newName, parentDirPath)
+        assert newName not in dict.__getitem__(parentDirInfoDict, "directories"), "directory '%s' already exists in repository, relative path '%s'"%(newName, parentDirPath)
         # check new directory in system
         newRealPath = os.path.join(self.__path, parentDirPath, newName)
         if os.path.isdir( newRealPath ):
@@ -1521,12 +1476,12 @@ class Repository(dict):
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         # check directory in repository
-        assert dict.__getitem__(dirInfoDict, "files").has_key(name), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
+        assert name in dict.__getitem__(dirInfoDict, "files"), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
         # get real path
         realPath = os.path.join(self.__path, relativePath, name)
         assert os.path.isfile(realPath), "file '%s' is not found in system"%realPath
         # assert directory new name doesn't exist in repository
-        assert not dict.__getitem__(dirInfoDict, "files").has_key(newName), "file '%s' already exists in repository relative path '%s'"%(newName, relativePath)
+        assert newName not in dict.__getitem__(dirInfoDict, "files"), "file '%s' already exists in repository relative path '%s'"%(newName, relativePath)
         # check new directory in system
         newRealPath = os.path.join(self.__path, relativePath, newName)
         if os.path.isfile( newRealPath ):
@@ -1572,7 +1527,7 @@ class Repository(dict):
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
         # check directory in repository
-        assert dict.__getitem__(dirInfoDict, "files").has_key(name), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
+        assert name in dict.__getitem__(dirInfoDict, "files"), "file '%s' is not found in repository relative path '%s'"%(name, relativePath)
         # remove file from repo
         dict.__getitem__(dirInfoDict, "files").pop(name)
         # remove file from system
@@ -1614,7 +1569,7 @@ class Repository(dict):
         # get directory info dict
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        if dict.__getitem__(dirInfoDict, "files").has_key(name):
+        if name in dict.__getitem__(dirInfoDict, "files"):
             if not replace:
                 if verbose:
                     warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
@@ -1699,25 +1654,24 @@ class Repository(dict):
         # get directory info dict
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        if dict.__getitem__(dirInfoDict, "files").has_key(name):
+        if name in dict.__getitem__(dirInfoDict, "files"):
             if not replace:
                 if verbose:
                     warnings.warn("a file with the name '%s' is already defined in repository dictionary info. Set replace flag to True if you want to replace the existing file"%(name))
                 return
         # convert dump and pull methods to strings
         if dump is None:
-            dump="pickle.dump( value, open('$FILE_PATH', 'wb'), protocol=pickle.HIGHEST_PROTOCOL )"
+            dump=DEFAULT_DUMP
         if pull is None:
-            pull="PULLED_DATA = pickle.load( open(os.path.join( '$FILE_PATH' ), 'rb') )"
+            pull=DEFAULT_PULL
         # get savePath
         if ACID:
-            #savePath = os.path.join(tempfile.gettempdir(), name)
             savePath = os.path.join(tempfile.gettempdir(), str(uuid.uuid1()))
         else:
             savePath = os.path.join(realPath,name)
         # dump file
         try:
-            exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
+            exec( dump.replace("$FILE_PATH", str(savePath)) ) 
         except Exception as e:
             message = "unable to dump the file (%s)"%e
             if 'pickle.dump(' in dump:
@@ -1817,7 +1771,7 @@ class Repository(dict):
             savePath = os.path.join(realPath,name)
         # dump file
         try:
-            exec( dump.replace("$FILE_PATH", savePath.encode('string-escape')) ) 
+            exec( dump.replace("$FILE_PATH", str(savePath)) ) 
         except Exception as e:
             message = "unable to dump the file (%s)"%e
             if 'pickle.dump(' in dump:
@@ -1888,21 +1842,17 @@ class Repository(dict):
         if pull is None:
             pull = fileInfo["pull"]
         # try to pull file
-        DH = Repository.__DICT_HIDE
-        Repository.__DICT_HIDE = False
         try:
-            exec( pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) )
+            namespace = {}
+            exec( pull.replace("$FILE_PATH", str(os.path.join(realPath,name)) ), namespace )
         except Exception as e:
-            m = pull.replace("$FILE_PATH", os.path.join(realPath,name).encode('string-escape')) 
-            Repository.__DICT_HIDE = DH
+            m = pull.replace("$FILE_PATH", str(os.path.join(realPath,name)) )
             raise Exception( "unable to pull data using '%s' from file (%s)"%(m,e) )
-        finally:
-            Repository.__DICT_HIDE = DH
         # update
         if update:
             fileInfo["pull"] = pull
         # return data
-        return PULLED_DATA
+        return namespace['PULLED_DATA']
             
     def pull(self, *args, **kwargs):
         """Alias to pull_file"""
