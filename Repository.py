@@ -1844,6 +1844,7 @@ class Repository(dict):
         # try to pull file
         try:
             namespace = {}
+            namespace.update( globals() )
             exec( pull.replace("$FILE_PATH", str(os.path.join(realPath,name)) ), namespace )
         except Exception as e:
             m = pull.replace("$FILE_PATH", str(os.path.join(realPath,name)) )
