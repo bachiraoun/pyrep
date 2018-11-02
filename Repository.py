@@ -41,28 +41,138 @@ else:
 # set warnings filter to always
 warnings.simplefilter('always')
 
+def get_pickling_errors(obj, seen=None):
+    """Investigate pickling errors."""
+    if seen == None:
+        seen = []
+    if hasattr(obj, "__getstate__"):
+        state = obj.__getstate__()
+    else:
+        return None
+    if state == None:
+        return 'object state is None'
+    if isinstance(state,tuple):
+        if not isinstance(state[0], dict):
+            state=state[1]
+        else:
+            state=state[0].update(state[1])
+    result = {}
+    for i in state:
+        try:
+            pickle.dumps(state[i], protocol=2)
+        except pickle.PicklingError as e:
+            if not state[i] in seen:
+                seen.append(state[i])
+                result[i]=get_pickling_errors(state[i],seen)
+    return result
 
 
-DEFAULT_DUMP="""
+def get_dump_method(dump):
+    if dump is None:
+        dump = 'pickle'
+    if dump.startswith('pickle'):
+        if dump == 'pickle':
+            proto = 2
+        else:
+            proto = dump.strip('pickle')
+            try:
+                proto = int(proto)
+                assert proto>=-1
+            except:
+                raise Exception("protocol must be an integer >=-1")
+        code = """
 try:
     import cPickle as pickle
 except:
     import pickle
-fd = open('$FILE_PATH', 'wb')
-pickle.dump( value, fd, protocol=2 )
-fd.close()
+with open('$FILE_PATH', 'wb') as fd:
+    pickle.dump( value, fd, protocol=%i )
+"""%proto
+    elif dump.startswith('dill'):
+        if dump == 'dill':
+            proto = 2
+        else:
+            proto = dump.strip('dill')
+            try:
+                proto = int(proto)
+                assert proto>=-1
+            except:
+                raise Exception("protocol must be an integer >=-1")
+        code = """
+import dill
+with open('$FILE_PATH', 'wb') as fd:
+    dill.dump( value, fd, protocol=%i )
+"""%proto
+    elif dump == 'json':
+        code = """
+import json
+with open('$FILE_PATH', 'w') as fd:
+    json.dump( value,fd )
 """
+    elif dump == 'numpy':
+        code = """
+import numpy
+numpy.save(file='$FILE_PATH', arr=value)
+"""
+    elif dump == 'numpy_text':
+        code = """
+import numpy
+numpy.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')
+"""
+    else:
+        assert isinstance(dump, str), "dump must be None or a string"
+        assert '$FILE_PATH' in dump, "string dump code must inlcude '$FILE_PATH'"
+        code = dump
+    # return
+    return code
 
-DEFAULT_PULL="""
+
+
+
+def get_pull_method(pull):
+    if pull is None or pull == 'pickle':
+        code = """
 import os
 try:
     import cPickle as pickle
 except:
     import pickle
-fd = open(os.path.join( '$FILE_PATH' ), 'rb')
-PULLED_DATA = pickle.load( fd )
-fd.close()
+with open('$FILE_PATH', 'rb') as fd:
+    PULLED_DATA = pickle.load( fd )
 """
+    elif pull == 'dill':
+        code = """
+import dill
+with open('$FILE_PATH', 'rb') as fd:
+    PULLED_DATA = dill.load( fd )
+"""
+    elif pull == 'json':
+        code = """
+import json
+with open('$FILE_PATH', 'r') as fd:
+    PULLED_DATA = json.load(fd)
+"""
+    elif pull == 'numpy':
+        code = """
+import numpy
+PULLED_DATA=numpy.loadtxt(fname='$FILE_PATH')
+"""
+    elif pull == 'numpy_text':
+        code = """
+import numpy
+PULLED_DATA=numpy.load(file='$FILE_PATH')
+"""
+    else:
+        assert isinstance(pull, str), "pull must be None or a string"
+        assert 'PULLED_DATA' in pull, "string pull code must inlcude 'PULLED_DATA'"
+        assert '$FILE_PATH' in pull, "string pull code must inlcude '$FILE_PATH'"
+        code = pull
+    # return
+    return code
+
+
+
+
 
 def path_required(func):
     """Decorate methods when repository path is required."""
@@ -98,8 +208,9 @@ class Repository(object):
         self.__dirInfo   = '.pyrepdirinfo'
         self.__dirLock   = '.pyrepdirlock'
         self.__fileInfo  = '.%s_pyrepfileinfo'  # %s replaces file name
+        self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
-        self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
+        #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
         # initialize repository
         self.reset()
         # if path is not None, load existing repository
@@ -177,6 +288,8 @@ class Repository(object):
                     'info':info}
             with open(dirInfoPath, 'w') as fd:
                 json.dump( info,fd )
+
+
 
     def __clean_before_after(self, stateBefore, stateAfter, keepNoneEmptyDirectory=True):
         """clean repository given before and after states"""
@@ -283,10 +396,6 @@ class Repository(object):
         return cDir
 
 
-
-
-
-
     @property
     def path(self):
         """The repository instance path which points to the directory where
@@ -349,7 +458,7 @@ class Repository(object):
         except Exception as e:
             raise Exception("Unable to open repository file(%s)"%e)
         # before doing anything try to lock repository
-        # always create new locker, this makes the repository thread safe
+        # always create new locker, this makes the repository process and thread safe
         L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(repoPath, self.__repoLock))
         acquired, code = L.acquire_lock()
         # check if acquired.
@@ -359,7 +468,6 @@ class Repository(object):
         try:
             # unpickle file
             try:
-                #repo = pickle.load( fd )
                 repo = json.load( fd )
             except Exception as err:
                 fd.close()
@@ -523,7 +631,7 @@ class Repository(object):
             if name == em:
                 return False, "name '%s' is reserved for pyrep internal usage"%em
         # pattern match
-        for pm in [self.__fileInfo,self.__fileLock,self.__objectDir]:
+        for pm in [self.__fileInfo,self.__fileLock]:#,self.__objectDir]:
             if name == pm or (name.endswith(pm[3:]) and name.startswith('.')):
                 return False, "name pattern '%s' is not allowed as result may be reserved for pyrep internal usage"%pm
         # name is ok
@@ -582,17 +690,20 @@ class Repository(object):
             # loop files and dirobjects
             for fname in sorted([f for f in dirList if isinstance(f, str)]):
                 _rp = os.path.join(self.__path,relaPath,fname)
-                if os.path.isdir(_rp) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
-                    fileDict = {'type':'objectdir',
-                                'exists':True,
-                                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
-                               }
-
-                else:
-                    fileDict = {'type':'file',
-                                'exists':os.path.isfile(_rp),
-                                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
-                               }
+                #if os.path.isdir(_rp) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
+                #    fileDict = {'type':'objectdir',
+                #                'exists':True,
+                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                #               }
+                #else:
+                #    fileDict = {'type':'file',
+                #                'exists':os.path.isfile(_rp),
+                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                #               }
+                fileDict = {'type':'file',
+                            'exists':os.path.isfile(_rp),
+                            'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                           }
                 state.append({_rp:fileDict})
             # loop directories
             for ddict in sorted([d for d in dirList if isinstance(d, dict)]):
@@ -647,6 +758,46 @@ class Repository(object):
             #. result (boolean): Whether directory is tracked and registered.
         """
         return self.__get_repository_directory(relativePath) is not None
+
+
+    def is_repository_file(self, relativePath):
+        """
+        Check whether a given relative path is a repository file path
+
+        :Parameters:
+            #. relativePath (string): File relative path
+
+        :Returns:
+            #. isRepoFile (boolean): Whether file is a repository file.
+            #. isFileOnDisk (boolean): Whether file is found on disk.
+            #. isFileInfoOnDisk (boolean): Whether file info is found on disk
+            #. isFileClassOnDisk (boolean): Whether file class is found on disk.
+        """
+        relativePath  = self.to_repo_relative_path(path=relativePath, split=False)
+        if relativePath == '':
+            return False, False, False, False
+        relaDir, name = os.path.split(relativePath)
+        fileOnDisk  = os.path.isfile(os.path.join(self.__path, relativePath))
+        infoOnDisk  = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%name))
+        classOnDisk = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%name))
+        cDir = self.__repo['walk_repo']
+        for dirname in relaDir.split(os.sep):
+            dList = [d for d in cDir if isinstance(d, dict)]
+            if not len(dList):
+                cDir = None
+                break
+            cDict = [d for d in dList if dirname in d]
+            if not len(cDict):
+                cDir = None
+                break
+            cDir = cDict[0][dirname]
+        if cDir is None:
+            return False, fileOnDisk, infoOnDisk, classOnDisk
+        if name not in cDir:
+            return False, fileOnDisk, infoOnDisk, classOnDisk
+        # this is a repository registered file. check whether all is on disk
+        return True, fileOnDisk, infoOnDisk, classOnDisk
+
 
     #@path_required
     #def maintain_directory(self, relativePath, keep=None, clean=True):
@@ -761,7 +912,8 @@ class Repository(object):
 
         :Returns:
             #. success (boolean): Whether adding the directory was successful.
-            #. reason (None, string): Reason why directory was not added.
+            #. message (None, string): Reason why directory was not added or
+               random information.
         """
         assert isinstance(relativePath, str), "relativePath must be a string"
         if info is not None:
@@ -770,7 +922,7 @@ class Repository(object):
         path = self.to_repo_relative_path(path=relativePath, split=False)
         # whether to replace
         if self.is_repository_directory(path):
-            return False, "Directory is already tracked in repository"
+            return True, "Directory is already tracked in repository"
         # check whether name is allowed
         allowed, reason = self.is_name_allowed(path)
         if not allowed:
@@ -834,7 +986,6 @@ class Repository(object):
         """
         """
         return copy.deepcopy(self.__get_repository_parent_directory(relativePath))
-
 
     @path_required
     def remove_directory(self, relativePath, clean=False):
@@ -947,5 +1098,110 @@ class Repository(object):
             _, error = self.save()
         # return
         return error is None, error
+
+
+    @path_required
+    def dump_file(self, value, relativePath,
+                        description=None,
+                        dump=None, pull=None,
+                        replace=False):
+        """
+        Dump a file using its value to the system and creates its
+        attribute in the Repository with utc timestamp.
+
+        :Parameters:
+            #. value (object): The value of a file to dump and add to the
+               repository. It is any python object or file.
+            #. relativePath (str): The relative to the repository path of
+               the directory where the file should be dumped. If relativePath
+               does not exist, it will be created automatically.
+            #. description (None, string): Any description about the file.
+            #. dump (None, string): The dumping method.
+               If None it will be set automatically to pickle and therefore the
+               object must be pickleable. If a string is given, it can be a
+               keyword ('json','pickle','dill') or a string compileable code to
+               dump the data. The string code must include all the necessary
+               imports and a '$FILE_PATH' that replaces the absolute file path
+               when the dumping will be performed.\n
+               e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
+            #. pull (None, string): The pulling method. If None it will be set
+               automatically to pickle and therefore the object must be
+               pickleable. If a string is given, it can be a keyword
+               ('json','pickle','dill') or a string compileable code to pull
+               the data. The string code must include all the necessary imports,
+               a '$FILE_PATH' that replaces the absolute file path when the
+               dumping will be performed and finally a PULLED_DATA variable.\n
+               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+            #. replace (boolean): Whether to replace any existing file.
+        """
+        # check arguments
+        assert isinstance(replace, bool), "replace must be boolean"
+        if description is None:
+            description = ''
+        assert isinstance(description, str), "description must be None or a string"
+        # convert dump and pull methods to strings
+        dump = get_dump_method(dump)
+        pull = get_pull_method(pull)
+        #import pdb
+        #pdb.set_trace()
+        # check name and path
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        savePath     = os.path.join(self.__path,relativePath)
+        fPath, fName = os.path.split(savePath)
+        # check if name is allowed
+        success, reason = self.is_name_allowed(savePath)
+        if not success:
+            return False, reason
+        # ensure directory added
+        success, reason = self.add_directory(os.path.dirname(relativePath))
+        if not success:
+            return False, reason
+        # lock repository
+        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = L.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            return False, error
+        error = None
+        # dump file
+        try:
+            isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+            if isRepoFile:
+                assert replace, "file is a registered repository file. set replace to True to replace"
+            fileInfoPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%fName)
+            if isRepoFile and fileOnDisk:
+                with open(fileInfoPath, 'r') as fd:
+                    info = json.load(fd)
+                assert info['repository_unique_name'] == self.__repo['repository_unique_name'], "it seems that file was created by another repository"
+                info['last_update_utctime'] = time.time()
+            else:
+                info = {'repository_unique_name':self.__repo['repository_unique_name']}
+                info['create_utctime'] = info['last_update_utctime'] = time.time()
+            info['dump'] = dump
+            info['pull'] = pull
+            info['description'] = description
+            # dump file
+            exec( dump.replace("$FILE_PATH", str(savePath)) )
+            # update info
+            with open(fileInfoPath, 'w') as fd:
+                json.dump( info,fd )
+            # update class file
+            fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
+            with open(fileClassPath, 'wb') as fd:
+                pickle.dump( value.__class__, fd, protocol=-1 )
+        except Exception as err:
+            error = "unable to dump the file (%s)"%err
+            if 'pickle.dump(' in dump:
+                error += '\nmore info: %s'%str(get_pickling_errors(value))
+        finally:
+            L.release_lock()
+        # save repository
+        if error is not None:
+            return False, error
+        else:
+            return self.save()
+
+
+
 
 #

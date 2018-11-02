@@ -30,9 +30,16 @@ if not success:
 #pprint(R._Repository__repo)
 #pprint(R.get_repository_state())
 
-success, error =R.remove_directory(relativePath='first/second/third_2')
+success, error = R.remove_directory(relativePath='first/second/third_2')
 if not success:
     print(error)
+
+
+
+success, error = R.dump_file(value=range(10),relativePath='range', pull='numpy_text', dump='numpy_text')
+if not success:
+    print(error)
+
 
 #success, errors = R.clean_before_after(R.get_repository_list_representation(), [])
 #if not success:
