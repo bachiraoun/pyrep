@@ -1,9 +1,9 @@
-__version__    = '2.0.0'
+__version__    = '3.0.0'
 
 __author__     = "Bachir Aoun"
-               
+
 __email__      = "bachir.aoun@e-aoun.com"
-               
+
 __onlinedoc__  = "http://bachiraoun.github.io/pyrep/"
 
 __repository__ = "https://github.com/bachiraoun/pyrep"
