@@ -1,3 +1,233 @@
+"""
+Usage:
+======
+
+.. code-block:: python
+
+    from __future__ import print_function
+    import os
+    import warnings
+    from pprint import pprint
+
+    # numpy imports
+    import numpy as np
+
+    # import Repository
+    from pyrep import Repository
+
+    # initialize Repository instance
+    REP=Repository()
+
+    # create a path pointing to user home
+    PATH = os.path.join(os.path.expanduser("~"), 'pyrepTest_canBeDeleted')
+
+    # check if directory exist
+    if REP.is_repository(PATH):
+        REP.remove_repository(path=PATH, removeEmptyDirs=True)
+
+
+    # print repository path
+    print("repository path --> %s"%str(REP.path))
+    print()
+
+    # create repository in path
+    print("\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))))
+    success,message = REP.create_repository(PATH)
+    assert success, message
+    print('\\nRepository path --> %s'%str(REP.path))
+    print()
+
+    # add directories
+    success,message = REP.add_directory("folder1/folder2/folder3")
+    if not success:
+        print(message)
+
+    success,message = REP.add_directory("folder1/archive1/archive2/archive3/archive3")
+    if not success:
+        print(message)
+
+    success,message = REP.add_directory("directory1/directory2")
+    if not success:
+        print(message)
+
+    # dump files
+    value = "This is a string data to pickle and store in the repository"
+    success,message = REP.dump_file(value, relativePath='pickled', dump=None, pull=None, replace=True)
+    if not success:
+        print(message)
+
+    value = np.random.random(3)
+    dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
+    pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+
+    success,message = REP.dump(value, relativePath='text.dat', dump=dump, pull=pull, replace=True)
+    if not success:
+        print(message)
+
+    success,message = REP.dump(value, relativePath="folder1/folder2/folder3/folder3Pickled.pkl", replace=True)
+    if not success:
+        print(message)
+
+    success,message = REP.dump(value, relativePath="folder1/archive1/archive1Pickled1", replace=True)
+    if not success:
+        print(message)
+
+    success,message = REP.dump(value, relativePath="folder1/archive1/archive1Pickled2", replace=True)
+    if not success:
+        print(message)
+
+    success,message = REP.dump(value, relativePath="folder1/archive1/archive2/archive2Pickled1", replace=True)
+    if not success:
+        print(message)
+
+    # pull data
+    data = REP.pull(relativePath='text.dat')
+    print('\\nPulled text data --> %s'%str(data))
+    print()
+
+    data = REP.pull(relativePath="folder1/folder2/folder3/folder3Pickled.pkl")
+    print('\\nPulled pickled data --> %s'%str(data))
+    print()
+
+    # update
+    value = "This is an updated string"
+    REP.update(value, relativePath='pickled')
+    print('\\nUpdate pickled data to --> %s'%value)
+    print()
+
+    # walk repository files
+    print('\\nwalk repository files relative path')
+    print('------------------------------------')
+    for f in REP.walk_files_path(recursive=True):
+        print(f)
+    print()
+
+    # walk repository, directories
+    print('\\nwalk repository directories relative path')
+    print('------------------------------------------')
+    for d in REP.walk_directories_path(recursive=True):
+        print(d)
+    print()
+
+    print('\\nRepository print -->')
+    print(REP)
+    print()
+
+    print('\\nRepository representation -->')
+    print(repr(REP))
+    print()
+
+    print('\\nRepository to list -->')
+    for fdDict in REP.get_repository_state():
+        k = list(fdDict)[0]
+        print("%s: %s"%(k,str(fdDict[k])))
+    print()
+
+    print('\\nCreate package from repository ...')
+    REP.create_package(path=None, name=None)
+    print()
+
+    # Try to load
+    try:
+        REP.load_repository(PATH)
+    except:
+        loadable = False
+    finally:
+        loadable = True
+    print('\\nIs repository loadable -->',loadable)
+    print()
+
+    # remove all repo data
+    REP.remove_repository(removeEmptyDirs=True)
+
+    # check if there is a repository in path
+    print( "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))) )
+    print()
+
+
+output
+======
+
+.. code-block:: python
+
+    repository path --> None
+
+    Is path '/Users/BA642A/pyrepTest_canBeDeleted' a repository --> False
+    Repository path --> /Users/BA642A/pyrepTest_canBeDeleted
+
+    Pulled text data --> [ 0.5496571   0.8600462   0.05659633]
+
+    Pulled pickled data --> [ 0.54965711  0.86004617  0.05659633]
+
+    Update pickled data to --> This is an updated string
+
+    walk repository files relative path
+    ------------------------------------
+    pickled
+    text.dat
+    folder1/folder2/folder3/folder3Pickled.pkl
+    folder1/archive1/archive1Pickled1
+    folder1/archive1/archive1Pickled2
+    folder1/archive1/archive2/archive2Pickled1
+
+    walk repository directories relative path
+    ------------------------------------------
+    folder1
+    directory1
+    folder1/folder2
+    folder1/archive1
+    folder1/folder2/folder3
+    folder1/archive1/archive2
+    folder1/archive1/archive2/archive3
+    folder1/archive1/archive2/archive3/archive3
+    directory1/directory2
+
+    Repository print -->
+    /Users/BA642A/pyrepTest_canBeDeleted
+      pickled
+      text.dat
+      /directory1
+        /directory2
+      /folder1
+        /archive1
+        archive1Pickled1
+        archive1Pickled2
+          /archive2
+          archive2Pickled1
+            /archive3
+              /archive3
+        /folder2
+          /folder3
+          folder3Pickled.pkl
+
+    Repository representation -->
+    pyrep Repository (Version 3.0.0) @/Users/BA642A/pyrepTest_canBeDeleted [6 files] [9 directories]
+
+    Repository to list -->
+    : {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    pickled: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+    text.dat: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+    directory1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    directory1/directory2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/archive1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/archive1/archive1Pickled1: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+    folder1/archive1/archive1Pickled2: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+    folder1/archive1/archive2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/archive1/archive2/archive2Pickled1: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+    folder1/archive1/archive2/archive3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/archive1/archive2/archive3/archive3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/folder2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/folder2/folder3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
+    folder1/folder2/folder3/folder3Pickled.pkl: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+
+    Create package from repository ...
+
+    Is repository loadable --> True
+
+    Is path '/Users/BA642A/pyrepTest_canBeDeleted' a repository --> False
+"""
+
 # standard distribution imports
 from __future__ import print_function
 import os, sys
@@ -265,8 +495,6 @@ class Repository(object):
         repr += " @%s [%i files] [%i directories]"%(self.__path, nfiles, ndirs)
         return repr
 
-
-
     def __sync_files(self, repoPath, dirs):
         errors  = []
         synched = []
@@ -286,12 +514,13 @@ class Repository(object):
                         if not len(dn):
                             errors.append("Repository directory found in '%s' info dict key is an empty string"%relPath)
                             continue
+                        if not os.path.isfile(os.path.join(repoPath, relPath, self.__dirInfo)):
+                            errors.append("Repository directory info file '%s' not found on disk"%os.path.join(repoPath, relPath, self.__dirInfo))
+                            continue
                         rp = os.path.join(repoPath, relPath, dn)
                         rsd = {dn:[]}
                         relSynchedList.append(rsd)
                         _walk_dir(relPath=rp, relDirList=k[dn], relSynchedList=rsd[dn])
-                        if not len(rsd[dn]):
-                            _ = relSynchedList.pop( relSynchedList.index(rsd) )
                     elif isinstance(k, basestring):
                         relFilePath = os.path.join(repoPath, relPath, k)
                         relInfoPath = os.path.join(repoPath, relPath, self.__fileInfo%k)
@@ -309,17 +538,17 @@ class Repository(object):
         _walk_dir(relPath='', relDirList=dirs, relSynchedList=synched)
         return synched, errors
 
-    def __save_dirinfo(self, info, dirInfoPath, create=False):
+    def __save_dirinfo(self, description, dirInfoPath, create=False):
         # create main directory info file
         oldInfo = None
-        if info is None and os.path.isfile(dirInfoPath):
+        if description is None and os.path.isfile(dirInfoPath):
             with open(dirInfoPath, 'r') as fd:
                 oldInfo = json.load(fd)
             if self.__repo['repository_unique_name'] != oldInfo['repository_unique_name']:
-                info = ''
-        if info is None and create:
-            info = ''
-        if info is not None:
+                description = ''
+        if description is None and create:
+            description = ''
+        if description is not None:
             if os.path.isfile(dirInfoPath):
                 if oldInfo is None:
                     with open(dirInfoPath, 'r') as fd:
@@ -334,11 +563,9 @@ class Repository(object):
             info = {'repository_unique_name':self.__repo['repository_unique_name'],
                     'create_utctime':createTime,
                     'last_update_utctime':lastUpdateTime,
-                    'info':info}
+                    'description':description}
             with open(dirInfoPath, 'w') as fd:
                 json.dump( info,fd )
-
-
 
     def __clean_before_after(self, stateBefore, stateAfter, keepNoneEmptyDirectory=True):
         """clean repository given before and after states"""
@@ -496,7 +723,6 @@ class Repository(object):
         finally:
             L.release_lock()
 
-
     @property
     def path(self):
         """The repository instance path which points to the directory where
@@ -552,7 +778,7 @@ class Repository(object):
             from .OldRepository import Repository
             REP=Repository()
             try:
-                REP.load_repository(PATH)
+                REP.load_repository(path)
             except Exception as err2:
                 raise Exception("Unable to load repository (%s) (%s)"%(err1, err2))
             else:
@@ -561,7 +787,7 @@ class Repository(object):
         else:
             return self
 
-    def create_repository(self, path, description=None, info=None, replace=True):
+    def create_repository(self, path, description=None, info=None, replace=True, allowNonEmpty=True):
         """
         create a repository in a directory.
         This method insures the creation of the directory in the system if it is missing.\n
@@ -574,11 +800,14 @@ class Repository(object):
             #. description (None, str): Repository description.
             #. info (None, str): Repository main directory information.
             #. replace (boolean): Whether to replace existing repository.
+            #. allowNonEmpty (boolean): Allow creating repository in non-empty
+               directory.
 
         :Returns:
             #. success (boolean): Whether creating repository was successful
             #. message (None, str): Any returned message.
         """
+        assert isinstance(allowNonEmpty, bool), "allowNonEmpty must be boolean"
         assert isinstance(replace, bool), "replace must be boolean"
         assert isinstance(path, basestring), "path must be string"
         if info is None:
@@ -592,13 +821,13 @@ class Repository(object):
             path = os.getcwd()
         realPath = os.path.realpath( os.path.expanduser(path) )
         # reset if replace is set to True
-        message = None
+        message = []
         if self.is_repository(realPath):
             if not replace:
-                message = "A pyrep Repository already exists in the given path '%s' set replace to True if you need to proceed."%path
+                message.append("A pyrep Repository already exists in the given path '%s' set replace to True if you need to proceed."%path)
                 return False, message
             else:
-                message = "Old existing pyrep repository existing in the given path '%s' has been replaced."%path
+                message.append("Old existing pyrep repository existing in the given path '%s' has been replaced."%path)
                 try:
                     for _df in os.listdir(realPath):
                         _p = os.path.join(realPath, _df)
@@ -607,11 +836,11 @@ class Repository(object):
                         else:
                             os.remove(_p)
                 except Exception as err:
-                    message = "Unable to clean remove repository before create (%s)"%(str(err))
-                    return False, message
+                    message.append("Unable to clean remove repository before create (%s)"%(str(err)))
+                    return False, '\n'.join(message)
         if not os.path.isdir(realPath):
             os.makedirs(realPath)
-        elif len(os.listdir(realPath)):
+        elif len(os.listdir(realPath)) and not allowNonEmpty:
             return False, "Not allowed to create repository in a non empty directory"
         # reset repository
         oldRepo = self.__repo
@@ -619,35 +848,80 @@ class Repository(object):
         self.__path = realPath.rstrip(os.sep)
         self.__repo['repository_description'] = description
         # save repository
-        saved = self.save(info=info)
+        saved = self.save(description=description)
         if not saved:
             self.__repo = oldRepo
-            message = "Absolute path and directories might be created but no pyrep Repository is created."
-            return False, message
+            message.append("Absolute path and directories might be created but no pyrep Repository is created.")
+            return False, '\n'.join(message)
         # return
-        return True, message
+        return True, '\n'.join(message)
+
+    def remove_repository(self, path=None, removeEmptyDirs=True):
+        """
+        Remove all repository files.
+
+        :Parameters:
+            #. path (None, string): The path the repository to remove
+            #. removeEmptyDirs (boolean): Whether to remove empty directories.
+        """
+        assert isinstance(removeEmptyDirs, bool), "removeEmptyDirs must be boolean"
+        if path is not None:
+            if path != self.__path:
+                repo = Repository()
+                repo.load_repository(path)
+            else:
+                repo = self
+        else:
+            repo = self
+        assert repo.path is not None, "path is not given and repository is not initialized"
+        # remove repo files and directories
+        for fdict in reversed(repo.get_repository_state()):
+            relaPath   = list(fdict)[0]
+            realPath   = os.path.join(repo.path, relaPath)
+            path, name = os.path.split(realPath)
+            if fdict[relaPath]['type'] == 'file':
+                if os.path.isfile(realPath):
+                    os.remove(realPath)
+                if os.path.isfile(os.path.join(repo.path,path,self.__fileInfo%name)):
+                    os.remove(os.path.join(repo.path,path,self.__fileInfo%name))
+                if os.path.isfile(os.path.join(repo.path,path,self.__fileLock%name)):
+                    os.remove(os.path.join(repo.path,path,self.__fileLock%name))
+                if os.path.isfile(os.path.join(repo.path,path,self.__fileClass%name)):
+                    os.remove(os.path.join(repo.path,path,self.__fileClass%name))
+            elif fdict[relaPath]['type'] == 'dir':
+                if os.path.isfile(os.path.join(realPath,self.__dirInfo)):
+                    os.remove(os.path.join(realPath,self.__dirInfo))
+                if os.path.isfile(os.path.join(realPath,self.__dirLock)):
+                    os.remove(os.path.join(realPath,self.__dirLock))
+                if not len(os.listdir(realPath)) and removeEmptyDirs:
+                    shutil.rmtree( realPath )
+        # remove repo information file
+        if os.path.isfile(os.path.join(repo.path,self.__repoFile)):
+            os.remove(os.path.join(repo.path,self.__repoFile))
+        if os.path.isfile(os.path.join(repo.path,self.__repoLock)):
+            os.remove(os.path.join(repo.path,self.__repoLock))
 
 
     @path_required
-    def save(self, info=None):
+    def save(self, description=None):
         """ Save repository '.pyreprepo' to disk and create (if missing) or
          update (if info is not None) '.pyrepdirinfo'.
 
         :Parameters:
-            #. info (None, str): Repository main directory information. If given
-               will be replaced.
+            #. description (None, str): Repository main directory information.
+               If given will be replaced.
 
         :Returns:
             # success (bool): Whether saving was successful.
             # error (None, string): Fail to save repository message in case
               saving is not successful. If success is True, error will be None.
         """
-        # get info
-        if info is not None:
-            assert isinstance(info, basestring), "info must be None or a string"
+        # get description
+        if description is not None:
+            assert isinstance(description, basestring), "description must be None or a string"
         dirInfoPath = os.path.join(self.__path, self.__dirInfo)
-        if info is None and not os.path.isfile(dirInfoPath):
-            info = ''
+        if description is None and not os.path.isfile(dirInfoPath):
+            description = ''
         # create and acquire lock
         L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path, self.__repoLock))
         acquired, code = L.acquire_lock()
@@ -657,7 +931,7 @@ class Repository(object):
         # open file
         repoInfoPath = os.path.join(self.__path, self.__repoFile)
         try:
-            self.__save_dirinfo(info=info, dirInfoPath=dirInfoPath)
+            self.__save_dirinfo(description=description, dirInfoPath=dirInfoPath)
             # create repository
             with open(repoInfoPath, 'w') as fd:
                 self.__repo["last_update_utctime"] = time.time()
@@ -861,6 +1135,190 @@ class Repository(object):
         # this is a repository registered file. check whether all is on disk
         return True, fileOnDisk, infoOnDisk, classOnDisk
 
+    @path_required
+    def walk_files_path(self, relativePath="", fullPath=False, recursive=False):
+        """
+        Walk the repository relative path and yield files relative/full path.
+
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
+            #. fullPath (boolean): Whether to return full or relative path.
+            #. recursive (boolean): Whether walk all directories files recursively
+        """
+        assert isinstance(fullPath, bool), "fullPath must be boolean"
+        assert isinstance(recursive, bool), "recursive must be boolean"
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        dirList      = self.__get_repository_directory(relativePath=relativePath)
+        assert dirList is not None, "given relative path '%s' is not a repository directory"%relativePath
+        # walk recursive function
+        def _walk(rpath, dlist,recursive):
+            # walk files
+            for fname in dlist:
+                if isinstance(fname, basestring):
+                    if fullPath:
+                        yield os.path.join(self.__path, rpath, fname)
+                    else:
+                        yield os.path.join(rpath, fname)
+            if recursive:
+                for ddict in dlist:
+                    if isinstance(ddict, dict):
+                        dname = list(ddict)[0]
+                        for p in _walk(rpath=os.path.join(rpath,dname), dlist=ddict[dname],recursive=recursive):
+                            yield p
+        # walk all files
+        return _walk(rpath=relativePath, dlist=dirList, recursive=recursive)
+
+    def walk_files_info(self, relativePath="", fullPath=False, recursive=False):
+        """
+        Walk the repository relative path and yield tuple of two items where
+        first item is files relative/full and second item is file info.
+        If file info is not found on disk, second item will be None.
+
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
+            #. fullPath (boolean): Whether to return full or relative path.
+            #. recursive (boolean): Whether walk all directories files recursively
+        """
+        assert isinstance(fullPath, bool), "fullPath must be boolean"
+        assert isinstance(recursive, bool), "recursive must be boolean"
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        for relaPath in self.walk_files_path(relativePath=relativePath, fullPath=False, recursive=recursive):
+            fpath, fname = os.path.split(relaPath)
+            fileInfoPath = os.path.join(self.__path,fpath,self.__fileInfo%fname)
+            if os.path.isfile(fileInfoPath):
+                with open(fileInfoPath, 'r') as fd:
+                    info = json.load(fd)
+            else:
+                info = None
+            if fullPath:
+                yield (os.path.join(self.__path, relaPath), info)
+            else:
+                yield (relaPath, info)
+
+
+    def walk_directories_path(self, relativePath="", fullPath=False, recursive=False):
+        """
+        Walk repository relative path and yielddirectories relative/full path
+
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
+            #. fullPath (boolean): Whether to return full or relative path.
+            #. recursive (boolean): Whether walk all directories files recursively.
+        """
+        assert isinstance(fullPath, bool), "fullPath must be boolean"
+        assert isinstance(recursive, bool), "recursive must be boolean"
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        dirList      = self.__get_repository_directory(relativePath=relativePath)
+        assert dirList is not None, "given relative path '%s' is not a repository directory"%relativePath
+        # walk recursive function
+        def _walk(rpath, dlist,recursive):
+            # walk files
+            for ddict in dlist:
+                if isinstance(ddict, dict):
+                    dname = list(ddict)[0]
+                    if fullPath:
+                        yield os.path.join(self.__path, rpath, dname)
+                    else:
+                        yield os.path.join(rpath, dname)
+            if recursive:
+                for ddict in dlist:
+                    if isinstance(ddict, dict):
+                        dname = list(ddict)[0]
+                        for p in _walk(rpath=os.path.join(rpath,dname), dlist=ddict[dname],recursive=recursive):
+                            yield p
+        # walk all files
+        return _walk(rpath=relativePath, dlist=dirList, recursive=recursive)
+
+    def walk_directories_info(self, relativePath="", fullPath=False, recursive=False):
+        """
+        Walk repository and yield all found directories relative path.
+
+        :parameters:
+            #. relativePath (str): The relative path from which start the walk.
+            #. fullPath (boolean): Whether to return full or relative path.
+            #. recursive (boolean): Whether walk all directories files recursively.
+        """
+        assert isinstance(fullPath, bool), "fullPath must be boolean"
+        assert isinstance(recursive, bool), "recursive must be boolean"
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        # walk directories
+        for dpath in self.walk_directories_path(relativePath=relativePath, fullPath=False, recursive=recursive):
+            dirInfoPath = os.path.join(self.__path,dpath,self.__dirInfo)
+            if os.path.isfile(dirInfoPath):
+                with open(dirInfoPath, 'r') as fd:
+                    info = json.load(fd)
+            else:
+                info = None
+            if fullPath:
+                yield (os.path.join(self.__path, dpath), info)
+            else:
+                yield (dpath, info)
+
+    @path_required
+    def create_package(self, path=None, name=None, mode=None):
+        """
+        Create a tar file package of all the repository files and directories.
+        Only files and directories that are tracked in the repository
+        are stored in the package tar file.
+
+        **N.B. On some systems packaging requires root permissions.**
+
+        :Parameters:
+            #. path (None, string): The real absolute path where to create the package.
+               If None, it will be created in the same directory as the repository
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. name (None, string): The name to give to the package file
+               If None, the package directory name will be used with the appropriate extension added.
+            #. mode (None, string): The writing mode of the tarfile.
+               If None, automatically the best compression mode will be chose.
+               Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
+        """
+        # check mode
+        assert mode in (None, 'w', 'w:', 'w:gz', 'w:bz2'), 'unkown archive mode %s'%str(mode)
+        if mode is None:
+            mode = 'w:bz2'
+            mode = 'w:'
+        # get root
+        if path is None:
+            root = os.path.split(self.__path)[0]
+        elif path.strip() in ('','.'):
+            root = os.getcwd()
+        else:
+            root = os.path.realpath( os.path.expanduser(path) )
+        assert os.path.isdir(root), 'absolute path %s is not a valid directory'%path
+        # get name
+        if name is None:
+            ext = mode.split(":")
+            if len(ext) == 2:
+                if len(ext[1]):
+                    ext = "."+ext[1]
+                else:
+                    ext = '.tar'
+            else:
+                ext = '.tar'
+            name = os.path.split(self.__path)[1]+ext
+        # create tar file
+        tarfilePath = os.path.join(root, name)
+        try:
+            tarHandler = tarfile.TarFile.open(tarfilePath, mode=mode)
+        except Exception as e:
+            raise Exception("Unable to create package (%s)"%e)
+        # walk directory and create empty directories
+        for dpath in sorted(list(self.walk_directories_path(recursive=True))):
+            t = tarfile.TarInfo( dpath )
+            t.type = tarfile.DIRTYPE
+            tarHandler.addfile(t)
+            tarHandler.add(os.path.join(self.__path,dpath,self.__dirInfo), arcname=self.__dirInfo)
+        # walk files and add to tar
+        for fpath in self.walk_files_path(recursive=True):
+            relaPath, fname = os.path.split(fpath)
+            tarHandler.add(os.path.join(self.__path,fpath), arcname=fname)
+            tarHandler.add(os.path.join(self.__path,relaPath,self.__fileInfo%fname), arcname=self.__fileInfo%fname)
+            tarHandler.add(os.path.join(self.__path,relaPath,self.__fileClass%fname), arcname=self.__fileClass%fname)
+        # save repository .pyrepinfo
+        tarHandler.add(os.path.join(self.__path,self.__repoFile), arcname=".pyrepinfo")
+        # close tar file
+        tarHandler.close()
 
     #@path_required
     #def maintain_directory(self, relativePath, keep=None, clean=True):
@@ -960,7 +1418,7 @@ class Repository(object):
 
 
     @path_required
-    def add_directory(self, relativePath, info=None, clean=False):
+    def add_directory(self, relativePath, description=None, clean=False):
         """
         Add a directory in the repository and creates its
         attribute in the Repository with utc timestamp.
@@ -969,7 +1427,8 @@ class Repository(object):
         :Parameters:
             #. relativePath (string): The relative to the repository path of the
                directory to add in the repository.
-            #. info (None, string): Any random info about the added directory.
+            #. description (None, string): Any random description about the
+               added directory.
             #. clean (boolean): Whether to remove existing non repository
                tracked files and folders in all created directory chain tree.
 
@@ -979,8 +1438,8 @@ class Repository(object):
                random information.
         """
         assert isinstance(relativePath, basestring), "relativePath must be a string"
-        if info is not None:
-            assert isinstance(info, basestring), "info must be None or a string"
+        if description is not None:
+            assert isinstance(description, basestring), "description must be None or a string"
         # normalise path
         path = self.to_repo_relative_path(path=relativePath, split=False)
         # whether to replace
@@ -995,7 +1454,6 @@ class Repository(object):
         posList = self.__repo['walk_repo']
         dirPath = self.__path
         spath   = path.split(os.sep)
-        #print(path)
         for idx, name in enumerate(spath):
             # create and acquire lock.
             L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(dirPath, self.__dirLock))
@@ -1024,7 +1482,7 @@ class Repository(object):
                         error = "Unable to create directory '%s' (%s)"%(dirPath, err)
                         break
                 # create and dump dirinfo
-                self.__save_dirinfo(info=[None, info][idx==len(spath)-1],
+                self.__save_dirinfo(description=[None, description][idx==len(spath)-1],
                                     dirInfoPath=riPath, create=True)
                 # update directory list
                 if not len(dList):
@@ -1154,7 +1612,7 @@ class Repository(object):
             _dirDict[0][newName] = _dirDict[0][dirName]
             _dirDict[0].pop(dirName)
             # update and dump dirinfo
-            self.__save_dirinfo(info=None, dirInfoPath=parentPath, create=False)
+            self.__save_dirinfo(description=None, dirInfoPath=parentPath, create=False)
         except Exception as err:
             error = str(err)
         finally:
@@ -1280,7 +1738,7 @@ class Repository(object):
 
     def dump(self, *args, **kwargs):
         """Alias to dump_file"""
-        self.dump_file(*args, **kwargs)
+        return self.dump_file(*args, **kwargs)
 
 
     @path_required
@@ -1389,7 +1847,7 @@ class Repository(object):
 
     def update(self, *args, **kwargs):
         """Alias to update_file"""
-        self.update_file(*args, **kwargs)
+        return self.update_file(*args, **kwargs)
 
 
     @path_required
