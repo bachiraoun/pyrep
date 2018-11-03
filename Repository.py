@@ -1,4 +1,5 @@
 # standard distribution imports
+from __future__ import print_function
 import os, sys
 import time
 import uuid
@@ -220,6 +221,52 @@ class Repository(object):
             assert self.is_repository(path), "given path is not a repository. use create_repository or give a valid repository path"
             self.load_repository(repo)
 
+    def __str__(self):
+        if self.__path is None:
+            return ""
+        string = os.path.normpath(self.__path)
+        reprSt = self.get_repository_state()
+        # walk files
+        leftAdjust = "  "
+        for fdict in reprSt:
+            fdname = list(fdict)[0]
+            if fdname == '':
+                continue
+            if fdict[fdname].get('pyrepfileinfo', False):
+                string += "\n"
+                string += leftAdjust
+                string += os.path.basename(fdname)
+            elif fdict[fdname].get('pyrepdirinfo', False):
+                splitPath = fdname.split(os.sep)
+                leftAdjust = ''.join(['  '*(len(item)>0) for item in splitPath])
+                string += "\n"
+                string += leftAdjust
+                string += os.sep+str(splitPath[-1])
+            else:
+                raise Exception('Not sure what to do next. Please report issue')
+        return string
+
+    def __repr__(self):
+        repr = "pyrep "+self.__class__.__name__+" (Version "+str(self.__repo['pyrep_version'])+")"
+        if self.__path is None:
+            return repr
+        nfiles = 0
+        ndirs  = 0
+        for fdict in self.get_repository_state():
+            fdname = list(fdict)[0]
+            if fdname == '':
+                continue
+            if fdict[fdname].get('pyrepfileinfo', False):
+                nfiles += 1
+            elif fdict[fdname].get('pyrepdirinfo', False):
+                ndirs += 1
+            else:
+                raise Exception('Not sure what to do next. Please report issue')
+        repr += " @%s [%i files] [%i directories]"%(self.__path, nfiles, ndirs)
+        return repr
+
+
+
     def __sync_files(self, repoPath, dirs):
         errors  = []
         synched = []
@@ -342,8 +389,6 @@ class Repository(object):
                                 shutil.rmtree(dpath)
                             except Exception as err:
                                 errors.append("Unable to clean directory '%s' (%s)"%(fpath, str(err)))
-                #print(removeDirs)
-                #print(removeFiles)
         # return result and errors list
         return len(errors)==0, errors
 
@@ -438,7 +483,6 @@ class Repository(object):
             repoFiles, errors = self.__sync_files(repoPath=repoPath, dirs=repo['walk_repo'])
             if len(errors) and verbose:
                 warnings.warn("\n".join(errors))
-                #print("\n".join(errors))
             self.reset()
             self.__path = repoPath
             self.__repo['repository_unique_name'] = repo['repository_unique_name']
@@ -572,7 +616,7 @@ class Repository(object):
         # reset repository
         oldRepo = self.__repo
         self.reset()
-        self.__path = realPath
+        self.__path = realPath.rstrip(os.sep)
         self.__repo['repository_description'] = description
         # save repository
         saved = self.save(info=info)
@@ -665,10 +709,11 @@ class Repository(object):
             #. relativePath (str, list): Relative path as a string or as a list
                of components if split is True
         """
-        path  = os.path.normpath(path)
+        path = os.path.normpath(path)
         if path == '.':
             path = ''
-        path = path.split(self.__path)[-1]
+        path = path.split(self.__path)[-1].strip(os.sep)
+        #path = path.strip(os.sep).split(self.__path)[-1]
         if split:
             return path.split(os.sep)
         else:
@@ -705,22 +750,23 @@ class Repository(object):
             state.append({relaPath:dirDict})
             # loop files and dirobjects
             for fname in sorted([f for f in dirList if isinstance(f, basestring)]):
-                _rp = os.path.join(self.__path,relaPath,fname)
-                #if os.path.isdir(_rp) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
+                relaFilePath = os.path.join(relaPath,fname)
+                realFilePath = os.path.join(self.__path,relaFilePath)
+                #if os.path.isdir(realFilePath) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
                 #    fileDict = {'type':'objectdir',
                 #                'exists':True,
-                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
                 #               }
                 #else:
                 #    fileDict = {'type':'file',
-                #                'exists':os.path.isfile(_rp),
-                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                #                'exists':os.path.isfile(realFilePath),
+                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
                 #               }
                 fileDict = {'type':'file',
-                            'exists':os.path.isfile(_rp),
-                            'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%df)),
+                            'exists':os.path.isfile(realFilePath),
+                            'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
                            }
-                state.append({_rp:fileDict})
+                state.append({relaFilePath:fileDict})
             # loop directories
             for ddict in sorted([d for d in dirList if isinstance(d, dict)], key=lambda k: list(k)[0]):
                 dirname = list(ddict)[0]
@@ -949,6 +995,7 @@ class Repository(object):
         posList = self.__repo['walk_repo']
         dirPath = self.__path
         spath   = path.split(os.sep)
+        #print(path)
         for idx, name in enumerate(spath):
             # create and acquire lock.
             L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(dirPath, self.__dirLock))
@@ -1076,7 +1123,8 @@ class Repository(object):
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
-            #. reason (None, string): Reason why directory was not renamed.
+            #. message (None, string): Some explanatory message or error reason
+               why directory was not renamed.
         """
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         parentPath, dirName = os.path.split(relativePath)
@@ -1149,6 +1197,11 @@ class Repository(object):
                dumping will be performed and finally a PULLED_DATA variable.\n
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
             #. replace (boolean): Whether to replace any existing file.
+
+        :Returns:
+            #. success (boolean): Whether renaming the directory was successful.
+            #. message (None, string): Some explanatory message or error reason
+               why directory was not dumped.
         """
         # check arguments
         assert isinstance(replace, bool), "replace must be boolean"
@@ -1182,7 +1235,6 @@ class Repository(object):
         error = None
         # dump file
         try:
-
             isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
             if isRepoFile:
                 assert replace, "file is a registered repository file. set replace to True to replace"
@@ -1198,8 +1250,9 @@ class Repository(object):
             info['dump'] = dump
             info['pull'] = pull
             info['description'] = description
-            # get parent directory list
-            dirList = self.__get_repository_directory(fPath)
+            # get parent directory list if file is new and not being replaced
+            if not isRepoFile:
+                dirList = self.__get_repository_directory(fPath)
             # dump file
             exec( dump.replace("$FILE_PATH", str(savePath)) )
             # update info
@@ -1209,8 +1262,9 @@ class Repository(object):
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
                 pickle.dump( value.__class__, fd, protocol=-1 )
-            # add to repo
-            dirList.append(fName)
+            # add to repo if file is new and not being replaced
+            if not isRepoFile:
+                dirList.append(fName)
         except Exception as err:
             error = "unable to dump the file (%s)"%err
             if 'pickle.dump(' in dump:
@@ -1222,6 +1276,121 @@ class Repository(object):
             return False, error
         else:
             return self.save()
+
+
+    def dump(self, *args, **kwargs):
+        """Alias to dump_file"""
+        self.dump_file(*args, **kwargs)
+
+
+    @path_required
+    def update_file(self, value, relativePath,
+                          description=False,
+                          dump=False, pull=False):
+        """
+        Update the value of a file that is already in the Repository.\n
+        If file is not registered in repository, and error will be thrown.\n
+        If file is missing in the system, it will be regenerated as dump method
+        is called.
+
+        :Parameters:
+            #. value (object): The value of a file to update.
+            #. relativePath (str): The relative to the repository path of the
+               file to be updated.
+            #. description (False, string): Any random description about the file.
+               If False is given, the description info won't be updated,
+               otherwise it will be update to what description argument value is.
+            #. dump (False, string): The new dump method. If False is given,
+               the old one will be used.
+            #. pull (False, string): The new pull method. If False is given,
+               the old one will be used.
+
+       :Returns:
+           #. success (boolean): Whether renaming the directory was successful.
+           #. message (None, string): Some explanatory message or error reason
+              why directory was not updated.
+        """
+        # check arguments
+        assert description is False or description is None or isinstance(description, basestring), "description must be False, None or a string"
+        assert dump is False or dump is None or isinstance(dump, basestring), "dump must be False, None or a string"
+        assert pull is False or pull is None or isinstance(pull, basestring), "pull must be False, None or a string"
+        # get name and path
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        savePath     = os.path.join(self.__path,relativePath)
+        fPath, fName = os.path.split(savePath)
+        # get locker
+        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = L.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            return False, error
+        message = []
+        updated = False
+        try:
+            # check file in repository
+            isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+            assert isRepoFile, "file '%s' is not registered in repository, no update can be performed."%(relativePath,)
+            # get file info
+            if not fileOnDisk:
+                assert description is not False,  "file '%s' is found on disk, description must be provided"%(relativePath,)
+                assert dump is not False,  "file '%s' is found on disk, dump must be provided"%(relativePath,)
+                assert pull is not False,  "file '%s' is found on disk, pull must be provided"%(relativePath,)
+                info = {}
+                info['repository_unique_name'] = self.__repo['repository_unique_name']
+                info['create_utctime'] = info['last_update_utctime'] = time.time()
+            else:
+                with open(os.path.join(fPath,self.__fileInfo%fName), 'r') as fd:
+                    info = json.load(fd)
+                    info['last_update_utctime'] = time.time()
+            if not fileOnDisk:
+                message.append("file %s is registered in repository but it was found on disk prior to updating"%relativePath)
+            if not infoOnDisk:
+                message.append("%s is not found on disk prior to updating"%self.__fileInfo%fName)
+            if not classOnDisk:
+                message.append("%s is not found on disk prior to updating"%self.__fileClass%fName)
+            # get dump and pull
+            if (description is False) or (dump is False) or (pull is False):
+                if description is False:
+                    description = info['description']
+                elif description is None:
+                    description = ''
+                if dump is False:
+                    dump = info['dump']
+                elif dump is None:
+                    dump = get_dump_method(dump)
+                if pull is False:
+                    pull = info['pull']
+                elif pull is None:
+                    pull = get_pull_method(pull)
+            # update dump, pull and description
+            info['dump'] = dump
+            info['pull'] = pull
+            info['description'] = description
+            # dump file
+            exec( dump.replace("$FILE_PATH", str(savePath)) )
+            # update info
+            with open(os.path.join(fPath,self.__fileInfo%fName), 'w') as fd:
+                json.dump( info,fd )
+            # update class file
+            fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
+            with open(fileClassPath, 'wb') as fd:
+                pickle.dump( value.__class__, fd, protocol=-1 )
+        except Exception as err:
+            message.append(str(err))
+            updated = False
+            if 'pickle.dump(' in dump:
+                message.append('more info: %s'%str(get_pickling_errors(value)))
+        else:
+            updated = True
+        finally:
+            L.release_lock()
+        # return
+        return updated, '\n'.join(message)
+
+    def update(self, *args, **kwargs):
+        """Alias to update_file"""
+        self.update_file(*args, **kwargs)
+
 
     @path_required
     def pull_file(self, relativePath, pull=None, update=True):
@@ -1253,7 +1422,7 @@ class Repository(object):
             fileOnDisk  = ["",". File itself is found on disk"][fileOnDisk]
             infoOnDisk  = ["",". %s is found on disk"%self.__fileInfo%fName][infoOnDisk]
             classOnDisk = ["",". %s is found on disk"%self.__fileClass%fName][classOnDisk]
-            assert False, "File '%s' is not a repository file."%(relativePath,)
+            assert False, "File '%s' is not a repository file.%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk)
         assert fileOnDisk, "File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,)
         if not infoOnDisk:
             if pull is not None:
@@ -1287,6 +1456,156 @@ class Repository(object):
         # return data
         return namespace['PULLED_DATA']
 
+    def pull(self, *args, **kwargs):
+        """Alias to pull_file"""
+        return self.pull_file(*args, **kwargs)
 
 
-#
+    @path_required
+    def rename_file(self, relativePath, newRelativePath, force=False):
+        """
+        Rename a directory in the repository. It insures renaming the file in the system.
+
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of
+               the file that needst to be renamed.
+            #. newRelativePath (string): The new relative to the repository path
+               of where to move and rename the file.
+            #. force (boolean): Whether to force renaming even when another
+               repository file exists. In this case old repository file
+               will be removed from the repository and the system as well.
+
+        :Returns:
+            #. success (boolean): Whether renaming the file was successful.
+            #. message (None, string): Some explanatory message or error reason
+               why directory was not updated.
+        """
+        assert isinstance(force, bool), "force must be boolean"
+        # check old name and path
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        realPath     = os.path.join(self.__path,relativePath)
+        fPath, fName = os.path.split(realPath)
+        # check new name and path
+        newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
+        newRealPath     = os.path.join(self.__path,newRelativePath)
+        nfPath, nfName  = os.path.split(newRealPath)
+        # lock old file
+        LO =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = LO.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock for old file '%s'"%(code,relativePath)
+            return False, error
+        # add new file diretory
+        success, reason = self.add_directory(nfPath)
+        if not success:
+            return False, reason
+        # create new file lock
+        LN =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(nfPath,self.__fileLock%nfName))
+        acquired, code = LN.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock for new file path '%s'"%(code,newRelativePath)
+            return False, error
+        renamed = False
+        message = []
+        try:
+            # check whether it's a repository file
+            isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+            assert isRepoFile,  "file '%s' is not a repository file"%(relativePath,)
+            assert fileOnDisk,  "file '%s' is found on disk"%(relativePath,)
+            assert infoOnDisk,  "%s is found on disk"%self.__fileInfo%fName
+            assert classOnDisk, "%s is found on disk"%self.__fileClass%fName
+            # get new file path
+            nisRepoFile,nfileOnDisk,ninfoOnDisk,nclassOnDisk = self.is_repository_file(newRelativePath)
+            assert not nisRepoFile or force, "New file path is a registered repository file, set force to True to proceed regardless"
+            # get parent directories list
+            oDirList = self.__get_repository_directory(fPath)
+            nDirList = self.__get_repository_directory(nfPath)
+            # remove new file and all repository files from disk
+            if os.path.isfile(newRealPath):
+                os.remove(newRealPath)
+            if os.path.isfile(os.path.join(nfPath,self.__fileInfo%nfName)):
+                os.remove(os.path.join(nfPath,self.__fileInfo%nfName))
+            if os.path.isfile(os.path.join(nfPath,self.__fileClass%nfName)):
+                os.remove(os.path.join(nfPath,self.__fileClass%nfName))
+            # move old file to new path
+            os.rename(realPath, newRealPath)
+            os.rename(os.path.join(fPath,self.__fileInfo%fName), os.path.join(nfPath,self.__fileInfo%nfName))
+            os.rename(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
+            # update list
+            findex = oDirList.index(fName)
+            oDirList.pop(findex)
+            # update new list
+            if nfName not in nDirList:
+                nDirList.append(nfName)
+        except Exception as err:
+            renamed = False
+            message.append(str(err))
+        else:
+            renamed = True
+        finally:
+            LO.release_lock()
+            LN.release_lock()
+        # always clean old file lock
+        if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
+            os.remove(os.path.join(fPath,self.__fileLock%fName))
+        # return
+        return renamed, '\n'.join(message)
+
+
+    @path_required
+    def remove_file(self, relativePath, removeFromSystem=False):
+        """
+        Remove file from repository.
+
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of the
+               file to remove.
+            #. removeFromSystem (boolean): Whether to remove file from disk as
+               well.
+        """
+        assert isinstance(removeFromSystem, bool), "removeFromSystem must be boolean"
+        # check name and path
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        realPath     = os.path.join(self.__path,relativePath)
+        fPath, fName = os.path.split(realPath)
+        # lock repository
+        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = L.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            return False, error
+        removed = False
+        message = []
+        try:
+            # check whether it's a repository file
+            isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+            if not isRepoFile:
+                message("File '%s' is not a repository file"%(relativePath,))
+                if fileOnDisk:
+                    message.append("File itself is found on disk")
+                if infoOnDisk:
+                    message.append("%s is found on disk"%self.__fileInfo%fName)
+                if classOnDisk:
+                    message.append("%s is found on disk"%self.__fileClass%fName)
+            else:
+                dirList = self.__get_repository_directory(fPath)
+                findex  = dirList.index(fName)
+                dirList.pop(findex)
+                if os.path.isfile(realPath):
+                    os.remove(realPath)
+                if os.path.isfile(os.path.join(fPath,self.__fileInfo%fName)):
+                    os.remove(os.path.join(fPath,self.__fileInfo%fName))
+                if os.path.isfile(os.path.join(fPath,self.__fileClass%fName)):
+                    os.remove(os.path.join(fPath,self.__fileClass%fName))
+        except Exception as err:
+            removed = False
+            message.append(str(err))
+        else:
+            removed = True
+        finally:
+            L.release_lock()
+        # always clean lock
+        if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
+            os.remove(os.path.join(fPath,self.__fileLock%fName))
+        # return
+        return removed, '\n'.join(message)

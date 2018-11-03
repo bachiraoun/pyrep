@@ -25,7 +25,7 @@ if not success:
     print(message)
 
 #pprint(R.get_repository_state())
-success, message = R.rename_directory(relativePath='first/second/third_3', newName='another_name')
+success, message = R.rename_directory(relativePath='first/second/third_3', newName='another_directory_name')
 if not success:
     print(message)
 
@@ -40,7 +40,7 @@ if not success:
 
 #pprint(R.get_repository_state())
 
-success, error = R.dump_file(value=[random.random() for _ in range(1000)],relativePath='range', dump='numpy')
+success, error = R.dump_file(value=[random.random() for _ in range(10)],relativePath='range', dump='numpy')
 if not success:
     print(error)
 
@@ -48,9 +48,29 @@ data = R.pull_file(relativePath='range')
 print(data)
 
 
-#success, errors = R.clean_before_after(R.get_repository_list_representation(), [])
-#if not success:
-#    print('\n'.join(errors))
-#success, message = R.remove_directory(relativePath='lol/me/lil', clean=True)
-#if not success:
-#    print(message)
+success, error = R.update_file(value=[random.random() for _ in range(5)],relativePath='range')
+if not success:
+    print(error)
+
+data = R.pull_file(relativePath='range')
+print(data)
+
+success, error = R.rename_file(relativePath='range', newRelativePath='p1/p2/p3/thisisit.txt')
+if not success:
+    print(error)
+
+data = R.pull_file(relativePath='p1/p2/p3/thisisit.txt')
+print(data)
+
+success, error = R.dump_file(value=[random.random() for _ in range(10)],relativePath='p1/range1', dump='numpy')
+if not success:
+    print(error)
+
+success, error = R.dump_file(value=[random.random() for _ in range(10)],relativePath='range2', dump='numpy')
+if not success:
+    print(error)
+
+print(R)
+a = str(R)
+print('lol',a)
+#
