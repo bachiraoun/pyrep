@@ -112,7 +112,8 @@ with open('$FILE_PATH', 'w') as fd:
     elif dump == 'numpy':
         code = """
 import numpy
-numpy.save(file='$FILE_PATH', arr=value)
+with open('$FILE_PATH', 'wb') as fd:
+    numpy.save(file=fd, arr=value)
 """
     elif dump == 'numpy_text':
         code = """
@@ -120,7 +121,7 @@ import numpy
 numpy.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')
 """
     else:
-        assert isinstance(dump, str), "dump must be None or a string"
+        assert isinstance(dump, basestring), "dump must be None or a string"
         assert '$FILE_PATH' in dump, "string dump code must inlcude '$FILE_PATH'"
         code = dump
     # return
@@ -130,7 +131,7 @@ numpy.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')
 
 
 def get_pull_method(pull):
-    if pull is None or pull == 'pickle':
+    if pull is None or pull.startswith('pickle'):
         code = """
 import os
 try:
@@ -140,7 +141,7 @@ except:
 with open('$FILE_PATH', 'rb') as fd:
     PULLED_DATA = pickle.load( fd )
 """
-    elif pull == 'dill':
+    elif pull.startswith('dill'):
         code = """
 import dill
 with open('$FILE_PATH', 'rb') as fd:
@@ -155,15 +156,18 @@ with open('$FILE_PATH', 'r') as fd:
     elif pull == 'numpy':
         code = """
 import numpy
-PULLED_DATA=numpy.loadtxt(fname='$FILE_PATH')
+with open('$FILE_PATH', 'rb') as fd:
+    PULLED_DATA=numpy.load(file=fd)
+
 """
     elif pull == 'numpy_text':
         code = """
 import numpy
-PULLED_DATA=numpy.load(file='$FILE_PATH')
+with open('$FILE_PATH', 'r') as fd:
+    PULLED_DATA=numpy.loadtxt(fname=fd)
 """
     else:
-        assert isinstance(pull, str), "pull must be None or a string"
+        assert isinstance(pull, basestring), "pull must be None or a string"
         assert 'PULLED_DATA' in pull, "string pull code must inlcude 'PULLED_DATA'"
         assert '$FILE_PATH' in pull, "string pull code must inlcude '$FILE_PATH'"
         code = pull
@@ -201,8 +205,6 @@ class Repository(object):
            If Repository, current instance will cast the given Repository instance.
     """
     def __init__(self, path=None):
-        #L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(repoPath, self.__repoLock))
-        #acquired, code = L.acquire_lock()
         self.__repoLock  = '.pyreplock'
         self.__repoFile  = '.pyreprepo'
         self.__dirInfo   = '.pyrepdirinfo'
@@ -231,7 +233,7 @@ class Repository(object):
                             errors.append("Repository directory found in '%s' info dict length is not 1"%relPath)
                             continue
                         dn = list(k)[0]
-                        if not isinstance(dn, str):
+                        if not isinstance(dn, basestring):
                             errors.append("Repository directory found in '%s' info dict key is not a string"%relPath)
                             continue
                         if not len(dn):
@@ -243,7 +245,7 @@ class Repository(object):
                         _walk_dir(relPath=rp, relDirList=k[dn], relSynchedList=rsd[dn])
                         if not len(rsd[dn]):
                             _ = relSynchedList.pop( relSynchedList.index(rsd) )
-                    elif isinstance(k, str):
+                    elif isinstance(k, basestring):
                         relFilePath = os.path.join(repoPath, relPath, k)
                         relInfoPath = os.path.join(repoPath, relPath, self.__fileInfo%k)
                         if not os.path.isfile(relFilePath):
@@ -395,56 +397,7 @@ class Repository(object):
         # return
         return cDir
 
-
-    @property
-    def path(self):
-        """The repository instance path which points to the directory where
-        .pyreprepo is."""
-        return self.__path
-
-    @property
-    def uniqueName(self):
-        """Get repository unique name"""
-        return self.__repo['repository_unique_name']
-
-    def reset(self):
-        #self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
-        self.__path   = None
-        self.__repo   = {'repository_unique_name': str(uuid.uuid1()),
-                         'create_utctime': time.time(),
-                         'last_update_utctime': None,
-                         'pyrep_version': str(__version__),
-                         'repository_description': '',
-                         'walk_repo': []}
-
-
-    def is_repository(self, path):
-        """
-        Check if there is a Repository in path.
-
-        :Parameters:
-            #. path (string): The real path of the directory where to check if there is a repository.
-
-        :Returns:
-            #. result (boolean): Whether its a repository or not.
-        """
-        if path.strip() in ('','.'):
-            path = os.getcwd()
-        repoPath = os.path.realpath( os.path.expanduser(path) )
-        return os.path.isfile( os.path.join(repoPath,self.__repoFile) )
-
-    def load_repository(self, path, verbose=True):
-        """
-        Load repository from a directory path and update the current instance.
-
-        :Parameters:
-            #. path (string): The path of the directory from where to load the repository.
-               If '.' or an empty string is passed, the current working directory will be used.
-            #. verbose (boolean): Whether to be verbose about abnormalities
-
-        :Returns:
-             #. repository (pyrep.Repository): returns self repository with loaded data.
-        """
+    def __load_repository(self, path, verbose=True):
         # try to open
         if path.strip() in ('','.'):
             path = os.getcwd()
@@ -498,8 +451,71 @@ class Repository(object):
             raise Exception(e)
         finally:
             L.release_lock()
-        # return
-        return self
+
+
+    @property
+    def path(self):
+        """The repository instance path which points to the directory where
+        .pyreprepo is."""
+        return self.__path
+
+    @property
+    def uniqueName(self):
+        """Get repository unique name"""
+        return self.__repo['repository_unique_name']
+
+    def reset(self):
+        #self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
+        self.__path   = None
+        self.__repo   = {'repository_unique_name': str(uuid.uuid1()),
+                         'create_utctime': time.time(),
+                         'last_update_utctime': None,
+                         'pyrep_version': str(__version__),
+                         'repository_description': '',
+                         'walk_repo': []}
+
+
+    def is_repository(self, path):
+        """
+        Check if there is a Repository in path.
+
+        :Parameters:
+            #. path (string): The real path of the directory where to check if there is a repository.
+
+        :Returns:
+            #. result (boolean): Whether its a repository or not.
+        """
+        if path.strip() in ('','.'):
+            path = os.getcwd()
+        repoPath = os.path.realpath( os.path.expanduser(path) )
+        return os.path.isfile( os.path.join(repoPath,self.__repoFile) )
+
+    def load_repository(self, path, verbose=True):
+        """
+        Load repository from a directory path and update the current instance.
+
+        :Parameters:
+            #. path (string): The path of the directory from where to load the repository.
+               If '.' or an empty string is passed, the current working directory will be used.
+            #. verbose (boolean): Whether to be verbose about abnormalities
+
+        :Returns:
+             #. repository (pyrep.Repository): returns self repository with loaded data.
+        """
+        try:
+            self.__load_repository(path=path, verbose=True)
+        except Exception as err1:
+            from .OldRepository import Repository
+            REP=Repository()
+            try:
+                REP.load_repository(PATH)
+            except Exception as err2:
+                raise Exception("Unable to load repository (%s) (%s)"%(err1, err2))
+            else:
+                warnings.warn("This is an old repository version 2.x.y! Make sure to start using repositories 3.x.y ")
+                return REP
+        else:
+            return self
 
     def create_repository(self, path, description=None, info=None, replace=True):
         """
@@ -520,13 +536,13 @@ class Repository(object):
             #. message (None, str): Any returned message.
         """
         assert isinstance(replace, bool), "replace must be boolean"
-        assert isinstance(path, str), "path must be string"
+        assert isinstance(path, basestring), "path must be string"
         if info is None:
             info = ''
-        assert isinstance(info, str), "info must be None or a string"
+        assert isinstance(info, basestring), "info must be None or a string"
         if description is None:
             description = ''
-        assert isinstance(description, str), "description must be None or a string"
+        assert isinstance(description, basestring), "description must be None or a string"
         # get real path
         if path.strip() in ('','.'):
             path = os.getcwd()
@@ -584,7 +600,7 @@ class Repository(object):
         """
         # get info
         if info is not None:
-            assert isinstance(info, str), "info must be None or a string"
+            assert isinstance(info, basestring), "info must be None or a string"
         dirInfoPath = os.path.join(self.__path, self.__dirInfo)
         if info is None and not os.path.isfile(dirInfoPath):
             info = ''
@@ -622,7 +638,7 @@ class Repository(object):
             #. allowed (bool): Whether name is allowed.
             #. message (None, str): Reason for the name to be forbidden.
         """
-        assert isinstance(path, str), "given path must be a string"
+        assert isinstance(path, basestring), "given path must be a string"
         name = os.path.basename(path)
         if not len(name):
             return False, "empty name is not allowed"
@@ -688,7 +704,7 @@ class Repository(object):
                       }
             state.append({relaPath:dirDict})
             # loop files and dirobjects
-            for fname in sorted([f for f in dirList if isinstance(f, str)]):
+            for fname in sorted([f for f in dirList if isinstance(f, basestring)]):
                 _rp = os.path.join(self.__path,relaPath,fname)
                 #if os.path.isdir(_rp) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
                 #    fileDict = {'type':'objectdir',
@@ -706,14 +722,14 @@ class Repository(object):
                            }
                 state.append({_rp:fileDict})
             # loop directories
-            for ddict in sorted([d for d in dirList if isinstance(d, dict)]):
+            for ddict in sorted([d for d in dirList if isinstance(d, dict)], key=lambda k: list(k)[0]):
                 dirname = list(ddict)[0]
                 _walk_dir(relaPath=os.path.join(relaPath,dirname), dirList=ddict[dirname])
         # call recursive _walk_dir
         if relaPath is None:
             _walk_dir(relaPath='', dirList=self.__repo['walk_repo'])
         else:
-            assert isinstance(relaPath, str), "relaPath must be None or a str"
+            assert isinstance(relaPath, basestring), "relaPath must be None or a str"
             relaPath = self.to_repo_relative_path(path=relaPath, split=False)
             spath    = relaPath.split(os.sep)
             dirList=self.__repo['walk_repo']
@@ -781,16 +797,17 @@ class Repository(object):
         infoOnDisk  = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%name))
         classOnDisk = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%name))
         cDir = self.__repo['walk_repo']
-        for dirname in relaDir.split(os.sep):
-            dList = [d for d in cDir if isinstance(d, dict)]
-            if not len(dList):
-                cDir = None
-                break
-            cDict = [d for d in dList if dirname in d]
-            if not len(cDict):
-                cDir = None
-                break
-            cDir = cDict[0][dirname]
+        if len(relaDir):
+            for dirname in relaDir.split(os.sep):
+                dList = [d for d in cDir if isinstance(d, dict)]
+                if not len(dList):
+                    cDir = None
+                    break
+                cDict = [d for d in dList if dirname in d]
+                if not len(cDict):
+                    cDir = None
+                    break
+                cDir = cDict[0][dirname]
         if cDir is None:
             return False, fileOnDisk, infoOnDisk, classOnDisk
         if name not in cDir:
@@ -915,9 +932,9 @@ class Repository(object):
             #. message (None, string): Reason why directory was not added or
                random information.
         """
-        assert isinstance(relativePath, str), "relativePath must be a string"
+        assert isinstance(relativePath, basestring), "relativePath must be a string"
         if info is not None:
-            assert isinstance(info, str), "info must be None or a string"
+            assert isinstance(info, basestring), "info must be None or a string"
         # normalise path
         path = self.to_repo_relative_path(path=relativePath, split=False)
         # whether to replace
@@ -1027,7 +1044,7 @@ class Repository(object):
             dirList = self.__get_repository_parent_directory(relativePath=relativePath)
             assert dirList is not None, "Given relative path '%s' is not a repository directory"%(relativePath,)
             stateBefore = self.get_repository_state(relaPath=parentPath)
-            _files = [f for f in dirList if isinstance(f, str)]
+            _files = [f for f in dirList if isinstance(f, basestring)]
             _dirs  = [d for d in dirList if isinstance(d, dict)]
             _dirs  = [d for d in dirList if dirName not in d]
             _ = [dirList.pop(0) for _ in range(len(dirList))]
@@ -1112,9 +1129,8 @@ class Repository(object):
         :Parameters:
             #. value (object): The value of a file to dump and add to the
                repository. It is any python object or file.
-            #. relativePath (str): The relative to the repository path of
-               the directory where the file should be dumped. If relativePath
-               does not exist, it will be created automatically.
+            #. relativePath (str): The relative to the repository path to where
+               to dump the file.
             #. description (None, string): Any description about the file.
             #. dump (None, string): The dumping method.
                If None it will be set automatically to pickle and therefore the
@@ -1138,12 +1154,13 @@ class Repository(object):
         assert isinstance(replace, bool), "replace must be boolean"
         if description is None:
             description = ''
-        assert isinstance(description, str), "description must be None or a string"
+        assert isinstance(description, basestring), "description must be None or a string"
         # convert dump and pull methods to strings
+        if pull is None and dump is not None:
+            if dump.startswith('pickle') or dump.startswith('dill') or dump.startswith('numpy') or dump =='json':
+                pull = dump
         dump = get_dump_method(dump)
         pull = get_pull_method(pull)
-        #import pdb
-        #pdb.set_trace()
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         savePath     = os.path.join(self.__path,relativePath)
@@ -1153,7 +1170,7 @@ class Repository(object):
         if not success:
             return False, reason
         # ensure directory added
-        success, reason = self.add_directory(os.path.dirname(relativePath))
+        success, reason = self.add_directory(fPath)
         if not success:
             return False, reason
         # lock repository
@@ -1165,6 +1182,7 @@ class Repository(object):
         error = None
         # dump file
         try:
+
             isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
             if isRepoFile:
                 assert replace, "file is a registered repository file. set replace to True to replace"
@@ -1180,6 +1198,8 @@ class Repository(object):
             info['dump'] = dump
             info['pull'] = pull
             info['description'] = description
+            # get parent directory list
+            dirList = self.__get_repository_directory(fPath)
             # dump file
             exec( dump.replace("$FILE_PATH", str(savePath)) )
             # update info
@@ -1189,6 +1209,8 @@ class Repository(object):
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
                 pickle.dump( value.__class__, fd, protocol=-1 )
+            # add to repo
+            dirList.append(fName)
         except Exception as err:
             error = "unable to dump the file (%s)"%err
             if 'pickle.dump(' in dump:
@@ -1201,6 +1223,69 @@ class Repository(object):
         else:
             return self.save()
 
+    @path_required
+    def pull_file(self, relativePath, pull=None, update=True):
+        """
+        Pull a file's data from the Repository.
+
+        :Parameters:
+            #. relativePath (string): The relative to the repository path from
+               where to pull the file.
+            #. pull (None, string): The pulling method.
+               If None, the pull method saved in the file info will be used.
+               If a string is given, the string should include all the necessary
+               imports, a '$FILE_PATH' that replaces the absolute file path when
+               the dumping will be performed and finally a PULLED_DATA variable.
+               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+            #. update (boolean): If pull is not None, Whether to update the pull
+               method stored in the file info by the given pull method.
+
+        :Returns:
+            #. data (object): The pulled data from the file.
+        """
+        # check name and path
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        realPath     = os.path.join(self.__path,relativePath)
+        fPath, fName = os.path.split(realPath)
+        # check whether it's a repository file
+        isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+        if not isRepoFile:
+            fileOnDisk  = ["",". File itself is found on disk"][fileOnDisk]
+            infoOnDisk  = ["",". %s is found on disk"%self.__fileInfo%fName][infoOnDisk]
+            classOnDisk = ["",". %s is found on disk"%self.__fileClass%fName][classOnDisk]
+            assert False, "File '%s' is not a repository file."%(relativePath,)
+        assert fileOnDisk, "File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,)
+        if not infoOnDisk:
+            if pull is not None:
+                warnings.warn("'%s' was not found on disk but pull method is given"%(self.__fileInfo%fName))
+            else:
+                raise Exception("File '%s' is registered in repository but the '%s' was not found on disk and pull method is not specified"%(relativePath,(self.__fileInfo%fName)))
+        # lock repository
+        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = L.acquire_lock()
+        if not acquired:
+            error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            return False, error
+        try:
+            # get pull method
+            if pull is not None:
+                pull = get_pull_method(pull)
+            else:
+                with open(os.path.join(fPath,self.__fileInfo%fName), 'r') as fd:
+                    info = json.load(fd)
+                pull = info['pull']
+            # try to pull file
+            namespace = {}
+            namespace.update( globals() )
+            exec( pull.replace("$FILE_PATH", str(realPath) ), namespace )
+        except Exception as err:
+            L.release_lock()
+            m = str(pull).replace("$FILE_PATH", str(realPath) )
+            raise Exception("Unable to pull data using '%s' from file (%s)"%(m,err) )
+        else:
+            L.release_lock()
+        # return data
+        return namespace['PULLED_DATA']
 
 
 
