@@ -299,6 +299,7 @@ def get_pickling_errors(obj, seen=None):
 
 
 def get_dump_method(dump):
+    """Get dump function code string"""
     if dump is None:
         dump = 'pickle'
     if dump.startswith('pickle'):
@@ -362,6 +363,7 @@ numpy.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')
 
 
 def get_pull_method(pull):
+    """Get pull function code string"""
     if pull is None or pull.startswith('pickle'):
         code = """
 import os
@@ -904,17 +906,18 @@ class Repository(object):
 
     @path_required
     def save(self, description=None):
-        """ Save repository '.pyreprepo' to disk and create (if missing) or
-         update (if info is not None) '.pyrepdirinfo'.
+        """
+        Save repository '.pyreprepo' to disk and create (if missing) or
+        update (if info is not None) '.pyrepdirinfo'.
 
         :Parameters:
             #. description (None, str): Repository main directory information.
                If given will be replaced.
 
         :Returns:
-            # success (bool): Whether saving was successful.
-            # error (None, string): Fail to save repository message in case
-              saving is not successful. If success is True, error will be None.
+            #. success (bool): Whether saving was successful.
+            #. error (None, string): Fail to save repository message in case
+               saving is not successful. If success is True, error will be None.
         """
         # get description
         if description is not None:
