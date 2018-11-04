@@ -428,14 +428,15 @@ class Repository(object):
     or any type of files to a folder or directory that we call repository.
     Any directory can be a repository, it suffices to initialize a Repository
     instance in a directory to start dumping and pulling object into it.
-    Any directory that has .pyreprepo binary file in it is theoretically a
-    pyrep Repository.
+    Any directory that has .pyreprepo json file in it is theoretically a
+    pyrep Repository. Repository is thread and process safe. Multiple processes
+    and threads can access, create, dump and pull into the repository.
 
     :Parameters:
-        #. repo (None, path, Repository): This is used to initialize a Repository instance.\n
+        #. path (None, string): This is used to load a repository instance.\n
            If None, Repository is initialized but not assigned to any directory.\n
-           If Path, Repository is loaded from directory path unless directory is not a repository and error will be raised.\n
-           If Repository, current instance will cast the given Repository instance.
+           If Path is given then repository will be loaded from path if
+           existing.
     """
     def __init__(self, path=None):
         self.__repoLock  = '.pyreplock'
@@ -715,7 +716,7 @@ class Repository(object):
             self.reset()
             self.__path = repoPath
             self.__repo['repository_unique_name'] = repo['repository_unique_name']
-            self.__repo['repository_description'] = repo['repository_description']
+            self.__repo['repository_information'] = repo['repository_information']
             self.__repo['create_utctime']         = repo['create_utctime']
             self.__repo['last_update_utctime']    = repo['last_update_utctime']
             self.__repo['walk_repo']              = repoFiles
@@ -726,6 +727,11 @@ class Repository(object):
             L.release_lock()
 
     @property
+    def info(self):
+        """Get repository information"""
+        return self.__repo['repository_information']
+
+    @property
     def path(self):
         """The repository instance path which points to the directory where
         .pyreprepo is."""
@@ -733,17 +739,18 @@ class Repository(object):
 
     @property
     def uniqueName(self):
-        """Get repository unique name"""
+        """Get repository unique name as generated when repository was created"""
         return self.__repo['repository_unique_name']
 
     def reset(self):
-        #self.__locker = Locker(filePath=None, lockPass=str(uuid.uuid1()),lockPath='.pyreplock')
+        """Reset repository instance.
+        """
         self.__path   = None
         self.__repo   = {'repository_unique_name': str(uuid.uuid1()),
                          'create_utctime': time.time(),
                          'last_update_utctime': None,
                          'pyrep_version': str(__version__),
-                         'repository_description': '',
+                         'repository_information': '',
                          'walk_repo': []}
 
 
@@ -752,23 +759,39 @@ class Repository(object):
         Check if there is a Repository in path.
 
         :Parameters:
-            #. path (string): The real path of the directory where to check if there is a repository.
+            #. path (string): The real path of the directory where to check if
+               there is a repository.
 
         :Returns:
-            #. result (boolean): Whether its a repository or not.
+            #. result (boolean): Whether it's a repository or not.
         """
         if path.strip() in ('','.'):
             path = os.getcwd()
         repoPath = os.path.realpath( os.path.expanduser(path) )
-        return os.path.isfile( os.path.join(repoPath,self.__repoFile) )
+        if os.path.isfile( os.path.join(repoPath,self.__repoFile) ):
+            return True
+        else:
+            try:
+                from .OldRepository import Repository
+                REP = Repository()
+                result = REP.is_repository(repoPath)
+            except:
+                return False
+            else:
+                if result:
+                    warnings.warn("This is an old repository version 2.x.y! Make sure to start using repositories 3.x.y ")
+                return result
 
     def load_repository(self, path, verbose=True):
         """
         Load repository from a directory path and update the current instance.
+        First, new repository still will be loaded. If failed, then old
+        style repository load will be tried.
 
         :Parameters:
-            #. path (string): The path of the directory from where to load the repository.
-               If '.' or an empty string is passed, the current working directory will be used.
+            #. path (string): The path of the directory from where to load
+               the repository from. If '.' or an empty string is passed,
+               the current working directory will be used.
             #. verbose (boolean): Whether to be verbose about abnormalities
 
         :Returns:
@@ -777,10 +800,9 @@ class Repository(object):
         try:
             self.__load_repository(path=path, verbose=True)
         except Exception as err1:
-            from .OldRepository import Repository
-            REP=Repository()
             try:
-                REP.load_repository(path)
+                from .OldRepository import Repository
+                REP = Repository(path)
             except Exception as err2:
                 raise Exception("Unable to load repository (%s) (%s)"%(err1, err2))
             else:
@@ -789,32 +811,40 @@ class Repository(object):
         else:
             return self
 
-    def create_repository(self, path, description=None, info=None, replace=True, allowNonEmpty=True):
+    def create_repository(self, path, info=None, description=None, replace=True, allowNoneEmpty=True, raiseError=True):
         """
-        create a repository in a directory.
-        This method insures the creation of the directory in the system if it is missing.\n
+        create a repository in a directory. This method insures the creation of
+        the directory in the system if it is missing.\n
 
-        **N.B. This method erases existing pyrep repository in the path but not the repository files.**
+        **N.B. If replace is True and existing repository is found in path, create_repository erases all existing files and directories in path.**
 
         :Parameters:
             #. path (string): The real absolute path where to create the Repository.
                If '.' or an empty string is passed, the current working directory will be used.
-            #. description (None, str): Repository description.
-            #. info (None, str): Repository main directory information.
+            #. description (None, str): Repository main directory information.
+            #. info (None, object): Repository information. It can
+               be None or any json writable type of data.
             #. replace (boolean): Whether to replace existing repository.
-            #. allowNonEmpty (boolean): Allow creating repository in non-empty
+            #. allowNoneEmpty (boolean): Allow creating repository in none-empty
                directory.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether creating repository was successful
             #. message (None, str): Any returned message.
         """
-        assert isinstance(allowNonEmpty, bool), "allowNonEmpty must be boolean"
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
+        assert isinstance(allowNoneEmpty, bool), "allowNoneEmpty must be boolean"
         assert isinstance(replace, bool), "replace must be boolean"
         assert isinstance(path, basestring), "path must be string"
         if info is None:
             info = ''
-        assert isinstance(info, basestring), "info must be None or a string"
+        try:
+            json.dumps(info)
+        except Exception as err:
+            raise Exception("info must be None or any json writable type of data (%s)"%str(err))
+        #assert isinstance(info, basestring), "info must be None or a string"
         if description is None:
             description = ''
         assert isinstance(description, basestring), "description must be None or a string"
@@ -842,13 +872,13 @@ class Repository(object):
                     return False, '\n'.join(message)
         if not os.path.isdir(realPath):
             os.makedirs(realPath)
-        elif len(os.listdir(realPath)) and not allowNonEmpty:
+        elif len(os.listdir(realPath)) and not allowNoneEmpty:
             return False, "Not allowed to create repository in a non empty directory"
         # reset repository
         oldRepo = self.__repo
         self.reset()
         self.__path = realPath.rstrip(os.sep)
-        self.__repo['repository_description'] = description
+        self.__repo['repository_information'] = info
         # save repository
         saved = self.save(description=description)
         if not saved:
@@ -860,11 +890,12 @@ class Repository(object):
 
     def remove_repository(self, path=None, removeEmptyDirs=True):
         """
-        Remove all repository files.
+        Remove all repository from path along with all repository tracked files.
 
         :Parameters:
-            #. path (None, string): The path the repository to remove
-            #. removeEmptyDirs (boolean): Whether to remove empty directories.
+            #. path (None, string): The path the repository to remove.
+            #. removeEmptyDirs (boolean): Whether to remove remaining empty
+               directories.
         """
         assert isinstance(removeEmptyDirs, bool), "removeEmptyDirs must be boolean"
         if path is not None:
@@ -905,20 +936,23 @@ class Repository(object):
 
 
     @path_required
-    def save(self, description=None):
+    def save(self, description=None, raiseError=True):
         """
         Save repository '.pyreprepo' to disk and create (if missing) or
-        update (if info is not None) '.pyrepdirinfo'.
+        update (if description is not None) '.pyrepdirinfo'.
 
         :Parameters:
             #. description (None, str): Repository main directory information.
                If given will be replaced.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (bool): Whether saving was successful.
             #. error (None, string): Fail to save repository message in case
                saving is not successful. If success is True, error will be None.
         """
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         # get description
         if description is not None:
             assert isinstance(description, basestring), "description must be None or a string"
@@ -930,9 +964,12 @@ class Repository(object):
         acquired, code = L.acquire_lock()
         # check if acquired.
         if not acquired:
-            return False, "code %s. Unable to aquire the lock when calling 'save'. You may try again!"%(code,)
+            if raiseError:
+                raise "code %s. Unable to aquire the lock when calling 'save'. You may try again!"%(code,)
+            return False,
         # open file
         repoInfoPath = os.path.join(self.__path, self.__repoFile)
+        error = None
         try:
             self.__save_dirinfo(description=description, dirInfoPath=dirInfoPath)
             # create repository
@@ -940,11 +977,13 @@ class Repository(object):
                 self.__repo["last_update_utctime"] = time.time()
                 json.dump( self.__repo,fd )
         except Exception as err:
-            L.release_lock()
-            return False, "Unable to save repository (%s)"%err
+            error = "Unable to save repository (%s)"%err
         finally:
             L.release_lock()
-            return True, None
+        # return
+        assert error is None or not raiseError, error
+        return error is None, error
+
 
     def is_name_allowed(self, path):
         """
@@ -976,7 +1015,7 @@ class Repository(object):
 
     def to_repo_relative_path(self, path, split=False):
         """
-        Given an absolute path, return relative path to diretory
+        Given a path, return relative path to diretory
 
         :Parameters:
             #. path (str): Path as a string
@@ -990,7 +1029,6 @@ class Repository(object):
         if path == '.':
             path = ''
         path = path.split(self.__path)[-1].strip(os.sep)
-        #path = path.strip(os.sep).split(self.__path)[-1]
         if split:
             return path.split(os.sep)
         else:
@@ -1000,8 +1038,7 @@ class Repository(object):
     def get_repository_state(self, relaPath=None):
         """
         Get a list representation of repository state along with useful
-        information. List state is ordered in levels
-
+        information. List state is ordered relativeley to directories level
 
         :Parameters:
             #. relaPath (None, str): relative directory path from where to
@@ -1074,7 +1111,7 @@ class Repository(object):
 
     def get_repository_directory(self, relativePath):
         """
-        Get repository directory list.
+        Get repository directory list copy.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path .
@@ -1085,6 +1122,35 @@ class Repository(object):
                returned
         """
         return copy.deepcopy(self.__get_repository_directory(relativePath))
+
+    def get_file_info(self, relativePath):
+        """
+        Get file information dict from the repository given its relative path.
+
+        :Parameters:
+            #. relativePath (string): The relative to the repository path of
+               the file.
+
+        :Returns:
+            #. info (None, dictionary): The file information dictionary.
+               If None, it means an error has occurred.
+            #. errorMessage (string): The error message if any error occurred.
+        """
+        relativePath = self.to_repo_relative_path(path=relativePath, split=False)
+        fileName     = os.path.basename(relativePath)
+        isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+        if not isRepoFile:
+            return None, "file is not a registered repository file."
+        if not infoOnDisk:
+            return None, "file is a registered repository file but info file missing"
+        fileInfoPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%fileName)
+        try:
+            with open(fileInfoPath, 'r') as fd:
+                info = json.load(fd)
+        except Exception as err:
+            return None, "Unable to read file info from disk (%s)"%str(err)
+        return info, ''
+
 
     def is_repository_directory(self, relativePath):
         """
@@ -1109,7 +1175,7 @@ class Repository(object):
         :Returns:
             #. isRepoFile (boolean): Whether file is a repository file.
             #. isFileOnDisk (boolean): Whether file is found on disk.
-            #. isFileInfoOnDisk (boolean): Whether file info is found on disk
+            #. isFileInfoOnDisk (boolean): Whether file info is found on disk.
             #. isFileClassOnDisk (boolean): Whether file class is found on disk.
         """
         relativePath  = self.to_repo_relative_path(path=relativePath, split=False)
@@ -1141,10 +1207,10 @@ class Repository(object):
     @path_required
     def walk_files_path(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk the repository relative path and yield files relative/full path.
+        Walk the repository relative path and yield file relative/full path.
 
         :parameters:
-            #. relativePath (str): The relative path from which start the walk.
+            #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
         """
@@ -1174,11 +1240,11 @@ class Repository(object):
     def walk_files_info(self, relativePath="", fullPath=False, recursive=False):
         """
         Walk the repository relative path and yield tuple of two items where
-        first item is files relative/full and second item is file info.
+        first item is file relative/full path and second item is file info.
         If file info is not found on disk, second item will be None.
 
         :parameters:
-            #. relativePath (str): The relative path from which start the walk.
+            #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
         """
@@ -1201,10 +1267,10 @@ class Repository(object):
 
     def walk_directories_path(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk repository relative path and yielddirectories relative/full path
+        Walk repository relative path and yield directory relative/full path
 
         :parameters:
-            #. relativePath (str): The relative path from which start the walk.
+            #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
         """
@@ -1234,10 +1300,12 @@ class Repository(object):
 
     def walk_directories_info(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk repository and yield all found directories relative path.
+        Walk the repository relative path and yield tuple of two items where
+        first item is directory relative/full path and second item is directory
+        info. If directory file info is not found on disk, second item will be None.
 
         :parameters:
-            #. relativePath (str): The relative path from which start the walk.
+            #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
         """
@@ -1267,11 +1335,13 @@ class Repository(object):
         **N.B. On some systems packaging requires root permissions.**
 
         :Parameters:
-            #. path (None, string): The real absolute path where to create the package.
-               If None, it will be created in the same directory as the repository
-               If '.' or an empty string is passed, the current working directory will be used.
+            #. path (None, string): The real absolute path where to create the
+               package. If None, it will be created in the same directory as
+               the repository. If '.' or an empty string is passed, the current
+               working directory will be used.
             #. name (None, string): The name to give to the package file
-               If None, the package directory name will be used with the appropriate extension added.
+               If None, the package directory name will be used with the
+               appropriate extension added.
             #. mode (None, string): The writing mode of the tarfile.
                If None, automatically the best compression mode will be chose.
                Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
@@ -1279,7 +1349,7 @@ class Repository(object):
         # check mode
         assert mode in (None, 'w', 'w:', 'w:gz', 'w:bz2'), 'unkown archive mode %s'%str(mode)
         if mode is None:
-            mode = 'w:bz2'
+            #mode = 'w:bz2'
             mode = 'w:'
         # get root
         if path is None:
@@ -1421,25 +1491,28 @@ class Repository(object):
 
 
     @path_required
-    def add_directory(self, relativePath, description=None, clean=False):
+    def add_directory(self, relativePath, description=None, clean=False, raiseError=True):
         """
-        Add a directory in the repository and creates its
-        attribute in the Repository with utc timestamp.
-        It insures adding all the missing directories in the path.
+        Add a directory in the repository and creates its attribute in the
+        Repository with utc timestamp. It insures adding all the missing
+        directories in the path.
 
         :Parameters:
-            #. relativePath (string): The relative to the repository path of the
-               directory to add in the repository.
+            #. relativePath (string): The relative to the repository path to
+               where directory must be added.
             #. description (None, string): Any random description about the
                added directory.
             #. clean (boolean): Whether to remove existing non repository
                tracked files and folders in all created directory chain tree.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether adding the directory was successful.
             #. message (None, string): Reason why directory was not added or
                random information.
         """
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert isinstance(relativePath, basestring), "relativePath must be a string"
         if description is not None:
             assert isinstance(description, basestring), "description must be None or a string"
@@ -1451,6 +1524,8 @@ class Repository(object):
         # check whether name is allowed
         allowed, reason = self.is_name_allowed(path)
         if not allowed:
+            if raiseError:
+                raise reason
             return False, reason
         # create directories
         error   = None
@@ -1505,15 +1580,25 @@ class Repository(object):
         if error is None:
             _, error = self.save()
         # return
+        assert error is None or not raiseError, error
         return error is None, error
 
     def get_repository_parent_directory(self, relativePath):
         """
+        Get repository parent directory list copy.
+
+        :Parameters:
+            #. relativePath (string): The relative to the repository path .
+
+        :Returns:
+            #. dirList (None, list): List of directories and files in repository
+               parent directory. If directory is not tracked in repository
+               None is returned
         """
         return copy.deepcopy(self.__get_repository_parent_directory(relativePath))
 
     @path_required
-    def remove_directory(self, relativePath, clean=False):
+    def remove_directory(self, relativePath, clean=False, raiseError=True):
         """
         Remove directory from repository tracking.
 
@@ -1522,11 +1607,14 @@ class Repository(object):
                directory to remove from the repository.
             #. clean (boolean): Whether to os remove directory. If False only
                tracked files will be removed along with left empty directories.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether removing the directory was successful.
             #. reason (None, string): Reason why directory was not removed.
         """
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert isinstance(clean, bool), "clean must be boolean"
         # normalise path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -1540,12 +1628,15 @@ class Repository(object):
         # check if directory actually exists on disk
         realPath = os.path.join(self.__path,relativePath)
         if not os.path.isdir(realPath):
-            return False, "Repository relative directory '%s' seems to be missing. call maintain_repository to fix all issues"
+            error = "Repository relative directory '%s' seems to be missing. call maintain_repository to fix all issues"
+            assert not raiseError, error
+            return False, error
         # get and acquire lock
         L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath,self.__dirLock))
         acquired, code = L.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
+            assert not raiseError, error
             return False, error
         error = None
         try:
@@ -1569,11 +1660,12 @@ class Repository(object):
         finally:
             L.release_lock()
         # return
+        assert error is None or not raiseError, error
         return error is None, error
 
 
     @path_required
-    def rename_directory(self, relativePath, newName):
+    def rename_directory(self, relativePath, newName, raiseError=True):
         """
         Rename a directory in the repository. It insures renaming the directory in the system.
 
@@ -1581,25 +1673,33 @@ class Repository(object):
             #. relativePath (string): The relative to the repository path of
                the directory to be renamed.
             #. newName (string): The new directory name.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
             #. message (None, string): Some explanatory message or error reason
                why directory was not renamed.
         """
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         parentPath, dirName = os.path.split(relativePath)
         if relativePath == '':
-            return False, "Renaming main repository directory is not allowed"
+            error = "Renaming main repository directory is not allowed"
+            assert not raiseError, error
+            return False, error
         realPath = os.path.join(self.__path,relativePath)
         newRealPath = os.path.join(os.path.dirname(realPath), newName)
         if os.path.isdir(newRealPath):
-            return False, "New directory path '%s' already exist"%(newRealPath,)
+            error = "New directory path '%s' already exist"%(newRealPath,)
+            assert not raiseError, error
+            return False, error
         # get directory parent list
         L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath, self.__dirLock))
         acquired, code = L.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
+            assert not raiseError, error
             return False, error
         error = None
         try:
@@ -1623,6 +1723,7 @@ class Repository(object):
         if error is not None:
             _, error = self.save()
         # return
+        assert error is None or not raiseError, error
         return error is None, error
 
 
@@ -1630,7 +1731,7 @@ class Repository(object):
     def dump_file(self, value, relativePath,
                         description=None,
                         dump=None, pull=None,
-                        replace=False):
+                        replace=False, raiseError=True):
         """
         Dump a file using its value to the system and creates its
         attribute in the Repository with utc timestamp.
@@ -1658,6 +1759,8 @@ class Repository(object):
                dumping will be performed and finally a PULLED_DATA variable.\n
                e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
             #. replace (boolean): Whether to replace any existing file.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
@@ -1665,6 +1768,7 @@ class Repository(object):
                why directory was not dumped.
         """
         # check arguments
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert isinstance(replace, bool), "replace must be boolean"
         if description is None:
             description = ''
@@ -1682,16 +1786,19 @@ class Repository(object):
         # check if name is allowed
         success, reason = self.is_name_allowed(savePath)
         if not success:
+            assert not raiseError, reason
             return False, reason
         # ensure directory added
         success, reason = self.add_directory(fPath)
         if not success:
+            assert not raiseError, reason
             return False, reason
         # lock repository
         L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
         acquired, code = L.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            assert not raiseError, error
             return False, error
         error = None
         # dump file
@@ -1722,7 +1829,11 @@ class Repository(object):
             # update class file
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
-                pickle.dump( value.__class__, fd, protocol=-1 )
+                if value is None:
+                    klass = None
+                else:
+                    klass = value.__class__
+                pickle.dump(klass , fd, protocol=-1 )
             # add to repo if file is new and not being replaced
             if not isRepoFile:
                 dirList.append(fName)
@@ -1733,11 +1844,10 @@ class Repository(object):
         finally:
             L.release_lock()
         # save repository
-        if error is not None:
-            return False, error
-        else:
-            return self.save()
-
+        if error is None:
+            success, error = self.save()
+        assert not raiseError or error is None, str(error)
+        return success, error
 
     def dump(self, *args, **kwargs):
         """Alias to dump_file"""
@@ -1747,7 +1857,7 @@ class Repository(object):
     @path_required
     def update_file(self, value, relativePath,
                           description=False,
-                          dump=False, pull=False):
+                          dump=False, pull=False, raiseError=True):
         """
         Update the value of a file that is already in the Repository.\n
         If file is not registered in repository, and error will be thrown.\n
@@ -1765,6 +1875,8 @@ class Repository(object):
                the old one will be used.
             #. pull (False, string): The new pull method. If False is given,
                the old one will be used.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
        :Returns:
            #. success (boolean): Whether renaming the directory was successful.
@@ -1772,6 +1884,7 @@ class Repository(object):
               why directory was not updated.
         """
         # check arguments
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert description is False or description is None or isinstance(description, basestring), "description must be False, None or a string"
         assert dump is False or dump is None or isinstance(dump, basestring), "dump must be False, None or a string"
         assert pull is False or pull is None or isinstance(pull, basestring), "pull must be False, None or a string"
@@ -1784,6 +1897,7 @@ class Repository(object):
         acquired, code = L.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            assert not raiseError, error
             return False, error
         message = []
         updated = False
@@ -1835,7 +1949,12 @@ class Repository(object):
             # update class file
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
-                pickle.dump( value.__class__, fd, protocol=-1 )
+                if value is None:
+                    klass = None
+                else:
+                    klass = value.__class__
+                pickle.dump(klass , fd, protocol=-1 )
+                #pickle.dump( value.__class__, fd, protocol=-1 )
         except Exception as err:
             message.append(str(err))
             updated = False
@@ -1846,6 +1965,7 @@ class Repository(object):
         finally:
             L.release_lock()
         # return
+        assert updated or not raiseError, '\n'.join(message)
         return updated, '\n'.join(message)
 
     def update(self, *args, **kwargs):
@@ -1923,7 +2043,7 @@ class Repository(object):
 
 
     @path_required
-    def rename_file(self, relativePath, newRelativePath, force=False):
+    def rename_file(self, relativePath, newRelativePath, force=False, raiseError=True):
         """
         Rename a directory in the repository. It insures renaming the file in the system.
 
@@ -1935,12 +2055,15 @@ class Repository(object):
             #. force (boolean): Whether to force renaming even when another
                repository file exists. In this case old repository file
                will be removed from the repository and the system as well.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
 
         :Returns:
             #. success (boolean): Whether renaming the file was successful.
             #. message (None, string): Some explanatory message or error reason
                why directory was not updated.
         """
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert isinstance(force, bool), "force must be boolean"
         # check old name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -1955,16 +2078,19 @@ class Repository(object):
         acquired, code = LO.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock for old file '%s'"%(code,relativePath)
+            assert not raiseError, error
             return False, error
         # add new file diretory
         success, reason = self.add_directory(nfPath)
         if not success:
+            assert not raiseError, reason
             return False, reason
         # create new file lock
         LN =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(nfPath,self.__fileLock%nfName))
         acquired, code = LN.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock for new file path '%s'"%(code,newRelativePath)
+            assert not raiseError, error
             return False, error
         renamed = False
         message = []
@@ -2010,11 +2136,12 @@ class Repository(object):
         if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
             os.remove(os.path.join(fPath,self.__fileLock%fName))
         # return
+        assert renamed or not raiseError, '\n'.join(message)
         return renamed, '\n'.join(message)
 
 
     @path_required
-    def remove_file(self, relativePath, removeFromSystem=False):
+    def remove_file(self, relativePath, removeFromSystem=False, raiseError=True):
         """
         Remove file from repository.
 
@@ -2023,7 +2150,10 @@ class Repository(object):
                file to remove.
             #. removeFromSystem (boolean): Whether to remove file from disk as
                well.
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
         """
+        assert isinstance(raiseError, bool), "removeFromSystem must be boolean"
         assert isinstance(removeFromSystem, bool), "removeFromSystem must be boolean"
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -2034,6 +2164,7 @@ class Repository(object):
         acquired, code = L.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
+            assert not raiseError, error
             return False, error
         removed = False
         message = []
@@ -2069,4 +2200,5 @@ class Repository(object):
         if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
             os.remove(os.path.join(fPath,self.__fileLock%fName))
         # return
+        assert removed or not raiseError,  '\n'.join(message)
         return removed, '\n'.join(message)
