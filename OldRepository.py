@@ -674,8 +674,8 @@ class Repository(dict):
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        for fname, info in dict.__getitem__(dirInfoDict, "files").items():
-            yield os.path.join(relativePath, fname), info
+        for fname in dict.__getitem__(dirInfoDict, "files"):
+            yield os.path.join(relativePath, fname),  dict.__getitem__(dirInfoDict, "files")[fname]
 
     def walk_directory_directories_relative_path(self, relativePath=""):
         """
@@ -704,8 +704,8 @@ class Repository(dict):
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        for fname, info in dict.__getitem__(dirInfoDict, "directories").items():
-            yield os.path.join(relativePath, fname), info
+        for fname in dict.__getitem__(dirInfoDict, "directories"):
+            yield os.path.join(relativePath, fname), dict.__getitem__(dirInfoDict, "directories")[fname]
 
     @acquire_lock
     def synchronize(self, verbose=False):
