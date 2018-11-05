@@ -272,6 +272,7 @@ else:
 # set warnings filter to always
 warnings.simplefilter('always')
 
+
 def get_pickling_errors(obj, seen=None):
     """Investigate pickling errors."""
     if seen == None:
@@ -782,6 +783,7 @@ class Repository(object):
                     warnings.warn("This is an old repository version 2.x.y! Make sure to start using repositories 3.x.y ")
                 return result
 
+
     def load_repository(self, path, verbose=True):
         """
         Load repository from a directory path and update the current instance.
@@ -806,7 +808,6 @@ class Repository(object):
             except Exception as err2:
                 raise Exception("Unable to load repository (%s) (%s)"%(err1, err2))
             else:
-                warnings.warn("This is an old repository version 2.x.y! Make sure to start using repositories 3.x.y ")
                 return REP
         else:
             return self
