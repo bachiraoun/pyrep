@@ -133,8 +133,18 @@ finally:
 print('\\nIs repository loadable -->',loadable)
 print()
 
+print('\\Copy folder1 to copied_folder1 ...')
+import time
+p0 = 'folder1'
+p1 = 'copied_folder1'
+for i in range(1,11):
+    tic = time.time()
+    REP.copy_directory(relativePath=p0, newRelativePath=p1, overwrite=True, raiseError=True)
+    p1 = os.path.join('copied_folder%i'%(i+1),p1)
+    print(time.time()-tic)
+print(REP)
 # remove all repo data
-REP.remove_repository(removeEmptyDirs=True)
+#REP.remove_repository(removeEmptyDirs=True)
 
 # check if there is a repository in path
 print( "\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))) )

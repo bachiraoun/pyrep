@@ -377,7 +377,7 @@ class Repository(dict):
         string = os.path.normpath(self.__path)
         # walk files
         leftAdjust = "  "
-        for file in dict.__getitem__(self, 'files').keys():
+        for file in dict.__getitem__(self, 'files'):
             string += "\n"
             string += leftAdjust
             string += file
@@ -398,7 +398,7 @@ class Repository(dict):
             #string += " ("+dirInfoDict['timestamp']+")"
             # append files to representation
             leftAdjust += "  "
-            for file in dict.__getitem__(dirInfoDict, 'files').keys():
+            for file in dict.__getitem__(dirInfoDict, 'files'):
                 string += "\n"
                 string += leftAdjust
                 string += file
@@ -550,14 +550,14 @@ class Repository(dict):
         """
         if self.__path is None:
             return []
-        repr = [ self.__path+":["+','.join(dict.__getitem__(self, 'files').keys())+']' ]
+        repr = [ self.__path+":["+','.join(list(dict.__getitem__(self, 'files')))+']' ]
         # walk directories
         for directory in sorted(list(self.walk_directories_relative_path())):
             directoryRepr = os.path.normpath(directory)
             # get directory info
             dirInfoDict, errorMessage = self.get_directory_info(directory)
             assert dirInfoDict is not None, errorMessage
-            directoryRepr += ":["+','.join( dict.__getitem__(dirInfoDict, 'files').keys())+']'
+            directoryRepr += ":["+','.join( list(dict.__getitem__(dirInfoDict, 'files')))+']'
             repr.append(directoryRepr)
         return repr
 
@@ -593,7 +593,7 @@ class Repository(dict):
         def walk_files(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
             files       = dict.__getitem__(directory, 'files')
-            for fname in sorted(files.keys()):
+            for fname in sorted(files):
                 info = dict.__getitem__(files,fname)
                 yield os.path.join(relativePath, fname), info
             for k in sorted(dict.keys(directories)):
@@ -635,7 +635,7 @@ class Repository(dict):
         """
         def walk_directories(directory, relativePath):
             directories = dict.__getitem__(directory, 'directories')
-            for fname in sorted(directories.keys()):
+            for fname in sorted(directories):
                 info = dict.__getitem__(directories,fname)
                 yield os.path.join(relativePath, fname), info
             for k in sorted(dict.keys(directories)):
@@ -659,7 +659,7 @@ class Repository(dict):
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        for fname in dict.__getitem__(dirInfoDict, "files").keys():
+        for fname in dict.__getitem__(dirInfoDict, "files"):
             yield os.path.join(relativePath, fname)
 
     def walk_directory_files_info(self, relativePath=""):
@@ -689,7 +689,7 @@ class Repository(dict):
         relativePath = os.path.normpath(relativePath)
         dirInfoDict, errorMessage = self.get_directory_info(relativePath)
         assert dirInfoDict is not None, errorMessage
-        for dname in dict.__getitem__(dirInfoDict, "directories").keys():
+        for dname in dict.__getitem__(dirInfoDict, "directories"):
             yield os.path.join(relativePath, dname)
 
     def walk_directory_directories_info(self, relativePath=""):
@@ -1128,6 +1128,11 @@ class Repository(dict):
         # get parent directory info
         return self.get_directory_info(parentDirPath)
 
+    def is_repository_file(relativePath, name=None):
+        """"""
+        info, errorMessage = self.get_file_info(relativePath,name)
+        return info is not None, errorMessage
+        
     def get_file_info(self, relativePath, name=None):
         """
         get file information dict from the repository given its relative path and name.
