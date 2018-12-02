@@ -1132,6 +1132,7 @@ class Repository(object):
                            }
                 state.append({relaFilePath:fileDict})
             # loop directories
+            #for ddict in sorted([d for d in dirList if isinstance(d, dict) and len(d)], key=lambda k: list(k)[0]):
             for ddict in sorted([d for d in dirList if isinstance(d, dict)], key=lambda k: list(k)[0]):
                 dirname = list(ddict)[0]
                 _walk_dir(relaPath=os.path.join(relaPath,dirname), dirList=ddict[dirname])
@@ -1142,10 +1143,10 @@ class Repository(object):
             assert isinstance(relaPath, basestring), "relaPath must be None or a str"
             relaPath = self.to_repo_relative_path(path=relaPath, split=False)
             spath    = relaPath.split(os.sep)
-            dirList=self.__repo['walk_repo']
+            dirList  = self.__repo['walk_repo']
             while len(spath):
                 dirname = spath.pop(0)
-                dList = [d for d in dirList if isinstance(d, dict)]
+                dList   = [d for d in dirList if isinstance(d, dict)]
                 if not len(dList):
                     dirList = None
                     break
@@ -1711,6 +1712,13 @@ class Repository(object):
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
             assert not raiseError, error
             return False, error
+        # lock repository and get __repo updated from disk
+        LR =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path, self.__repoLock))
+        acquired, code = LR.acquire_lock()
+        if not acquired:
+            m = "code %s. Unable to aquire the repository lock. You may try again!"%(code,)
+            assert raiseError,  Exception(m)
+            return False,m
         error = None
         try:
             dirList = self.__get_repository_parent_directory(relativePath=relativePath)
@@ -1734,6 +1742,9 @@ class Repository(object):
         else:
             L.release_lock()
         # return
+        if error is None:
+            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+        LR.release_lock()
         assert error is None or not raiseError, error
         return error is None, error
 
@@ -1895,7 +1906,6 @@ class Repository(object):
             LR.release_lock()
             assert not raiseError, Exception(str(err))
             return False,m
-
         # create locks
         L0 =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(parentRealPath, self.__dirLock))
         acquired, code = L0.acquire_lock()
@@ -1931,8 +1941,8 @@ class Repository(object):
             assert len(_newDirDict) == 0, "This should not have happened. New directory is found in repository. Please report issue"
             # try to copy directory
             _newDirDict = copy.deepcopy(_dirDict[0])
-            _newDirDict[newDirName] = _newDirDict[dirName]
-            _newDirDict.pop(dirName)
+            if dirName != newDirName:
+                _newDirDict[newDirName] = _newDirDict.pop(dirName)
             copy_tree(realPath, newRealPath)
             # update newDirList
             newDirList.append(_newDirDict)
