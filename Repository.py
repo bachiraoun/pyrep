@@ -410,9 +410,6 @@ with open('$FILE_PATH', 'r') as fd:
     return code
 
 
-
-
-
 def path_required(func):
     """Decorate methods when repository path is required."""
     @wraps(func)
@@ -614,30 +611,30 @@ class Repository(object):
         # return result and errors list
         return len(errors)==0, errors
 
-    def __set_repository_directory(self, relativePath, dirList):
-        splitted = self.to_repo_relative_path(path=relativePath, split=True)
-        if splitted == ['']:
-            self.__repo['walk_repo'] = dirList
-            return True, ""
-        error = None
-        cDir  = self.__repo['walk_repo']
-        for idx, dirname in enumerate(splitted):
-            dList = [d for d in cDir if isinstance(d, dict)]
-            if not len(dList):
-                cDir = None
-                error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
-                break
-            cDict = [d for d in dList if dirname in d]
-            if not len(cDict):
-                cDir = None
-                error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
-                break
-            if idx == len(splitted)-1:
-                cDict[0][dirname] = dirList
-            else:
-                cDir = cDict[0][dirname]
-        # return
-        return False, error
+    #def __set_repository_directory(self, relativePath, dirList):
+    #    splitted = self.to_repo_relative_path(path=relativePath, split=True)
+    #    if splitted == ['']:
+    #        self.__repo['walk_repo'] = dirList
+    #        return True, ""
+    #    error = None
+    #    cDir  = self.__repo['walk_repo']
+    #    for idx, dirname in enumerate(splitted):
+    #        dList = [d for d in cDir if isinstance(d, dict)]
+    #        if not len(dList):
+    #            cDir = None
+    #            error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
+    #            break
+    #        cDict = [d for d in dList if dirname in d]
+    #        if not len(cDict):
+    #            cDir = None
+    #            error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
+    #            break
+    #        if idx == len(splitted)-1:
+    #            cDict[0][dirname] = dirList
+    #        else:
+    #            cDir = cDict[0][dirname]
+    #    # return
+    #    return False, error
 
     def __get_repository_parent_directory(self, relativePath):
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -2092,7 +2089,9 @@ class Repository(object):
             L.release_lock()
             error = "unable to dump the file (%s)"%err
             if 'pickle.dump(' in dump:
-                error += '\nmore info: %s'%str(get_pickling_errors(value))
+                mi = get_pickling_errors(value)
+                if mi is not None:
+                    error += '\nmore info: %s'%str(mi)
         else:
             L.release_lock()
         # save repository
@@ -2309,7 +2308,9 @@ class Repository(object):
             message.append(str(err))
             updated = False
             if 'pickle.dump(' in dump:
-                message.append('more info: %s'%str(get_pickling_errors(value)))
+                mi = get_pickling_errors(value)
+                if mi is not None:
+                    message.append('more info: %s'%str(mi))
         else:
             L.release_lock()
             updated = True
