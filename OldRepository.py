@@ -1132,7 +1132,7 @@ class Repository(dict):
         """"""
         info, errorMessage = self.get_file_info(relativePath,name)
         return info is not None, errorMessage
-        
+
     def get_file_info(self, relativePath, name=None):
         """
         get file information dict from the repository given its relative path and name.

@@ -230,20 +230,12 @@ output
 
 # standard distribution imports
 from __future__ import print_function
-import os, sys
-import time
-import uuid
-import traceback
-import warnings
-import tarfile
-import tempfile
-import shutil
-import inspect
+import os, sys, time, uuid, warnings, tarfile, shutil, traceback
 from datetime import datetime
 from functools import wraps
 from pprint import pprint
 from distutils.dir_util import copy_tree
-import copy, json
+import copy
 try:
     import cPickle as pickle
 except:
@@ -300,20 +292,20 @@ def get_pickling_errors(obj, seen=None):
     return result
 
 
-def get_dump_method(dump):
+def get_dump_method(dump, protocol=-1):
     """Get dump function code string"""
     if dump is None:
         dump = 'pickle'
     if dump.startswith('pickle'):
         if dump == 'pickle':
-            proto = 2
+            proto = protocol
         else:
             proto = dump.strip('pickle')
-            try:
-                proto = int(proto)
-                assert proto>=-1
-            except:
-                raise Exception("protocol must be an integer >=-1")
+        try:
+            proto = int(proto)
+            assert proto>=-1
+        except:
+            raise Exception("protocol must be an integer >=-1")
         code = """
 try:
     import cPickle as pickle
@@ -321,6 +313,8 @@ except:
     import pickle
 with open('$FILE_PATH', 'wb') as fd:
     pickle.dump( value, fd, protocol=%i )
+    fd.flush()
+    os.fsync(fd.fileno())
 """%proto
     elif dump.startswith('dill'):
         if dump == 'dill':
@@ -336,18 +330,24 @@ with open('$FILE_PATH', 'wb') as fd:
 import dill
 with open('$FILE_PATH', 'wb') as fd:
     dill.dump( value, fd, protocol=%i )
+    fd.flush()
+    os.fsync(fd.fileno())
 """%proto
     elif dump == 'json':
         code = """
 import json
 with open('$FILE_PATH', 'w') as fd:
-    json.dump( value,fd )
+    json.dump( value,fd, ensure_ascii=True, indent=4 )
+    fd.flush()
+    os.fsync(fd.fileno())
 """
     elif dump == 'numpy':
         code = """
 import numpy
 with open('$FILE_PATH', 'wb') as fd:
     numpy.save(file=fd, arr=value)
+    fd.flush()
+    os.fsync(fd.fileno())
 """
     elif dump == 'numpy_text':
         code = """
@@ -415,7 +415,7 @@ def path_required(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.path is None:
-            warnings.warn('Must load or initialize the repository first !')
+            warnings.warn('Must load (Repository.load_repository) or initialize (Repository.create_repository) the repository first !')
             return
         return func(self, *args, **kwargs)
     return wrapper
@@ -427,7 +427,7 @@ class Repository(object):
     or any type of files to a folder or directory that we call repository.
     Any directory can be a repository, it suffices to initialize a Repository
     instance in a directory to start dumping and pulling object into it.
-    Any directory that has .pyreprepo json file in it is theoretically a
+    Any directory that has .pyreprepo pickle file in it is theoretically a
     pyrep Repository. Repository is thread and process safe. Multiple processes
     and threads can access, create, dump and pull into the repository.
 
@@ -446,6 +446,8 @@ class Repository(object):
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
         #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
+        # set default protocols
+        self._DEFAULT_PICKLE_PROTOCOL = pickle.HIGHEST_PROTOCOL
         # initialize repository
         self.reset()
         # if path is not None, load existing repository
@@ -485,7 +487,6 @@ class Repository(object):
         ndirs, nfiles = self.get_stats()
         repr += " @%s [%i directories] [%i files] "%(self.__path, ndirs, nfiles)
         return repr
-
 
     def __sync_files(self, repoPath, dirs):
         errors  = []
@@ -530,12 +531,17 @@ class Repository(object):
         _walk_dir(relPath='', relDirList=dirs, relSynchedList=synched)
         return synched, errors
 
+    @property
+    def len(self):
+        ndirs, nfiles = self.get_stats()
+        return {'number_of_directories':ndirs, 'number_of_files':nfiles}
+
     def __save_dirinfo(self, description, dirInfoPath, create=False):
         # create main directory info file
         oldInfo = None
         if description is None and os.path.isfile(dirInfoPath):
             with open(dirInfoPath, 'r') as fd:
-                oldInfo = json.load(fd)
+                oldInfo = pickle.load(fd)
             if self.__repo['repository_unique_name'] != oldInfo['repository_unique_name']:
                 description = ''
         if description is None and create:
@@ -544,7 +550,7 @@ class Repository(object):
             if os.path.isfile(dirInfoPath):
                 if oldInfo is None:
                     with open(dirInfoPath, 'r') as fd:
-                        oldInfo = json.load(fd)
+                        oldInfo = pickle.load(fd)
                 if self.__repo['repository_unique_name'] != oldInfo['repository_unique_name']:
                     createTime = lastUpdateTime = time.time()
                 else:
@@ -557,7 +563,9 @@ class Repository(object):
                     'last_update_utctime':lastUpdateTime,
                     'description':description}
             with open(dirInfoPath, 'w') as fd:
-                json.dump( info,fd )
+                pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
 
     def __clean_before_after(self, stateBefore, stateAfter, keepNoneEmptyDirectory=True):
         """clean repository given before and after states"""
@@ -661,7 +669,7 @@ class Repository(object):
         # return
         return cDir
 
-    def __save_repository_json_file(self, lockFirst=False, raiseError=True):
+    def __save_repository_pickle_file(self, lockFirst=False, raiseError=True):
         # create and acquire lock
         error = None
         if lockFirst:
@@ -674,9 +682,18 @@ class Repository(object):
                 return False,error
         try:
             repoInfoPath = os.path.join(self.__path, self.__repoFile)
+            ## remove file if exists
+            #if os.path.exists(repoInfoPath):
+            #    try:
+            #        os.remove(repoInfoPath)
+            #    except:
+            #        pass
+            #print('__save_repository_pickle_file', repoInfoPath)
             with open(repoInfoPath, 'w') as fd:
                 self.__repo["last_update_utctime"] = time.time()
-                json.dump( self.__repo,fd )
+                pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
         except Exception as err:
             if lockFirst:
                 LR.release_lock()
@@ -688,17 +705,17 @@ class Repository(object):
         assert error is None or not raiseError, error
         return error is None, error
 
-    def __load_repository_json_file(self, repoPath):
+    def __load_repository_pickle_file(self, repoPath):
         try:
             fd = open(repoPath, 'rb')
         except Exception as err:
             raise Exception("Unable to open repository file(%s)"%str(err))
         # read
         try:
-            repo = json.load( fd )
+            repo = pickle.load( fd )
         except Exception as err:
             fd.close()
-            raise Exception("Unable to load json repository (%s)"%str(err) )
+            raise Exception("Unable to load pickle repository (%s)"%str(err) )
         else:
             fd.close()
         # check if it's a pyreprepo instance
@@ -726,7 +743,7 @@ class Repository(object):
             warnings.warn("code %s. Unable to aquire the lock when calling 'load_repository'. You may try again!"%(code,) )
             return
         try:
-            repo = self.__load_repository_json_file( os.path.join(repoPath, self.__repoFile) )
+            repo = self.__load_repository_pickle_file( os.path.join(repoPath, self.__repoFile) )
             # get paths dict
             repoFiles, errors = self.__sync_files(repoPath=repoPath, dirs=repo['walk_repo'])
             if len(errors) and verbose:
@@ -847,7 +864,8 @@ class Repository(object):
                 from .OldRepository import Repository
                 REP = Repository(path)
             except Exception as err2:
-                raise Exception("Unable to load repository (%s) (%s)"%(err1, err2))
+                #traceback.print_exc()
+                raise Exception("Unable to load repository using new style (%s) and old style (%s)"%(err1, err2))
             else:
                 return REP
         else:
@@ -865,7 +883,7 @@ class Repository(object):
                If '.' or an empty string is passed, the current working directory will be used.
             #. description (None, str): Repository main directory information.
             #. info (None, object): Repository information. It can
-               be None or any json writable type of data.
+               be None or any pickle writable type of data.
             #. replace (boolean): Whether to replace existing repository.
             #. allowNoneEmpty (boolean): Allow creating repository in none-empty
                directory.
@@ -883,9 +901,9 @@ class Repository(object):
         if info is None:
             info = ''
         try:
-            json.dumps(info)
+            pickle.dumps(info)
         except Exception as err:
-            raise Exception("info must be None or any json writable type of data (%s)"%str(err))
+            raise Exception("info must be None or any pickle writable type of data (%s)"%str(err))
         #assert isinstance(info, basestring), "info must be None or a string"
         if description is None:
             description = ''
@@ -1016,12 +1034,20 @@ class Repository(object):
             # load and update repository info if existing
             if os.path.isfile(repoInfoPath):
                 with open(repoInfoPath, 'r') as fd:
-                    repo = self.__load_repository_json_file(os.path.join(self.__path, self.__repoFile))
+                    repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
                     self.__repo['walk_repo'] = repo['walk_repo']
+            # remove file if exists
+            #if os.path.exists(repoInfoPath):
+            #    try:
+            #        os.remove(repoInfoPath)
+            #    except:
+            #        pass
             # create repository
             with open(repoInfoPath, 'w') as fd:
                 self.__repo["last_update_utctime"] = time.time()
-                json.dump( self.__repo,fd )
+                pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
         except Exception as err:
             LR.release_lock()
             error = "Unable to save repository (%s)"%err
@@ -1194,7 +1220,7 @@ class Repository(object):
         fileInfoPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%fileName)
         try:
             with open(fileInfoPath, 'r') as fd:
-                info = json.load(fd)
+                info = pickle.load(fd)
         except Exception as err:
             return None, "Unable to read file info from disk (%s)"%str(err)
         return info, ''
@@ -1230,10 +1256,10 @@ class Repository(object):
         if relativePath == '':
             return False, False, False, False
         relaDir, name = os.path.split(relativePath)
-        fileOnDisk  = os.path.isfile(os.path.join(self.__path, relativePath))
-        infoOnDisk  = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%name))
-        classOnDisk = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%name))
-        cDir = self.__repo['walk_repo']
+        fileOnDisk    = os.path.isfile(os.path.join(self.__path, relativePath))
+        infoOnDisk    = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%name))
+        classOnDisk   = os.path.isfile(os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%name))
+        cDir          = self.__repo['walk_repo']
         if len(relaDir):
             for dirname in relaDir.split(os.sep):
                 dList = [d for d in cDir if isinstance(d, dict)]
@@ -1247,7 +1273,8 @@ class Repository(object):
                 cDir = cDict[0][dirname]
         if cDir is None:
             return False, fileOnDisk, infoOnDisk, classOnDisk
-        if name not in cDir:
+        #if name not in cDir:
+        if str(name) not in [str(i) for i in cDir]:
             return False, fileOnDisk, infoOnDisk, classOnDisk
         # this is a repository registered file. check whether all is on disk
         return True, fileOnDisk, infoOnDisk, classOnDisk
@@ -1304,7 +1331,7 @@ class Repository(object):
             fileInfoPath = os.path.join(self.__path,fpath,self.__fileInfo%fname)
             if os.path.isfile(fileInfoPath):
                 with open(fileInfoPath, 'r') as fd:
-                    info = json.load(fd)
+                    info = pickle.load(fd)
             else:
                 info = None
             if fullPath:
@@ -1365,7 +1392,7 @@ class Repository(object):
             dirInfoPath = os.path.join(self.__path,dpath,self.__dirInfo)
             if os.path.isfile(dirInfoPath):
                 with open(dirInfoPath, 'r') as fd:
-                    info = json.load(fd)
+                    info = pickle.load(fd)
             else:
                 info = None
             if fullPath:
@@ -1478,8 +1505,8 @@ class Repository(object):
     #    error        = None
     #    mustSave     = False
     #    # keep
-    #    L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(realPath, self.__dirLock))
-    #    acquired, code = L.acquire_lock()
+    #    LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(realPath, self.__dirLock))
+    #    acquired, code = LD.acquire_lock()
     #    if not acquired:
     #        error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
     #        return False, error
@@ -1501,7 +1528,7 @@ class Repository(object):
     #    except Exception as err:
     #        error = "Unable to maintan keeping files and directories (%s)"%(str(err),)
     #    finally:
-    #        L.release_lock()
+    #        LD.release_lock()
     #    # clean
     #    if clean and error is None:
     #        _keepFiles = [f for f in posList if isinstance(f, str)]
@@ -1576,6 +1603,11 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
 
+        #if lockerKwargs is None:
+        #    lockerKwargs = {'timeout':10, 'wait':0, 'deadLock':20}
+        #else:
+        #    assert isinstance(lockerKwargs, dict), "lockerKwargs must be None or dict"
+
         # lock repository and get __repo updated from disk
         LR =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path, self.__repoLock))
         acquired, code = LR.acquire_lock()
@@ -1585,7 +1617,7 @@ class Repository(object):
                 raise Exception(m)
             return False,m
         try:
-            repo = self.__load_repository_json_file(os.path.join(self.__path, self.__repoFile))
+            repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
             self.__repo['walk_repo'] = repo['walk_repo']
         except Exception as err:
             LR.release_lock()
@@ -1600,8 +1632,8 @@ class Repository(object):
         spath   = path.split(os.sep)
         for idx, name in enumerate(spath):
             # create and acquire lock.
-            L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(dirPath, self.__dirLock))
-            acquired, code = L.acquire_lock()
+            LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(dirPath, self.__dirLock))
+            acquired, code = LD.acquire_lock()
             if not acquired:
                 error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
                 break
@@ -1637,15 +1669,15 @@ class Repository(object):
                     assert len(dList) == 1, "Same directory name dict is found twice. This should'n have happened. Report issue"
                     posList = dList[0][name]
             except Exception as err:
-                L.release_lock()
+                LD.release_lock()
                 error = "Unable to create directory '%s' info file (%s)"%(dirPath, str(err))
             else:
-                L.release_lock()
+                LD.release_lock()
             if error is not None:
                 break
         # save __repo
         if error is None:
-            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+            _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
         # save
         #if error is None:
@@ -1703,8 +1735,8 @@ class Repository(object):
             assert not raiseError, error
             return False, error
         # get and acquire lock
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath,self.__dirLock))
-        acquired, code = L.acquire_lock()
+        LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath,self.__dirLock))
+        acquired, code = LD.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
             assert not raiseError, error
@@ -1734,13 +1766,13 @@ class Repository(object):
                 success, errors = self.__clean_before_after(stateBefore=stateBefore, stateAfter=stateAfter, keepNoneEmptyDirectory=True)
                 assert success, "\n".join(errors)
         except Exception as err:
-            L.release_lock()
+            LD.release_lock()
             error = str(err)
         else:
-            L.release_lock()
+            LD.release_lock()
         # return
         if error is None:
-            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+            _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
         assert error is None or not raiseError, error
         return error is None, error
@@ -1777,8 +1809,8 @@ class Repository(object):
             assert not raiseError, error
             return False, error
         # get directory parent list
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath, self.__dirLock))
-        acquired, code = L.acquire_lock()
+        LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path,parentPath, self.__dirLock))
+        acquired, code = LD.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
             assert not raiseError, error
@@ -1793,7 +1825,7 @@ class Repository(object):
             assert raiseError,  Exception(m)
             return False,m
         try:
-            repo = self.__load_repository_json_file(os.path.join(self.__path, self.__repoFile))
+            repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
             self.__repo['walk_repo'] = repo['walk_repo']
         except Exception as err:
             LR.release_lock()
@@ -1816,12 +1848,12 @@ class Repository(object):
             self.__save_dirinfo(description=None, dirInfoPath=parentPath, create=False)
         except Exception as err:
             LR.release_lock()
-            L.release_lock()
+            LD.release_lock()
             error = str(err)
         else:
-            L.release_lock()
+            LD.release_lock()
         if error is None:
-            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+            _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
         # return
         assert error is None or not raiseError, error
@@ -1897,7 +1929,7 @@ class Repository(object):
             assert raiseError,  Exception(m)
             return False,m
         try:
-            repo = self.__load_repository_json_file(os.path.join(self.__path, self.__repoFile))
+            repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
             self.__repo['walk_repo'] = repo['walk_repo']
         except Exception as err:
             LR.release_lock()
@@ -1952,7 +1984,7 @@ class Repository(object):
             if L1 is not None:
                 L1.release_lock()
         if error is None:
-            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+            _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
         # return
         assert error is None or not raiseError, error
@@ -2009,7 +2041,7 @@ class Repository(object):
         if pull is None and dump is not None:
             if dump.startswith('pickle') or dump.startswith('dill') or dump.startswith('numpy') or dump =='json':
                 pull = dump
-        dump = get_dump_method(dump)
+        dump = get_dump_method(dump, protocol=self._DEFAULT_PICKLE_PROTOCOL)
         pull = get_pull_method(pull)
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -2026,30 +2058,32 @@ class Repository(object):
             assert not raiseError, reason
             return False, reason
 
-        # lock repository and get __repo updated from disk
+        # lock repository
         LR =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(self.__path, self.__repoLock))
         acquired, code = LR.acquire_lock()
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(code,)
-            assert raiseError,  Exception(m)
+            assert raiseError, Exception(m)
             return False,m
-        try:
-            repo = self.__load_repository_json_file(os.path.join(self.__path, self.__repoFile))
-            self.__repo['walk_repo'] = repo['walk_repo']
-        except Exception as err:
-            LR.release_lock()
-            assert not raiseError, Exception(str(err))
-            return False,m
-
-        # lock repository
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
-        acquired, code = L.acquire_lock()
+        # lock file
+        LF =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = LF.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
             assert not raiseError, error
             return False, error
-        error = None
+        # load repository info
+        try:
+            repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+            self.__repo['walk_repo'] = repo['walk_repo']
+        except Exception as err:
+            LR.release_lock()
+            LF.release_lock()
+            #traceback.print_exc()
+            assert not raiseError, Exception(str(err))
+            return False,m
         # dump file
+        error = None
         try:
             isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
             if isRepoFile:
@@ -2057,7 +2091,7 @@ class Repository(object):
             fileInfoPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%fName)
             if isRepoFile and fileOnDisk:
                 with open(fileInfoPath, 'r') as fd:
-                    info = json.load(fd)
+                    info = pickle.load(fd)
                 assert info['repository_unique_name'] == self.__repo['repository_unique_name'], "it seems that file was created by another repository"
                 info['last_update_utctime'] = time.time()
             else:
@@ -2071,9 +2105,17 @@ class Repository(object):
                 dirList = self.__get_repository_directory(fPath)
             # dump file
             exec( dump.replace("$FILE_PATH", str(savePath)) )
+            ## remove file if exists
+            #if os.path.exists(fileInfoPath):
+            #    try:
+            #        os.remove(fileInfoPath)
+            #    except:
+            #        pass
             # update info
             with open(fileInfoPath, 'w') as fd:
-                json.dump( info,fd )
+                pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL)
+                fd.flush()
+                os.fsync(fd.fileno())
             # update class file
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
@@ -2081,24 +2123,30 @@ class Repository(object):
                     klass = None
                 else:
                     klass = value.__class__
-                pickle.dump(klass , fd, protocol=-1 )
+                pickle.dump(klass , fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
             # add to repo if file is new and not being replaced
             if not isRepoFile:
                 dirList.append(fName)
         except Exception as err:
-            L.release_lock()
+            LF.release_lock()
             error = "unable to dump the file (%s)"%err
-            if 'pickle.dump(' in dump:
-                mi = get_pickling_errors(value)
-                if mi is not None:
-                    error += '\nmore info: %s'%str(mi)
+            if dump is not None:
+                if 'pickle.dump(' in dump:
+                    mi = get_pickling_errors(value)
+                    if mi is not None:
+                        error += '\nmore info: %s'%str(mi)
         else:
-            L.release_lock()
+            LF.release_lock()
         # save repository
         if error is None:
-            _, error = self.__save_repository_json_file(lockFirst=False, raiseError=False)
+            _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
-        assert not raiseError or error is None, str(error)
+        if raiseError and error is not None:
+            #traceback.print_exc()
+            raise Exception(str(error))
+        #assert not raiseError or error is None, str(error)
         return success, error
 
     def dump(self, *args, **kwargs):
@@ -2241,8 +2289,8 @@ class Repository(object):
         savePath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(savePath)
         # get locker
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
-        acquired, code = L.acquire_lock()
+        LF =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = LF.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
             assert not raiseError, error
@@ -2251,7 +2299,7 @@ class Repository(object):
         updated = False
         try:
             # check file in repository
-            isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+            isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
             assert isRepoFile, "file '%s' is not registered in repository, no update can be performed."%(relativePath,)
             # get file info
             if not fileOnDisk:
@@ -2263,7 +2311,7 @@ class Repository(object):
                 info['create_utctime'] = info['last_update_utctime'] = time.time()
             else:
                 with open(os.path.join(fPath,self.__fileInfo%fName), 'r') as fd:
-                    info = json.load(fd)
+                    info = pickle.load(fd)
                     info['last_update_utctime'] = time.time()
             if not fileOnDisk:
                 message.append("file %s is registered in repository but it was found on disk prior to updating"%relativePath)
@@ -2280,7 +2328,7 @@ class Repository(object):
                 if dump is False:
                     dump = info['dump']
                 elif dump is None:
-                    dump = get_dump_method(dump)
+                    dump = get_dump_method(dump, protocol=self._DEFAULT_PICKLE_PROTOCOL)
                 if pull is False:
                     pull = info['pull']
                 elif pull is None:
@@ -2291,9 +2339,18 @@ class Repository(object):
             info['description'] = description
             # dump file
             exec( dump.replace("$FILE_PATH", str(savePath)) )
+            # remove file if exists
+            _path = os.path.join(fPath,self.__fileInfo%fName)
+            #if os.path.exists(_path):
+            #    try:
+            #        os.remove(_path)
+            #    except:
+            #        pass
             # update info
-            with open(os.path.join(fPath,self.__fileInfo%fName), 'w') as fd:
-                json.dump( info,fd )
+            with open(_path, 'w') as fd:
+                pickle.dump( info,fd, protocol=pickle.HIGHEST_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
             # update class file
             fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
             with open(fileClassPath, 'wb') as fd:
@@ -2301,21 +2358,26 @@ class Repository(object):
                     klass = None
                 else:
                     klass = value.__class__
-                pickle.dump(klass , fd, protocol=-1 )
-                #pickle.dump( value.__class__, fd, protocol=-1 )
+                pickle.dump(klass , fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                fd.flush()
+                os.fsync(fd.fileno())
         except Exception as err:
-            L.release_lock()
+            LF.release_lock()
             message.append(str(err))
             updated = False
-            if 'pickle.dump(' in dump:
-                mi = get_pickling_errors(value)
-                if mi is not None:
-                    message.append('more info: %s'%str(mi))
+            if dump is not None:
+                if 'pickle.dump(' in dump:
+                    mi = get_pickling_errors(value)
+                    if mi is not None:
+                        message.append('more info: %s'%str(mi))
         else:
-            L.release_lock()
+            LF.release_lock()
             updated = True
         # return
-        assert updated or not raiseError, '\n'.join(message)
+        #assert updated or not raiseError, '\n'.join(message)
+        if raiseError and not updated:
+            #traceback.print_exc()
+            raise Exception('\n'.join(message))
         return updated, '\n'.join(message)
 
     def update(self, *args, **kwargs):
@@ -2353,7 +2415,7 @@ class Repository(object):
             fileOnDisk  = ["",". File itself is found on disk"][fileOnDisk]
             infoOnDisk  = ["",". %s is found on disk"%self.__fileInfo%fName][infoOnDisk]
             classOnDisk = ["",". %s is found on disk"%self.__fileClass%fName][classOnDisk]
-            assert False, "File '%s' is not a repository file.%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk)
+            assert False, "File '%s' is not a repository file%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk)
         assert fileOnDisk, "File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,)
         if not infoOnDisk:
             if pull is not None:
@@ -2361,8 +2423,8 @@ class Repository(object):
             else:
                 raise Exception("File '%s' is registered in repository but the '%s' was not found on disk and pull method is not specified"%(relativePath,(self.__fileInfo%fName)))
         # lock repository
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
-        acquired, code = L.acquire_lock()
+        LF =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = LF.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
             return False, error
@@ -2372,18 +2434,18 @@ class Repository(object):
                 pull = get_pull_method(pull)
             else:
                 with open(os.path.join(fPath,self.__fileInfo%fName), 'r') as fd:
-                    info = json.load(fd)
+                    info = pickle.load(fd)
                 pull = info['pull']
             # try to pull file
             namespace = {}
             namespace.update( globals() )
             exec( pull.replace("$FILE_PATH", str(realPath) ), namespace )
         except Exception as err:
-            L.release_lock()
+            LF.release_lock()
             m = str(pull).replace("$FILE_PATH", str(realPath) )
             raise Exception("Unable to pull data using '%s' from file (%s)"%(m,err) )
         else:
-            L.release_lock()
+            LF.release_lock()
         # return data
         return namespace['PULLED_DATA']
 
@@ -2513,8 +2575,8 @@ class Repository(object):
         realPath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(realPath)
         # lock repository
-        L =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
-        acquired, code = L.acquire_lock()
+        LF =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName))
+        acquired, code = LF.acquire_lock()
         if not acquired:
             error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
             assert not raiseError, error
@@ -2543,11 +2605,11 @@ class Repository(object):
                 if os.path.isfile(os.path.join(fPath,self.__fileClass%fName)):
                     os.remove(os.path.join(fPath,self.__fileClass%fName))
         except Exception as err:
-            L.release_lock()
+            LF.release_lock()
             removed = False
             message.append(str(err))
         else:
-            L.release_lock()
+            LF.release_lock()
             removed = True
 
         # always clean lock
