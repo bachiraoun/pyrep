@@ -2131,7 +2131,7 @@ class Repository(object):
                 dirList.append(fName)
         except Exception as err:
             LF.release_lock()
-            error = "unable to dump the file (%s)"%err
+            error = "unable to dump the file (%s)"%(str(err),)
             if dump is not None:
                 if 'pickle.dump(' in dump:
                     mi = get_pickling_errors(value)
@@ -2143,10 +2143,10 @@ class Repository(object):
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         LR.release_lock()
-        if raiseError and error is not None:
-            #traceback.print_exc()
-            raise Exception(str(error))
-        #assert not raiseError or error is None, str(error)
+        #if raiseError and error is not None:
+        #    traceback.print_exc()
+        #    raise Exception(str(error))
+        assert not raiseError or error is None, str(error)
         return success, error
 
     def dump(self, *args, **kwargs):
@@ -2374,10 +2374,12 @@ class Repository(object):
             LF.release_lock()
             updated = True
         # return
-        #assert updated or not raiseError, '\n'.join(message)
-        if raiseError and not updated:
-            #traceback.print_exc()
-            raise Exception('\n'.join(message))
+        if len(message):
+            print('errors list',message)
+        assert updated or not raiseError, '\n'.join(message)
+        #if raiseError and not updated:
+        #    traceback.print_exc()
+        #    raise Exception('\n'.join(message))
         return updated, '\n'.join(message)
 
     def update(self, *args, **kwargs):
