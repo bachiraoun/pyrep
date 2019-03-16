@@ -19,7 +19,7 @@ if len(sys.argv)>1:
     for m in sys.argv[1:]:
         assert m in MODES, "given mode '%s' is not in modes"%(m,)
     MODES = sys.argv[1:]
-    print(MODES)
+    #print(MODES)
 
 # initialize Repository instance
 REP=Repository()
@@ -44,9 +44,13 @@ else:
 
 # add directories
 if create:
+    print(1)
     REP.add_directory("folder_11/folder_12/folder_13")
+    print(2)
     REP.add_directory("folder_21/folder_22/folder_23")
+    print(3)
     REP.add_directory("folder_31/folder_32/folder_33")
+    print(4)
 
     # dump files
     value = "This is a string data to pickle and store in the repository"
