@@ -757,6 +757,7 @@ class Repository(object):
         if not acquired:
             warnings.warn("code %s. Unable to aquire the lock when calling 'load_repository'. You may try again!"%(code,) )
             return
+        error = None
         try:
             repo = self.__load_repository_pickle_file( os.path.join(repoPath, self.__repoFile) )
             # get paths dict
@@ -771,10 +772,11 @@ class Repository(object):
             self.__repo['last_update_utctime']    = repo['last_update_utctime']
             self.__repo['walk_repo']              = repoFiles
         except Exception as err:
-            LR.release_lock()
-            raise Exception(str(err))
-        else:
-            LR.release_lock()
+            error = str(err)
+        # release lock
+        LR.release_lock()
+        # check for any error
+        assert error is None, error
 
     @property
     def info(self):
@@ -857,7 +859,7 @@ class Repository(object):
                 return result
 
 
-    def load_repository(self, path, verbose=True):
+    def load_repository(self, path, verbose=True, ntrials=3):
         """
         Load repository from a directory path and update the current instance.
         First, new repository still will be loaded. If failed, then old
@@ -868,23 +870,43 @@ class Repository(object):
                the repository from. If '.' or an empty string is passed,
                the current working directory will be used.
             #. verbose (boolean): Whether to be verbose about abnormalities
+            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+               number of trials allowed before failing.
+               In rare cases, when multiple processes
+               are accessing the same repository components, different processes
+               can alter repository components between successive lock releases
+               of some other process. Bigger number of trials lowers the
+               likelyhood of failure due to multiple processes same time
+               alteration.
 
         :Returns:
              #. repository (pyrep.Repository): returns self repository with loaded data.
         """
-        try:
-            self.__load_repository(path=path, verbose=True)
-        except Exception as err1:
+        assert isinstance(ntrials, int), "ntrials must be integer"
+        assert ntrials>0, "ntrials must be >0"
+        repo = None
+        for _trial in range(ntrials):
             try:
-                from .OldRepository import Repository
-                REP = Repository(path)
-            except Exception as err2:
-                #traceback.print_exc()
-                raise Exception("Unable to load repository using new style (%s) and old style (%s)"%(err1, err2))
+                self.__load_repository(path=path, verbose=True)
+            except Exception as err1:
+                try:
+                    from .OldRepository import Repository
+                    REP = Repository(path)
+                except Exception as err2:
+                    #traceback.print_exc()
+                    error = "Unable to load repository using neiher new style (%s) nor old style (%s)"%(err1, err2)
+                    if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                else:
+                    error = None
+                    repo  = REP
+                    break
             else:
-                return REP
-        else:
-            return self
+                error = None
+                repo  = self
+                break
+        # check and return
+        assert error is None, error
+        return repo
 
     def create_repository(self, path, info=None, description=None, replace=True, allowNoneEmpty=True, raiseError=True):
         """
@@ -1010,7 +1032,7 @@ class Repository(object):
             os.remove(os.path.join(repo.path,self.__repoLock))
 
     @path_required
-    def save(self, description=None, raiseError=True):
+    def save(self, description=None, raiseError=True, ntrials=3):
         """
         Save repository '.pyreprepo' to disk and create (if missing) or
         update (if description is not None) '.pyrepdirinfo'.
@@ -1020,6 +1042,14 @@ class Repository(object):
                If given will be replaced.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
+            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+               number of trials allowed before failing.
+               In rare cases, when multiple processes
+               are accessing the same repository components, different processes
+               can alter repository components between successive lock releases
+               of some other process. Bigger number of trials lowers the
+               likelyhood of failure due to multiple processes same time
+               alteration.
 
         :Returns:
             #. success (bool): Whether saving was successful.
@@ -1027,6 +1057,8 @@ class Repository(object):
                saving is not successful. If success is True, error will be None.
         """
         assert isinstance(raiseError, bool), "raiseError must be boolean"
+        assert isinstance(ntrials, int), "ntrials must be integer"
+        assert ntrials>0, "ntrials must be >0"
         # get description
         if description is not None:
             assert isinstance(description, basestring), "description must be None or a string"
@@ -1041,33 +1073,31 @@ class Repository(object):
         if not acquired:
             assert not raiseError, Exception(m)
             return False, m
-        try:
-            # open file
-            repoInfoPath = os.path.join(self.__path, self.__repoFile)
-            error = None
-            self.__save_dirinfo(description=description, dirInfoPath=dirInfoPath)
-            # load and update repository info if existing
-            if os.path.isfile(repoInfoPath):
-                with open(repoInfoPath, 'rb') as fd:
-                    repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
-                    self.__repo['walk_repo'] = repo['walk_repo']
-            # remove file if exists
-            #if os.path.exists(repoInfoPath):
-            #    try:
-            #        os.remove(repoInfoPath)
-            #    except:
-            #        pass
-            # create repository
-            with open(repoInfoPath, 'wb') as fd:
-                self.__repo["last_update_utctime"] = time.time()
-                pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                fd.flush()
-                os.fsync(fd.fileno())
-        except Exception as err:
-            LR.release_lock()
-            error = "Unable to save repository (%s)"%err
-        else:
-            LR.release_lock()
+        # save repository
+        for _trial in range(ntrials):
+            try:
+                # open file
+                repoInfoPath = os.path.join(self.__path, self.__repoFile)
+                error = None
+                self.__save_dirinfo(description=description, dirInfoPath=dirInfoPath)
+                # load and update repository info if existing
+                if os.path.isfile(repoInfoPath):
+                    with open(repoInfoPath, 'rb') as fd:
+                        repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+                        self.__repo['walk_repo'] = repo['walk_repo']
+                # create repository
+                with open(repoInfoPath, 'wb') as fd:
+                    self.__repo["last_update_utctime"] = time.time()
+                    pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
+                    fd.flush()
+                    os.fsync(fd.fileno())
+            except Exception as err:
+                error = "Unable to save repository (%s)"%err
+                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+            else:
+                break
+        # release lock
+        LR.release_lock()
         # return
         assert error is None or not raiseError, error
         return error is None, error
