@@ -455,10 +455,14 @@ class Repository(object):
            If None, Repository is initialized but not assigned to any directory.\n
            If Path is given then repository will be loaded from path if
            existing.
+        #. pickleProtocol (int): Pickle protocol. Default value is 2 which makes
+           it compatible with python 3 and 2. If user is always going to be
+           using the same version of python, pickle.HIGHEST_PROTOCOL or -1
+           will ensure the highest protocol.
     """
     DEBUG_PRINT_FAILED_TRIALS = True
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, pickleProtocol=2): #pickle.HIGHEST_PROTOCOL
         self.__repoLock  = '.pyreplock'
         self.__repoFile  = '.pyreprepo'
         self.__dirInfo   = '.pyrepdirinfo'
@@ -468,7 +472,9 @@ class Repository(object):
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
         #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
         # set default protocols
-        self._DEFAULT_PICKLE_PROTOCOL = pickle.HIGHEST_PROTOCOL
+        assert isinstance(pickleProtocol, int), "pickleProtocol must be integer"
+        assert pickleProtocol>=-1, "pickleProtocol must be >=-1"
+        self._DEFAULT_PICKLE_PROTOCOL = pickleProtocol
         # initialize repository
         self.reset()
         # if path is not None, load existing repository
@@ -709,12 +715,10 @@ class Repository(object):
                 fd.flush()
                 os.fsync(fd.fileno())
         except Exception as err:
-            if lockFirst:
-                LR.release_lock()
             error = "Unable to save repository (%s)"%str(err)
-        else:
-            if lockFirst:
-                LR.release_lock()
+        # release lock
+        if lockFirst:
+            LR.release_lock()
         # return
         assert error is None or not raiseError, error
         return error is None, error
@@ -722,7 +726,6 @@ class Repository(object):
     def __load_repository_pickle_file(self, repoPath):
         try:
             fd = open(repoPath, 'rb')
-
         except Exception as err:
             raise Exception("Unable to open repository file(%s)"%str(err))
         # read
@@ -2518,7 +2521,7 @@ class Repository(object):
                 _path = os.path.join(fPath,self.__fileInfo%fName)
                 # update info
                 with open(_path, 'wb') as fd:
-                    pickle.dump( info,fd, protocol=pickle.HIGHEST_PROTOCOL )
+                    pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
                     fd.flush()
                     os.fsync(fd.fileno())
                 # update class file
@@ -2635,7 +2638,7 @@ class Repository(object):
         LF.release_lock()
         assert error is None, "After %i trials, %s"%(ntrials, error)
         # return data
-        return namespace['PULLED_DATA']
+        return locals()['PULLED_DATA']
 
     def pull(self, *args, **kwargs):
         """Alias to pull_file"""
