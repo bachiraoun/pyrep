@@ -1021,7 +1021,7 @@ class Repository(object):
         :Parameters:
             #. path (None, string): The path the repository to remove.
             #. removeEmptyDirs (boolean): Whether to remove remaining empty
-               directories.
+               directories including repository one.
         """
         assert isinstance(removeEmptyDirs, bool), "removeEmptyDirs must be boolean"
         if path is not None:
@@ -1059,6 +1059,8 @@ class Repository(object):
             os.remove(os.path.join(repo.path,self.__repoFile))
         if os.path.isfile(os.path.join(repo.path,self.__repoLock)):
             os.remove(os.path.join(repo.path,self.__repoLock))
+        if not len(os.listdir(repo.path)) and removeEmptyDirs:
+            shutil.rmtree( repo.path )
 
     @path_required
     def save(self, description=None, raiseError=True, ntrials=3):
