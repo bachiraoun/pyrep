@@ -13,8 +13,8 @@ PACKAGE_PATH = '.'
 PACKAGE_NAME = 'pyrep'
 
 # check python version
-if sys.version_info[:2] < (2, 6):
-    raise RuntimeError("Python version 2.6, 2.7 or >= 3.2 required.")
+if sys.version_info[:2] < (2, 7):
+    raise RuntimeError("Python version 2.7 or >= 3 required.")
 
 # automatically create MANIFEST.in
 commands = [# include MANIFEST.in
@@ -23,7 +23,7 @@ commands = [# include MANIFEST.in
             # exclude all .log files
             '\n# exclude all logs',
             'global-exclude *.log',
-            # exclude all other non necessary files 
+            # exclude all other non necessary files
             '\n# exclude all other non necessary files ',
             'global-exclude .project',
             'global-exclude .pydevproject',
@@ -39,7 +39,7 @@ commands = [# include MANIFEST.in
             # include all README files
             '\n# include all readme files found',
             'global-include ./*README.*',
-            'global-include ./*readme.*']         
+            'global-include ./*readme.*']
 with open('MANIFEST.in','w') as fd:
     for l in commands:
         fd.write(l)
@@ -54,8 +54,8 @@ Intended Audience :: Developers
 License :: OSI Approved :: GNU Affero General Public License v3
 Programming Language :: Python
 Programming Language :: Python :: 2
-Programming Language :: Python :: 2.6
 Programming Language :: Python :: 2.7
+Programming Language :: Python :: 3
 Topic :: Software Development
 Topic :: Software Development :: Build Tools
 Topic :: Scientific/Engineering
@@ -65,7 +65,7 @@ Operating System :: Unix
 Operating System :: MacOS
 """
 
-# create descriptions                    
+# create descriptions
 LONG_DESCRIPTION = ["This package provides a pythonic way to organize dumping and pulling python objects and other type of files to a folder or a directory that is called repository.",
                     "A Repository can be created in any directory or folder, it suffices to initialize a Repository instance in a directory to start dumping and pulling object into it. .",
                     "Any directory or a folder that contains a .pyrepinfo binary file in it, is theoretically a pyrep Repository."
@@ -96,8 +96,6 @@ metadata = dict(name             = PACKAGE_NAME,
                 install_requires = ["pylocker",],
                 classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
                 platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"], )
-                
-# setup              
+
+# setup
 setup(**metadata)
-
-
