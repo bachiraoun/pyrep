@@ -1,5 +1,8 @@
 """
 This script will work from within the main package directory.
+
+python setup.py sdist bdist_wheel
+twine upload dist/pyrep-...
 """
 try:
     from setuptools import setup
@@ -13,8 +16,9 @@ PACKAGE_PATH = '.'
 PACKAGE_NAME = 'pyrep'
 
 # check python version
-if sys.version_info[:2] < (2, 7):
-    raise RuntimeError("Python version 2.7 or >= 3 required.")
+major, minor = sys.version_info[:2]
+if major==2 and minor!=7:
+    raise RuntimeError("Python version 2.7.x or >=3.x is required.")
 
 # automatically create MANIFEST.in
 commands = [# include MANIFEST.in
@@ -74,18 +78,15 @@ LONG_DESCRIPTION = ["This package provides a pythonic way to organize dumping an
 DESCRIPTION      = [ LONG_DESCRIPTION[0] ]
 
 
-# get package info
-PACKAGE_INFO={}
-ver_path = convert_path('__init__.py')
-with open(ver_path) as ver_file:
-    exec(ver_file.read(), PACKAGE_INFO)
+# get package version
+from pyrep import __version__
 
 
 # create meta data
 metadata = dict(name             = PACKAGE_NAME,
                 packages         = [PACKAGE_NAME],
                 package_dir      = {PACKAGE_NAME: '.'},
-                version          = PACKAGE_INFO['__version__'] ,
+                version          = __version__,
                 author           = "Bachir AOUN",
                 author_email     = "bachir.aoun@e-aoun.com",
                 description      = "\n".join(DESCRIPTION),
@@ -93,7 +94,7 @@ metadata = dict(name             = PACKAGE_NAME,
                 url              = "http://bachiraoun.github.io/pyrep/",
                 download_url     = "https://github.com/bachiraoun/pyrep",
                 license          = 'GNU',
-                install_requires = ["pylocker>=2.0.0",],
+                install_requires = ["pylocker>=2.1.0",],
                 classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
                 platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"], )
 

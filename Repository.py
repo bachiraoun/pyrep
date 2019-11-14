@@ -239,7 +239,7 @@ except:
     import pickle
 
 # import pylocker ServerLocker singleton implementation
-from pylocker import ServerLocker, SingleLocker
+from pylocker import ServerLocker, FACTORY
 
 # pyrep imports
 from .__pkginfo__ import __version__
@@ -482,8 +482,8 @@ class Repository(object):
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
         #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
-        # instanciate locker
-        self.__locker = SingleLocker(password="pyrep_repository_b@11akwak", serverFile=False, autoconnect=False, reconnect=False)
+        self.__lPass  =  "pyrep_repository_b@11akwak"
+        self.__locker = None
         # set default protocols
         assert isinstance(pickleProtocol, int), "pickleProtocol must be integer"
         assert pickleProtocol>=-1, "pickleProtocol must be >=-1"
@@ -521,6 +521,26 @@ class Repository(object):
             else:
                 raise Exception('Not sure what to do next. Please report issue')
         return string
+
+    def __getstate__(self):
+        state = {}
+        state.update( self.__dict__ )
+        state['_Repository__locker'] = None
+        return state
+
+    def __setstate__(self, state):
+        path   = state['_Repository__path']
+        locker = None
+        if path is not None:
+            repoLock   = state['_Repository__repoLock']
+            lPass      = state['_Repository__lPass']
+            serverFile = os.path.join(path, repoLock)
+            locker = FACTORY(key=serverFile, password=lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
+            locker.start()
+        state['_Repository__locker'] = locker
+        # set state
+        self.__dict__ = state
+
 
     def __repr__(self):
         repr = "pyrep "+self.__class__.__name__+" (Version "+str(self.__repo['pyrep_version'])+")"
@@ -572,6 +592,19 @@ class Repository(object):
         # call recursive _walk_dir
         _walk_dir(relPath='', relDirList=dirs, relSynchedList=synched)
         return synched, errors
+
+    #def __setstate__(self, state):
+    #    self.__dict__ = state
+    #    # start locker if path is not None
+    #    if self.__dict__['_Repository__path'] is not None:
+    #        #self.__dict__['_Repository__locker'].start()
+    #        repoPath   = self.__dict__['_Repository__path']
+    #        repolock   = self.__dict__['_Repository__repoLock']
+    #        password   = self.__dict__['_Repository__lPass']
+    #        serverFile = os.path.join(repoPath, repolock)
+    #        self.__locker = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
+    #        self.__locker.start()
+
 
     @property
     def len(self):
@@ -776,9 +809,10 @@ class Repository(object):
         if not self.is_repository(repoPath):
             raise Exception("No repository found in '%s'"%str(repoPath))
         # update locker serverFile and start
-        self.__locker.stop()
-        self.__locker.set_server_file(os.path.join(repoPath, self.__repoLock))
+        serverFile    = os.path.join(repoPath, self.__repoLock)
+        self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
         self.__locker.start()
+
         if safeMode:
             acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             #LR =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(repoPath, self.__repoLock), timeout=self.timeout)
@@ -795,7 +829,6 @@ class Repository(object):
             repoFiles, errors = self.__sync_files(repoPath=repoPath, dirs=repo['walk_repo'])
             if len(errors) and verbose:
                 warnings.warn("\n".join(errors))
-            self.reset()
             self.__path = repoPath
             self.__repo['repository_unique_name'] = repo['repository_unique_name']
             self.__repo['repository_information'] = repo['repository_information']
@@ -851,12 +884,12 @@ class Repository(object):
                 raise Exception('Not sure what to do next. Please report issue')
         return ndirs,nfiles
 
+
     def reset(self):
         """Reset repository instance.
         """
-        self.__locker.stop()
-        self.__locker.reset()
         self.__path   = None
+        self.__locker = None
         self.__repo   = {'repository_unique_name': str(uuid.uuid1()),
                          'create_utctime': time.time(),
                          'last_update_utctime': None,
@@ -996,9 +1029,9 @@ class Repository(object):
         self.reset()
         self.__path = realPath.rstrip(os.sep)
         self.__repo['repository_information'] = info
-        # start locker
-        self.__locker.stop()
-        self.__locker.set_server_file(os.path.join(self.__path, self.__repoLock))
+        # set locker
+        serverFile    = os.path.join(self.__path, self.__repoLock)
+        self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
         self.__locker.start()
         # save repository
         saved = self.save(description=description)
@@ -1006,9 +1039,9 @@ class Repository(object):
             self.__repo = oldRepo
             self.__path = oldPath
             message.append("Absolute path and directories might be created but no pyrep Repository is created. Previous repository state restored")
-            self.__locker.stop()
             if self.__path is not None:
-                self.__locker.set_server_file(os.path.join(self.__path, self.__repoLock))
+                serverFile    = os.path.join(self.__path, self.__repoLock)
+                self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
                 self.__locker.start()
             return False, '\n'.join(message)
         # return
@@ -1862,7 +1895,7 @@ class Repository(object):
         acquired, dirLockId = self.__locker.acquire_lock(path=os.path.join(self.__path,parentPath), timeout=self.timeout)
         if not acquired:
             #error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
-            error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,realPath)
+            error = "Code %s. Unable to aquire the lock when removing '%s'. All prior directories were added. You may try again, to finish removing directory"%(dirLockId,realPath)
             assert not raiseError, error
             return False, error
         # lock repository and get __repo updated from disk
@@ -2286,7 +2319,7 @@ class Repository(object):
             #LR.release_lock()
             self.__locker.release_lock(repoLockId)
             #error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
-            error = "Code %s. Unable to aquire the lock when adding '%s'"%(fileLockId,relativePath)
+            error = "Code %s. Unable to aquire the lock when dumping '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # load repository info
@@ -2701,7 +2734,7 @@ class Repository(object):
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
             #error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
-            error = "Code %s. Unable to aquire the lock when adding '%s'"%(fileLockId,relativePath)
+            error = "Code %s. Unable to aquire the lock when pulling '%s'"%(fileLockId,relativePath)
             return False, error
         # pull file
         for _trial in range(ntrials):
@@ -2904,7 +2937,7 @@ class Repository(object):
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
             #error = "Code %s. Unable to aquire the lock when adding '%s'"%(code,relativePath)
-            error = "Code %s. Unable to aquire the lock when adding '%s'"%(fileLockId,relativePath)
+            error = "Code %s. Unable to aquire the lock when removing '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # remove file
