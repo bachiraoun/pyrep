@@ -881,7 +881,11 @@ class Repository(object):
             elif fdict[fdname].get('pyrepdirinfo', False):
                 ndirs += 1
             else:
-                raise Exception('Not sure what to do next. Please report issue')
+                # this could happen with asynchronous calls upon the repository
+                # or if the file or directory are not registered in the repository
+                warnings.warn("'%s' is neither a repository file nor a directory"%(fdname))
+                continue
+                #raise Exception('Not sure what to do next. Please report issue')
         return ndirs,nfiles
 
 
