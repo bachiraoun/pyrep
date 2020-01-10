@@ -860,6 +860,10 @@ class Repository(object):
         """Get repository unique name as generated when repository was created"""
         return self.__repo['repository_unique_name']
 
+    def close(self):
+        if self.__locker is not None:
+            self.__locker.stop()
+
     def get_stats(self):
         """
         Get repository descriptive stats
@@ -1098,6 +1102,8 @@ class Repository(object):
             os.remove(os.path.join(repo.path,self.__repoLock))
         if not len(os.listdir(repo.path)) and removeEmptyDirs:
             shutil.rmtree( repo.path )
+        # close repo
+        repo.close()
 
     @path_required
     def save(self, description=None, raiseError=True, ntrials=3):
@@ -1734,7 +1740,6 @@ class Repository(object):
         #acquired, code = LR.acquire_lock()
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
-            #m = "code %s. Unable to aquire the lock to add directory. You may try again!"%(code,)
             m = "code %s. Unable to aquire the lock to add directory. You may try again!"%(repoLockId,)
             if raiseError:
                 raise Exception(m)
@@ -1768,7 +1773,6 @@ class Repository(object):
             if dirPath != self.__path:
                 acquired, dirLockId = self.__locker.acquire_lock(path=dirPath, timeout=self.timeout)
                 if not acquired:
-                    #error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
                     error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
                     break
             # add to directory
@@ -1804,12 +1808,10 @@ class Repository(object):
                         assert len(dList) == 1, "Same directory name dict is found twice. This should'n have happened. Report issue"
                         posList = dList[0][name]
                 except Exception as err:
-                    #LD.release_lock()
                     self.__locker.release_lock(dirLockId)
                     error = "Unable to create directory '%s' info file (%s)"%(dirPath, str(err))
                     if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
                 else:
-                    #LD.release_lock()
                     self.__locker.release_lock(dirLockId)
                     break
             if error is not None:
@@ -1822,12 +1824,10 @@ class Repository(object):
                 error = str(err)
                 pass
         try:
-            #LD.release_lock()
             self.__locker.release_lock(dirLockId)
         except:
             pass
         try:
-            #LR.release_lock()
             self.__locker.release_lock(repoLockId)
         except:
             pass
@@ -2142,15 +2142,13 @@ class Repository(object):
         #acquired, code = LR.acquire_lock()
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
-            #m = "code %s. Unable to aquire the repository lock. You may try again!"%(code,)
-            m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockIt,)
+            m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
             assert raiseError,  Exception(m)
             return False,m
         try:
             repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
             self.__repo['walk_repo'] = repo['walk_repo']
         except Exception as err:
-            #LR.release_lock()
             self.__locker.release_lock(repoLockId)
             assert not raiseError, Exception(str(err))
             return False,m
@@ -2159,23 +2157,16 @@ class Repository(object):
         #acquired, code = L0.acquire_lock()
         acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
         if not acquired:
-            #LR.release_lock()
             self.__locker.release_lock(repoLockId)
-            #error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
             error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
             assert not raiseError, error
             return False, error
-        L1 = None
+        newDirLockId = None
         if parentRealPath != newParentRealPath:
-            #L1 =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(newParentRealPath, self.__dirLock), timeout=self.timeout)
-            #acquired, code = L1.acquire_lock()
             acquired, newDirLockId = self.__locker.acquire_lock(path=newParentRealPath, timeout=self.timeout)
             if not acquired:
-                #L0.release_lock()
-                #LR.release_lock()
                 self.__locker.release_lock(dirLockId)
                 self.__locker.release_lock(repoLockId)
-                #error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,dirPath)
                 error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,dirPath)
                 assert not raiseError, error
                 return False, error
@@ -2214,12 +2205,9 @@ class Repository(object):
                 break
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
-        #LR.release_lock()
-        #L0.release_lock()
         self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
-        if L1 is not None:
-            #L1.release_lock()
+        if newDirLockId is not None:
             self.__locker.release_lock(newDirLockId)
         # check and return
         assert error is None or not raiseError, "Unable to copy directory '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,)
@@ -2311,7 +2299,6 @@ class Repository(object):
         #acquired, code = LR.acquire_lock()
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
-            m = "code %s. Unable to aquire the repository lock. You may try again!"%(code,)
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
             assert raiseError, Exception(m)
             return False,m
@@ -2587,11 +2574,8 @@ class Repository(object):
         savePath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(savePath)
         # get locker
-        #LF =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(fPath,self.__fileLock%fName), timeout=self.timeout)
-        #acquired, code = LF.acquire_lock()
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
         if not acquired:
-            #error = "Code %s. Unable to aquire the lock to update '%s'"%(code,relativePath)
             error = "Code %s. Unable to aquire the lock to update '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
@@ -2674,7 +2658,6 @@ class Repository(object):
                 updated = True
                 break
         # release lock
-        #LF.release_lock()
         self.__locker.release_lock(fileLockId)
         # check and return
         assert updated or not raiseError, "Unable to update file '%s' (%s)"%(relativePath, '\n'.join(message),)
