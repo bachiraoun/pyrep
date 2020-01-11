@@ -252,12 +252,16 @@ if sys.version_info >= (3, 0):
     unicode    = str
     bytes      = bytes
     basestring = str
+    def makedirs(name, mode=0o777):
+        return os.makedirs(name=name, mode=mode, exist_ok=True)
 else:
     str        = str
     unicode    = unicode
     bytes      = str
     long       = long
     basestring = basestring
+    def makedirs(name, mode=0o777):
+        return os.makedirs(name=name, mode=mode)
 
 # set warnings filter to always
 warnings.simplefilter('always')
@@ -472,7 +476,7 @@ def copy_tree(src, dst, srcDirDict,
     assert dirName == srcDirName, "source directory dictionary single key must be the source directory name '%s' but '%s' is found"%(srcDirName, dirName)
     # create destination directory
     if not os.path.isdir(dst):
-        os.makedirs(dst, exist_ok=True)
+        makedirs(dst)
         for attr in dirAttr:
             srcp = os.path.join(src, attr)
             if os.path.isfile(srcp):
@@ -500,6 +504,8 @@ def copy_tree(src, dst, srcDirDict,
             files.extend( copy_tree(src=src1, dst=dst1, srcDirDict=d, filAttr=filAttr, dirAttr=dirAttr) )
     # return files
     return files
+
+
 
 
 class Repository(object):
@@ -1072,7 +1078,7 @@ class Repository(object):
                     message.append("Unable to clean remove repository before create (%s)"%(str(err)))
                     return False, '\n'.join(message)
         if not os.path.isdir(realPath):
-            os.makedirs(realPath)
+            makedirs(realPath)
         elif len(os.listdir(realPath)) and not allowNoneEmpty:
             return False, "Not allowed to create repository in a non empty directory"
         # reset repository
