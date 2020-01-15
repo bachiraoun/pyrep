@@ -529,10 +529,12 @@ class Repository(object):
            will ensure the highest protocol.
         #. timeout (number): The maximum delay or time allowed to successfully
            set the lock upon reading or writing to the repository
+        #. password (None, string): the locker password to manage the
+           repository access. If None, default password is given
     """
     DEBUG_PRINT_FAILED_TRIALS = False#True
 
-    def __init__(self, path=None, pickleProtocol=2, timeout=10): #pickle.HIGHEST_PROTOCOL
+    def __init__(self, path=None, pickleProtocol=2, timeout=10, password=None):
         self.__repoLock  = '.pyreplock'
         self.__repoFile  = '.pyreprepo'
         self.__dirInfo   = '.pyrepdirinfo'
@@ -541,8 +543,11 @@ class Repository(object):
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
         #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
-        self.__lPass  =  "pyrep_repository_b@11akwak"
-        self.__locker = None
+        if password is None:
+            password = "pyrep_repository_b@11a"
+        assert isinstance(password, basestring), "password must be None or a string"
+        self.__password = password
+        self.__locker   = None
         # set default protocols
         assert isinstance(pickleProtocol, int), "pickleProtocol must be integer"
         assert pickleProtocol>=-1, "pickleProtocol must be >=-1"
@@ -552,7 +557,7 @@ class Repository(object):
         # if path is not None, load existing repository
         if path is not None:
             assert self.is_repository(path), "given path is not a repository. use create_repository or give a valid repository path"
-            self.load_repository(repo)
+            self.load_repository(path)
         # set timeout
         self.timeout = timeout
 
@@ -592,9 +597,9 @@ class Repository(object):
         locker = None
         if path is not None:
             repoLock   = state['_Repository__repoLock']
-            lPass      = state['_Repository__lPass']
+            password   = state['_Repository__password']
             serverFile = os.path.join(path, repoLock)
-            locker = FACTORY(key=serverFile, password=lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
+            locker = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
             locker.start()
         state['_Repository__locker'] = locker
         # set state
@@ -659,7 +664,7 @@ class Repository(object):
     #        #self.__dict__['_Repository__locker'].start()
     #        repoPath   = self.__dict__['_Repository__path']
     #        repolock   = self.__dict__['_Repository__repoLock']
-    #        password   = self.__dict__['_Repository__lPass']
+    #        password   = self.__dict__['_Repository__password']
     #        serverFile = os.path.join(repoPath, repolock)
     #        self.__locker = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
     #        self.__locker.start()
@@ -865,7 +870,7 @@ class Repository(object):
             raise Exception("No repository found in '%s'"%str(repoPath))
         # update locker serverFile and start
         serverFile    = os.path.join(repoPath, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
+        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
         self.__locker.start()
         # acquire lock
         if safeMode:
@@ -937,7 +942,7 @@ class Repository(object):
             else:
                 # this could happen with asynchronous calls upon the repository
                 # or if the file or directory are not registered in the repository
-                warnings.warn("'%s' is neither a repository file nor a directory"%(fdname))
+                warnings.warn("'%s' is neither a repository file nor a directory. This can happen when accessing the repository asynchronously."%(fdname))
                 continue
                 #raise Exception('Not sure what to do next. Please report issue')
         return ndirs,nfiles
@@ -1089,7 +1094,7 @@ class Repository(object):
         self.__repo['repository_information'] = info
         # set locker
         serverFile    = os.path.join(self.__path, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
+        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
         self.__locker.start()
         # save repository
         saved = self.save(description=description)
@@ -1099,31 +1104,36 @@ class Repository(object):
             message.append("Absolute path and directories might be created but no pyrep Repository is created. Previous repository state restored")
             if self.__path is not None:
                 serverFile    = os.path.join(self.__path, self.__repoLock)
-                self.__locker = FACTORY(key=serverFile, password=self.__lPass, serverFile=serverFile, autoconnect=False, reconnect=False)
+                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
                 self.__locker.start()
             return False, '\n'.join(message)
         # return
         return True, '\n'.join(message)
 
-    def remove_repository(self, path=None, removeEmptyDirs=True):
+    def remove_repository(self, path=None, password=None, removeEmptyDirs=True):
         """
         Remove all repository from path along with all repository tracked files.
 
         :Parameters:
             #. path (None, string): The path the repository to remove.
+            #. password (None, string): If path is not for this isntance
+               repository, a new Repository must be created and this
+               password would be given upon instanciation
             #. removeEmptyDirs (boolean): Whether to remove remaining empty
                directories including repository one.
         """
         assert isinstance(removeEmptyDirs, bool), "removeEmptyDirs must be boolean"
         if path is not None:
             if path != self.__path:
-                repo = Repository()
+                repo = Repository(password=password)
                 repo.load_repository(path)
             else:
                 repo = self
         else:
             repo = self
         assert repo.path is not None, "path is not given and repository is not initialized"
+        assert repo.locker.isServer, "It's not safe to remove repository tree from a client"
+        assert not len(repo.locker._clientsLUT), "It's not safe to remove repository tree when other instances are still connected"
         # remove repo files and directories
         for fdict in reversed(repo.get_repository_state()):
             relaPath   = list(fdict)[0]
