@@ -1097,6 +1097,7 @@ class Repository(object):
         # set locker
         serverFile    = os.path.join(self.__path, self.__repoLock)
         self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
+        self.__locker.debugMode = True
         self.__locker.start()
         # save repository
         saved = self.save(description=description)
