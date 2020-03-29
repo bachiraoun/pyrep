@@ -77,16 +77,17 @@ LONG_DESCRIPTION = ["This package provides a pythonic way to organize dumping an
                     "Practically any other methods can be used simply by providing the means and the required libraries in a simple form of string.",]
 DESCRIPTION      = [ LONG_DESCRIPTION[0] ]
 
-
-# get package version
-from pyrep import __version__
-
+## get package info
+PACKAGE_INFO={}
+infoPath = convert_path('__pkginfo__.py')
+with open(infoPath) as fd:
+    exec(fd.read(), PACKAGE_INFO)
 
 # create meta data
 metadata = dict(name             = PACKAGE_NAME,
                 packages         = [PACKAGE_NAME],
                 package_dir      = {PACKAGE_NAME: '.'},
-                version          = __version__,
+                version          = PACKAGE_INFO['__version__'] ,
                 author           = "Bachir AOUN",
                 author_email     = "bachir.aoun@e-aoun.com",
                 description      = "\n".join(DESCRIPTION),
