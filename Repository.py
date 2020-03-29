@@ -227,7 +227,7 @@ output
 
 # standard distribution imports
 from __future__ import print_function
-import os, sys, time, uuid, warnings, tarfile, shutil, traceback, inspect
+import os, sys, re, time, uuid, warnings, tarfile, shutil, traceback, inspect
 from datetime import datetime
 from functools import wraps
 from pprint import pprint
@@ -866,6 +866,8 @@ class Repository(object):
         if path.strip() in ('','.'):
             path = os.getcwd()
         repoPath = os.path.realpath( os.path.expanduser(path) )
+        if os.sep=='\\':
+            repoPath = re.sub(r'([\\])\1+', r'\1', repoPath).replace('\\','\\\\')
         if not self.is_repository(repoPath):
             raise Exception("No repository found in '%s'"%str(repoPath))
         # update locker serverFile and start
