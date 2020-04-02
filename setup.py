@@ -97,8 +97,7 @@ metadata = dict(name             = PACKAGE_NAME,
                 license          = 'GNU',
                 install_requires = ["pylocker>=2.1.0",],
                 classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
-                platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"],
-                install_requires = ["pylocker"] )
+                platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"] )
 
 # setup
 setup(**metadata)
