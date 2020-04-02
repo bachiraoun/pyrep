@@ -95,7 +95,7 @@ metadata = dict(name             = PACKAGE_NAME,
                 url              = "http://bachiraoun.github.io/pyrep/",
                 download_url     = "https://github.com/bachiraoun/pyrep",
                 license          = 'GNU',
-                install_requires = ["pylocker>=2.1.0",],
+#                install_requires = ["pylocker>=2.1.0",], # repeated
                 classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
                 platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"],
                 install_requires = ["pylocker"] )
