@@ -599,7 +599,7 @@ class Repository(object):
             repoLock   = state['_Repository__repoLock']
             password   = state['_Repository__password']
             serverFile = os.path.join(path, repoLock)
-            locker = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
+            locker     = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
             locker.start()
         state['_Repository__locker'] = locker
         # set state
