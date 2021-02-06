@@ -2757,7 +2757,7 @@ class Repository(object):
         # release lock
         self.__locker.release_lock(fileLockId)
         # check and return
-        assert error is None, "After %i trials, %s"%(ntrials, error)
+        assert error is None, "After %i trials, failed to pull file '%s' (%s)"%(ntrials,relativePath, error)
         return pulledVal
 
     def pull(self, *args, **kwargs):
