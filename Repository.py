@@ -2182,19 +2182,22 @@ class Repository(object):
             assert not raiseError, Exception(str(err))
             return False,m
         # create locks
-        acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
-        if not acquired:
-            self.__locker.release_lock(repoLockId)
-            error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
-            assert not raiseError, error
-            return False, error
+        if parentRealPath != self.__path:
+            acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
+            if not acquired:
+                self.__locker.release_lock(repoLockId)
+                error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
+                assert not raiseError, error
+                return False, error
+        else:
+            dirLockId = None
         newDirLockId = None
         if parentRealPath != newParentRealPath:
             acquired, newDirLockId = self.__locker.acquire_lock(path=newParentRealPath, timeout=self.timeout)
             if not acquired:
-                self.__locker.release_lock(dirLockId)
+                if dirLockId is not None: self.__locker.release_lock(dirLockId)
                 self.__locker.release_lock(repoLockId)
-                error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,dirPath)
+                error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
                 assert not raiseError, error
                 return False, error
         # get directory parent list
@@ -2236,10 +2239,9 @@ class Repository(object):
                 break
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
-        self.__locker.release_lock(dirLockId)
+        if dirLockId is not None: self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
-        if newDirLockId is not None:
-            self.__locker.release_lock(newDirLockId)
+        if newDirLockId is not None: self.__locker.release_lock(newDirLockId)
         # check and return
         assert error is None or not raiseError, "Unable to copy directory '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,)
         return error is None, error
@@ -2704,6 +2706,8 @@ class Repository(object):
                of some other process. Bigger number of trials lowers the
                likelyhood of failure due to multiple processes same time
                alteration.
+             #. raiseNotRegistered (boolean): whether to raise an error if relativePath
+                is not a repoFile
 
         :Returns:
             #. data (object): The pulled data from the file.
