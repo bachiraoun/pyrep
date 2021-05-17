@@ -1941,7 +1941,7 @@ class Repository(object):
         # check if directory actually exists on disk
         realPath = os.path.join(self.__path,relativePath)
         if not os.path.isdir(realPath):
-            error = "Repository relative directory '%s' seems to be missing. call maintain_repository to fix all issues"
+            error = "Repository relative directory '%s' seems to be missing. call maintain_repository to fix all issues"%(realPath,)
             assert not raiseError, error
             return False, error
         # get and acquire lock
@@ -1977,7 +1977,7 @@ class Repository(object):
                     assert success, "\n".join(errors)
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %s failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
             else:
                 break
         # return
