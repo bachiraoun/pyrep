@@ -554,12 +554,12 @@ class Repository(object):
         self._DEFAULT_PICKLE_PROTOCOL = pickleProtocol
         # initialize repository
         self.reset()
+        # set timeout
+        self.timeout = timeout
         # if path is not None, load existing repository
         if path is not None:
             assert self.is_repository(path), "given path is not a repository. use create_repository or give a valid repository path"
             self.load_repository(path)
-        # set timeout
-        self.timeout = timeout
 
     def __str__(self):
         if self.__path is None:
