@@ -1207,7 +1207,7 @@ class Repository(object):
         # check if acquired.
         if not acquired:
             m = "code %s. Unable to aquire the lock when calling 'save'. You may try again!"%(lockId,)
-            assert not raiseError, Exception(m)
+            assert not raiseError, m
             return False, m
         # save repository
         for _trial in range(ntrials):
@@ -1798,8 +1798,7 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the lock to add directory. You may try again!"%(repoLockId,)
-            if raiseError:
-                raise Exception(m)
+            assert not raiseError, m
             return False,m
         # load repository info
         for _trial in range(ntrials):
@@ -1954,7 +1953,7 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert raiseError,  Exception(m)
+            assert not raiseError,  m
             return False,m
         # remove directory
         for _trial in range(ntrials):
@@ -2042,7 +2041,7 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "Code %s. Unable to aquire directory lock when renaming '%s'. All prior directories were added. You may try again, to finish adding the directory"%(repoLockId,dirPath)
-            assert raiseError,  Exception(m)
+            assert not raiseError,  m
             return False,m
         # load repository info
         for _trial in range(ntrials):
@@ -2172,7 +2171,7 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert raiseError,  Exception(m)
+            assert not raiseError,  m
             return False,m
         try:
             repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
@@ -2331,7 +2330,7 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert raiseError, Exception(m)
+            assert not raiseError, m
             return False,m
         # lock file
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
