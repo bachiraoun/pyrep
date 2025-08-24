@@ -231,7 +231,6 @@ import os, sys, re, time, uuid, warnings, tarfile, shutil, traceback, inspect
 from datetime import datetime
 from functools import wraps
 from pprint import pprint
-from distutils.dir_util import copy_tree
 import copy
 try:
     import cPickle as pickle
