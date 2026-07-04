@@ -876,8 +876,14 @@ class Repository(object):
         # acquire lock
         if safeMode:
             acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
+            # Code 2 = locker is neither server nor client — stale broken locker in FACTORY cache.
+            # Regenerate a fresh ServerLocker whose __init__ picks up the current IP naturally.
+            if not acquired and lockId == 2:
+                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False, regenerate=True)
+                self.__locker.start()
+                acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             # check if acquired.
-            assert acquired, "code %s. Unable to aquire the lock when calling 'load_repository'"%(lockId,)
+            assert acquired, "code %s.  Unable to acquire the lo when calling 'load_repository'"%(lockId,)
         # load repository
         error = None
         try:
@@ -1016,6 +1022,8 @@ class Repository(object):
                 self.__load_repository(path=path, verbose=True, safeMode=safeMode)
             except Exception as err1:
                 error = "Unable to load repository (%s)"%(err1, )
+                if _trial < ntrials - 1:
+                    time.sleep(0.1 * (_trial + 1))
             else:
                 error = None
                 repo  = self
@@ -1205,7 +1213,7 @@ class Repository(object):
         acquired, lockId = self.__locker.acquire_lock(self.__path, timeout=self.timeout)
         # check if acquired.
         if not acquired:
-            m = "code %s. Unable to aquire the lock when calling 'save'. You may try again!"%(lockId,)
+            m = "code %s.  Unable to acquire the lo when calling 'save'. You may try again!"%(lockId,)
             assert not raiseError, m
             return False, m
         # save repository
@@ -1688,7 +1696,7 @@ class Repository(object):
     #    LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(realPath, self.__dirLock), timeout=self.timeout)
     #    acquired, code = LD.acquire_lock()
     #    if not acquired:
-    #        error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
+    #        error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
     #        return False, error
     #    try:
     #        posList = self.get_repository_directory(relativePath=relativePath)
@@ -1796,7 +1804,7 @@ class Repository(object):
         # lock repository
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
-            m = "code %s. Unable to aquire the lock to add directory. You may try again!"%(repoLockId,)
+            m = "code %s.  Unable to acquire the lo to add directory. You may try again!"%(repoLockId,)
             assert not raiseError, m
             return False,m
         # load repository info
@@ -1825,7 +1833,7 @@ class Repository(object):
             if dirPath != self.__path:
                 acquired, dirLockId = self.__locker.acquire_lock(path=dirPath, timeout=self.timeout)
                 if not acquired:
-                    error = "Code %s. Unable to aquire the lock when adding '%s'. All prior relative directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
+                    error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior relative directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
                     break
             # add to directory
             for _trial in range(ntrials):
@@ -1945,7 +1953,7 @@ class Repository(object):
         # get and acquire lock
         acquired, dirLockId = self.__locker.acquire_lock(path=os.path.join(self.__path,parentPath), timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock when removing '%s'. All prior relative directories were added. You may try again, to finish removing directory"%(dirLockId,realPath)
+            error = "Code %s.  Unable to acquire the lo when removing '%s'. All prior relative directories were added. You may try again, to finish removing directory"%(dirLockId,realPath)
             assert not raiseError, error
             return False, error
         # lock repository
@@ -2184,7 +2192,7 @@ class Repository(object):
             acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
             if not acquired:
                 self.__locker.release_lock(repoLockId)
-                error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
+                error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
                 assert not raiseError, error
                 return False, error
         else:
@@ -2195,7 +2203,7 @@ class Repository(object):
             if not acquired:
                 if dirLockId is not None: self.__locker.release_lock(dirLockId)
                 self.__locker.release_lock(repoLockId)
-                error = "Code %s. Unable to aquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
+                error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
                 assert not raiseError, error
                 return False, error
         # get directory parent list
@@ -2335,7 +2343,7 @@ class Repository(object):
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
         if not acquired:
             self.__locker.release_lock(repoLockId)
-            error = "Code %s. Unable to aquire the lock when dumping '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo when dumping '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # load repository info
@@ -2470,7 +2478,7 @@ class Repository(object):
         # lock old file
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock for old file '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo for old file '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # add new file diretory
@@ -2487,7 +2495,7 @@ class Repository(object):
         acquired, newFileLockId = self.__locker.acquire_lock(path=newRealPath, timeout=self.timeout)
         if not acquired:
             self.__locker.release_lock(fileLlockId)
-            error = "Code %s. Unable to aquire the lock for new file path '%s'"%(newFileLockId,newRelativePath)
+            error = "Code %s.  Unable to acquire the lo for new file path '%s'"%(newFileLockId,newRelativePath)
             assert not raiseError, error
             return False, error
         # copy file
@@ -2588,7 +2596,7 @@ class Repository(object):
         # get locker
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock to update '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo to update '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # update file
@@ -2732,7 +2740,7 @@ class Repository(object):
         # lock repository
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock when pulling '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo when pulling '%s'"%(fileLockId,relativePath)
             return False, error
         # pull file
         for _trial in range(ntrials):
@@ -2812,7 +2820,7 @@ class Repository(object):
         # lock old file
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock for old file '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo for old file '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # add directory
@@ -2831,7 +2839,7 @@ class Repository(object):
         if not acquired:
             #LO.release_lock()
             self.__locker.release_lock(fileLockId)
-            error = "Code %s. Unable to aquire the lock for new file path '%s'"%(newFileLockId,newRelativePath)
+            error = "Code %s.  Unable to acquire the lo for new file path '%s'"%(newFileLockId,newRelativePath)
             assert not raiseError, error
             return False, error
         # rename file
@@ -2922,7 +2930,7 @@ class Repository(object):
         # lock repository
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s. Unable to aquire the lock when removing '%s'"%(fileLockId,relativePath)
+            error = "Code %s.  Unable to acquire the lo when removing '%s'"%(fileLockId,relativePath)
             assert not raiseError, error
             return False, error
         # remove file
