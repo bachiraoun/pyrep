@@ -598,7 +598,7 @@ class Repository(object):
             repoLock   = state['_Repository__repoLock']
             password   = state['_Repository__password']
             serverFile = os.path.join(path, repoLock)
-            locker     = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
+            locker     = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False)
             locker.start()
         state['_Repository__locker'] = locker
         # set state
@@ -871,7 +871,7 @@ class Repository(object):
             raise Exception("No repository found in '%s'"%str(repoPath))
         # update locker serverFile and start
         serverFile    = os.path.join(repoPath, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
+        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
         self.__locker.start()
         # acquire lock
         if safeMode:
@@ -879,7 +879,7 @@ class Repository(object):
             # Code 2 = locker is neither server nor client — stale broken locker in FACTORY cache.
             # Regenerate a fresh ServerLocker whose __init__ picks up the current IP naturally.
             if not acquired and lockId == 2:
-                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False, regenerate=True)
+                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, regenerate=True)
                 self.__locker.start()
                 acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             # check if acquired.
@@ -1103,7 +1103,7 @@ class Repository(object):
         self.__repo['repository_information'] = info
         # set locker
         serverFile    = os.path.join(self.__path, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
+        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
         #self.__locker.debugMode = True
         self.__locker.start()
         # save repository
@@ -1114,7 +1114,7 @@ class Repository(object):
             message.append("Absolute path and directories might be created but no pyrep Repository is created. Previous repository state restored")
             if self.__path is not None:
                 serverFile    = os.path.join(self.__path, self.__repoLock)
-                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, reconnect=False)
+                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
                 self.__locker.start()
             return False, '\n'.join(message)
         # return
