@@ -3,7 +3,7 @@ PYthon REPository or pyrep package provides a pythonic way to organize dumping a
 python objects and other type of files to a folder or a directory that is called
 repository. A Repository can be created in any directory or folder, it suffices to
 initialize a Repository instance in a directory to start dumping and pulling objects into
-it. Any directory or a folder that contains a .pyrepinfo binary file in it, is
+it. Any directory or a folder that contains a .pyreprepo binary file in it, is
 theoretically a pyrep Repository. By default dump and pull methods use pickle to
 serialize storing python objects. Practically any other method can be used simply by
 providing the means and the required libraries in a simple form of string.
@@ -11,7 +11,7 @@ providing the means and the required libraries in a simple form of string.
 
 Installation guide:
 ===================
-pyrep is a pure python 2.7.x module that needs no particular installation. One can either
+pyrep is a pure python module that only needs pylocker, which pip installs with it. One can either
 fork pyrep's `github repository <https://github.com/bachiraoun/pyrep/>`_ and copy the
 package to python's site-packages or use pip as the following:
 

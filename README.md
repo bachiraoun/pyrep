@@ -1,54 +1,62 @@
 # pyrep
-This package provides a pythonic way to organize dumping and pulling python objects and other type of files to a Repository. A Repository can be created in any directory or folder. Repository directories are transferable between operating systems. By default dump and pull methods use pickle to serialize storing python objects. Practically any other methods can be used simply by providing the means and the required libraries in a simple form of string.  
+This package provides a pythonic way to organize dumping and pulling python objects and other type of files to a Repository. A Repository can be created in any directory or folder. Repository directories are transferable between operating systems. By default dump and pull methods use pickle to serialize storing python objects. Practically any other methods can be used simply by providing the means and the required libraries in a simple form of string.
+
+Repositories are safe to use from several threads and processes at the same time. Access is coordinated by [pylocker](https://pypi.org/project/pylocker/), and the repository index and the info files are replaced atomically, so a crash never leaves them half written. Data files are written by your own dump code, directly in place.
 
 ## Installation
-pyrep needs no especial installations and requires merely an installation of python.
+```
+pip install pyrep
+```
+pylocker is installed with it. The tests run on Python 3.
 
 ## Testing
-It is so far tested with python2.7 installed on all of windows 7, fedora 18.0 and mac yosemite 10.10 machines.
+```
+python3 tests/run_tests.py            ## everything, one line for each test
+python3 tests/run_tests.py --quiet    ## only the summary
+python3 tests/run_tests.py --quick    ## skip the slow crash tests
+python3 tests/run_tests.py --list     ## the test files
+```
+The suite includes 10 processes with several threads each fighting over the same files, and crash tests that kill a writer in the middle of a write.
 
 ## Example
 
-```
-from pyrep.Repository import Repository
-import numpy as np
+```python
+from pyrep import Repository
 
-# create repository
+# create repository, an existing one is only replaced when replace=True is given
 REP = Repository()
 REP.create_repository('~/test_repository')
 
 # add some directories
 REP.add_directory("folder1/folder2/folder3")
 REP.add_directory("folder1/archive1/archive2/archive3/archive3")
-REP.add_directory("directory1/directory2")
 
-# dump some text files
-value = "This is a string data to pickle and store in the repository"
-REP.dump(value, relativePath='.', name='pickle_text_test1')
-REP.dump("another text", relativePath="folder1/folder2/folder3", name='pickle_text_test2')
+# dump some python objects, missing directories are created
+REP.dump("This is a string data to pickle and store in the repository", 'pickle_text_test1')
+REP.dump("another text", "folder1/folder2/folder3/pickle_text_test2")
 
-# dump using numpy
-dump="import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
-pull="import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
-value = np.random.random((3,1))
-REP.dump(value, relativePath='folder1/archive1/archive2', name='numpy_test', dump=dump, pull=pull)
+# dump using any code that defines dump(path, value) and pull(path)
+dump = "import numpy as np; dump = lambda path, value: np.savetxt(fname=path, X=value, fmt='%.6e')"
+pull = "import numpy as np; pull = lambda path: np.loadtxt(fname=path)"
+REP.dump(np.random.random((3, 1)), 'folder1/archive1/archive2/numpy_test', dump=dump, pull=pull)
 
-# lets pull some data
-print REP.pull(relativePath="folder1/folder2/folder3", name='pickle_text_test2')
+# pull data back
+print(REP.pull("folder1/folder2/folder3/pickle_text_test2"))
 >>> another text
-print REP.pull(relativePath='folder1/archive1/archive2', name='numpy_test')
->>> array([[ 0.13943792],
-           [ 0.04656474],
-           [ 0.56458421]])
+print(REP.pull('folder1/archive1/archive2/numpy_test'))
+>>> [0.13943792 0.04656474 0.56458421]
+
+# update, copy, rename and remove
+REP.update("an updated text", 'pickle_text_test1')
+REP.copy_file('pickle_text_test1', 'folder1/copy_of_text')
+REP.rename_file('folder1/copy_of_text', 'folder1/renamed_text')
+REP.remove_file('folder1/renamed_text')
 ```
 
+An instance keeps the list of files it loaded or saved last. To see files that another instance or process added, call `REP.refresh_repository()`.
+
 ## Online Documentation
-http://bachiraoun.github.io/pyrep/
+https://bachiraoun.github.io/pyrep/
 
 ## Author
 Bachir Aoun
-
-
-
-
-

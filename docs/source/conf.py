@@ -31,7 +31,6 @@
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.imgmath',
     'sphinx.ext.githubpages',
 ]
 
@@ -62,9 +61,9 @@ author = u'Bachir Aoun'
 #
 # The short X.Y version.
 try:
-    # get pysimplelog version
+    # get pyrep version
     from pyrep import __version__ as VER
-except:
+except ImportError:
     VER = "unknown"
 version = VER
 # The full version, including alpha/beta/rc tags.
@@ -79,7 +78,7 @@ rst_epilog = """
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -177,7 +176,7 @@ project_name = html_title
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = []
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied

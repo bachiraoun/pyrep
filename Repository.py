@@ -4,142 +4,56 @@ Usage:
 
 .. code-block:: python
 
-    from __future__ import print_function
     import os
-    import warnings
-    from pprint import pprint
-
-    # numpy imports
     import numpy as np
-
-    # import Repository
     from pyrep import Repository
 
-    # initialize Repository instance
-    REP=Repository()
-
-    # create a path pointing to user home
+    # any directory can be a repository
     PATH = os.path.join(os.path.expanduser("~"), 'pyrepTest_canBeDeleted')
 
-    # check if directory exist
-    if REP.is_repository(PATH):
-        REP.remove_repository(path=PATH, removeEmptyDirs=True)
+    REP = Repository()
+    print(REP.path)     # None, nothing is created or loaded yet
+    success, message = REP.create_repository(PATH, replace=True)    # replace=True erases PATH when it already is a repository
+    print(success)
 
+    REP.add_directory("folder1/folder2/folder3")
+    REP.add_directory("directory1/directory2")
 
-    # print repository path
-    print("repository path --> %s"%str(REP.path))
+    REP.dump("This is a string to pickle and store in the repository", 'pickled')
+    REP.dump([1, 2, 3], "folder1/folder2/folder3/list.pkl")
 
-    # create repository in path
-    print("\\n\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))))
-    success,message = REP.create_repository(PATH)
-    assert success, message
-    print('\\nRepository path --> %s'%str(REP.path))
+    dump = "import numpy as np; dump = lambda path, value: np.savetxt(fname=path, X=value, fmt='%.6e')"
+    pull = "import numpy as np; pull = lambda path: np.loadtxt(fname=path)"
+    REP.dump(np.array([0.5, 0.25, 0.125]), 'text.dat', dump=dump, pull=pull)
 
-    # add directories
-    success,message = REP.add_directory("folder1/folder2/folder3")
-    if not success:
-        print(message)
+    print(REP.pull('text.dat'))
+    print(REP.pull("folder1/folder2/folder3/list.pkl"))
 
-    success,message = REP.add_directory("folder1/archive1/archive2/archive3/archive3")
-    if not success:
-        print(message)
+    REP.update("This is an updated string", 'pickled')
+    print(REP.pull('pickled'))
+    REP.copy_file('pickled', 'directory1/copy')
+    REP.rename_file('directory1/copy', 'directory1/renamed')
+    REP.remove_file('directory1/renamed')
 
-    success,message = REP.add_directory("directory1/directory2")
-    if not success:
-        print(message)
-
-    # dump files
-    value = "This is a string data to pickle and store in the repository"
-    success,message = REP.dump_file(value, relativePath='pickled', dump=None, pull=None, replace=True)
-    if not success:
-        print(message)
-
-    value = np.random.random(3)
-    dump  = "import numpy as np; dump=lambda path,value:np.savetxt(fname=path, X=value, fmt='%.6e')"
-    pull  = "import numpy as np; pull=lambda path:np.loadtxt(fname=path)"
-
-    success,message = REP.dump(value, relativePath='text.dat', dump=dump, pull=pull, replace=True)
-    if not success:
-        print(message)
-
-    success,message = REP.dump(value, relativePath="folder1/folder2/folder3/folder3Pickled.pkl", replace=True)
-    if not success:
-        print(message)
-
-    success,message = REP.dump(value, relativePath="folder1/archive1/archive1Pickled1", replace=True)
-    if not success:
-        print(message)
-
-    success,message = REP.dump(value, relativePath="folder1/archive1/archive1Pickled2", replace=True)
-    if not success:
-        print(message)
-
-    success,message = REP.dump(value, relativePath="folder1/archive1/archive2/archive2Pickled1", replace=True)
-    if not success:
-        print(message)
-
-    # pull data
-    data = REP.pull(relativePath='text.dat')
-    print('\\n\\nPulled text data --> %s'%str(data))
-
-
-    data = REP.pull(relativePath="folder1/folder2/folder3/folder3Pickled.pkl")
-    print('\\n\\nPulled pickled data --> %s'%str(data))
-
-
-    # update
-    value = "This is an updated string"
-    REP.update(value, relativePath='pickled')
-    print('\\nUpdate pickled data to --> %s'%value)
-
-    # walk repository files
-    print('\\n\\nwalk repository files relative path')
-    print('------------------------------------')
     for f in REP.walk_files_path(recursive=True):
         print(f)
-
-
-    # walk repository, directories
-    print('\\n\\nwalk repository directories relative path')
-    print('------------------------------------------')
     for d in REP.walk_directories_path(recursive=True):
         print(d)
-
-
-    print('\\n\\nRepository print -->')
     print(REP)
-
-
-    print('\\n\\nRepository representation -->')
     print(repr(REP))
 
+    REP.create_package()    # a tar file of the repository, created next to it
+    print(sorted(n for n in os.listdir(ROOT)))
 
-    print('\\n\\nRepository to list -->')
-    for fdDict in REP.get_repository_state():
-        k = list(fdDict)[0]
-        print("%s: %s"%(k,str(fdDict[k])))
+    other = Repository(PATH)
+    REP.dump("added later", 'late')
+    print('late' in list(other.walk_files_path()))
+    other.refresh_repository()    # an instance only sees what others added after a refresh
+    print('late' in list(other.walk_files_path()))
+    other.close()
 
-
-    print('\\n\\nCreate package from repository ...')
-    REP.create_package(path=None, name=None)
-
-    # Try to load
-    try:
-        REP.load_repository(PATH)
-    except:
-        loadable = False
-    finally:
-        loadable = True
-
-    # Print whether repository is loadable
-    print('\\nIs repository loadable -->',loadable)
-
-
-    # remove all repo data
     REP.remove_repository(removeEmptyDirs=True)
-
-    # check if there is a repository in path
-    print( "\\n\\nIs path '%s' a repository --> %s"%(PATH, str(REP.is_repository(PATH))) )
+    print(REP.is_repository(PATH))
 
 
 output
@@ -147,98 +61,64 @@ output
 
 .. code-block:: python
 
-    repository path --> None
-
-    Is path '/Users/BA642A/pyrepTest_canBeDeleted' a repository --> False
-    Repository path --> /Users/BA642A/pyrepTest_canBeDeleted
-
-    Pulled text data --> [ 0.5496571   0.8600462   0.05659633]
-
-    Pulled pickled data --> [ 0.54965711  0.86004617  0.05659633]
-
-    Update pickled data to --> This is an updated string
-
-    walk repository files relative path
-    ------------------------------------
+    None
+    True
+    [0.5   0.25  0.125]
+    [1, 2, 3]
+    This is an updated string
     pickled
     text.dat
-    folder1/folder2/folder3/folder3Pickled.pkl
-    folder1/archive1/archive1Pickled1
-    folder1/archive1/archive1Pickled2
-    folder1/archive1/archive2/archive2Pickled1
-
-    walk repository directories relative path
-    ------------------------------------------
+    folder1/folder2/folder3/list.pkl
     folder1
     directory1
     folder1/folder2
-    folder1/archive1
     folder1/folder2/folder3
-    folder1/archive1/archive2
-    folder1/archive1/archive2/archive3
-    folder1/archive1/archive2/archive3/archive3
     directory1/directory2
-
-    Repository print -->
-    /Users/BA642A/pyrepTest_canBeDeleted
+    /home/user/pyrepTest_canBeDeleted
       pickled
       text.dat
       /directory1
         /directory2
       /folder1
-        /archive1
-        archive1Pickled1
-        archive1Pickled2
-          /archive2
-          archive2Pickled1
-            /archive3
-              /archive3
         /folder2
           /folder3
-          folder3Pickled.pkl
+          list.pkl
+    pyrep Repository (Version 3.2.2) @/home/user/pyrepTest_canBeDeleted [5 directories] [3 files] 
+    ['pyrepTest_canBeDeleted', 'pyrepTest_canBeDeleted.tar']
+    False
+    True
+    False
 
-    Repository representation -->
-    pyrep Repository (Version 3.0.0) @/Users/BA642A/pyrepTest_canBeDeleted [6 files] [9 directories]
 
-    Repository to list -->
-    : {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    pickled: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
-    text.dat: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
-    directory1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    directory1/directory2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/archive1: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/archive1/archive1Pickled1: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
-    folder1/archive1/archive1Pickled2: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
-    folder1/archive1/archive2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/archive1/archive2/archive2Pickled1: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
-    folder1/archive1/archive2/archive3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/archive1/archive2/archive3/archive3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/folder2: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/folder2/folder3: {'pyrepdirinfo': True, 'type': 'dir', 'exists': True}
-    folder1/folder2/folder3/folder3Pickled.pkl: {'pyrepfileinfo': True, 'type': 'file', 'exists': True}
+Errors
+======
+Every method that can fail takes a *raiseError* argument. With the default ``True`` a failure raises an
+``Exception``. With ``False`` the method returns a tuple of a success flag and a message instead.
 
-    Create package from repository ...
 
-    Is repository loadable --> True
-
-    Is path '/Users/BA642A/pyrepTest_canBeDeleted' a repository --> False
+Concurrency and crashes
+=======================
+Threads and processes can use the same repository at the same time. Access is coordinated by
+`pylocker <https://pypi.org/project/pylocker/>`_ locks. The repository index and the info files are
+written to a temporary file and then renamed into place, and so are data files, which means a crash
+leaves the previous content complete. Leftover temporary files of crashed writes are removed with
+:py:meth:`~pyrep.Repository.Repository.remove_temporary_files`. If the process hosting the lock server exits, the next operation
+of another process takes its place.
 """
 
 # standard distribution imports
 from __future__ import print_function
-import os, sys, re, time, uuid, warnings, tarfile, shutil, traceback, inspect
-from datetime import datetime
+import os, sys, re, time, uuid, warnings, tarfile, shutil, traceback, inspect, threading, weakref
 from functools import wraps
 from pprint import pprint
 import copy
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 
 # import pylocker ServerLocker singleton implementation
-from pylocker import ServerLocker, FACTORY
+from pylocker import FACTORY
 
 # pyrep imports
 from .__pkginfo__ import __version__
@@ -246,55 +126,118 @@ from .__pkginfo__ import __version__
 # python version dependant imports
 if sys.version_info >= (3, 0):
     # This is python 3
-    str        = str
-    long       = int
-    unicode    = str
-    bytes      = bytes
     basestring = str
     def makedirs(name, mode=0o777):
+        """
+        Creates a directory and its missing parents.
+
+        :Parameters:
+            #. name (str): The directory path.
+            #. mode (int): The permissions of the created directories.
+        """
         return os.makedirs(name=name, mode=mode, exist_ok=True)
+    replace_file = os.replace
 else:
-    str        = str
-    unicode    = unicode
-    bytes      = str
-    long       = long
-    basestring = basestring
     def makedirs(name, mode=0o777):
+        """
+        Creates a directory and its missing parents.
+
+        :Parameters:
+            #. name (str): The directory path.
+            #. mode (int): The permissions of the created directories.
+        """
         return os.makedirs(name=name, mode=mode)
+    def replace_file(source, destination):
+        # os.rename cannot overwrite an existing file on Windows
+        if os.name == 'nt' and os.path.exists(destination):
+            os.remove(destination)
+        os.rename(source, destination)
+
+# Every instance of a process that works on the same repository shares one locker, so the locker may only
+# be stopped when the last of those instances is closed. Keys are server file paths.
+LOCKER_USERS       = {}
+LOCKER_USERS_MUTEX = threading.RLock()
 
 # set warnings filter to always
 warnings.simplefilter('always')
 
 
 def get_pickling_errors(obj, seen=None):
-    """Investigate pickling errors."""
-    if seen == None:
+    """
+    Investigates why an object cannot be pickled by looking for the attributes that cannot be pickled.
+
+    :Parameters:
+        #. obj (object): The object that failed to pickle.
+        #. seen (None, list): Attribute values already investigated, which stops endless recursion.
+
+    :Returns:
+        #. errors (None, str, dict): None when the object has no state to look at, a message when its
+           state is empty or unreadable, otherwise a dictionary of attribute name to the investigation
+           of that attribute.
+    """
+    if seen is None:
         seen = []
-    if hasattr(obj, "__getstate__"):
-        state = obj.__getstate__()
-    else:
+    if not hasattr(obj, "__getstate__"):
         return None
-    if state == None:
+    try:
+        state = obj.__getstate__()
+    except Exception as err:
+        return 'unable to read the object state (%s)'%str(err)
+    if state is None:
         return 'object state is None'
-    if isinstance(state,tuple):
-        if not isinstance(state[0], dict):
-            state=state[1]
-        else:
-            state=state[0].update(state[1])
+    if isinstance(state, tuple):
+        merged = {}
+        for part in state:
+            if isinstance(part, dict):
+                merged.update(part)
+        state = merged
     result = {}
-    for i in state:
+    for name in state:
         try:
-            pickle.dumps(state[i], protocol=2)
-        except pickle.PicklingError as e:
-            if not state[i] in seen:
-                seen.append(state[i])
-                result[i]=get_pickling_errors(state[i],seen)
+            pickle.dumps(state[name], protocol=2)
+        except Exception:
+            if not any(state[name] is item for item in seen):
+                seen.append(state[name])
+                result[name] = get_pickling_errors(state[name], seen)
     return result
+
+
+def parse_pickle_protocol(text):
+    """
+    Reads the protocol number of a pickle or dill keyword such as the 2 of 'pickle2'.
+
+    :Parameters:
+        #. text (str): The protocol number as text.
+
+    :Returns:
+        #. protocol (int): The protocol, at least -1.
+
+    :Raises:
+        #. Exception: If text is not an integer or is smaller than -1.
+    """
+    try:
+        protocol = int(text)
+    except ValueError:
+        raise Exception("protocol must be an integer >=-1")
+    if protocol < -1:
+        raise Exception("protocol must be an integer >=-1")
+    return protocol
 
 
 
 def get_dump_method(dump, protocol=-1):
-    """Get dump function code string"""
+    """
+    Gets the source code of the function that dumps a value to a file.
+
+    :Parameters:
+        #. dump (None, str): None or 'pickle' dump with pickle, 'pickleN' and 'dillN' choose a protocol N,
+           'dill', 'json', 'numpy' and 'numpy_text' are the other keywords. Any other string is taken as
+           source code that defines `dump(path, value)` and is returned as given.
+        #. protocol (int): The pickle protocol used by the 'pickle' keyword.
+
+    :Returns:
+        #. code (str): Source code that defines `dump(path, value)`.
+    """
     if dump is None:
         dump = 'pickle'
     if dump.startswith('pickle'):
@@ -302,17 +245,13 @@ def get_dump_method(dump, protocol=-1):
             proto = protocol
         else:
             proto = dump.strip('pickle')
-        try:
-            proto = int(proto)
-            assert proto>=-1
-        except:
-            raise Exception("protocol must be an integer >=-1")
+        proto = parse_pickle_protocol(proto)
         code = """
 def dump(path, value):
     import os
     try:
         import cPickle as pickle
-    except:
+    except ImportError:
         import pickle
     with open(path, 'wb') as fd:
         pickle.dump( value, fd, protocol=%i )
@@ -324,11 +263,7 @@ def dump(path, value):
             proto = 2
         else:
             proto = dump.strip('dill')
-            try:
-                proto = int(proto)
-                assert proto>=-1
-            except:
-                raise Exception("protocol must be an integer >=-1")
+            proto = parse_pickle_protocol(proto)
         code = """
 def dump(path, value):
     import dill, os
@@ -341,7 +276,7 @@ def dump(path, value):
         code = """
 def dump(path, value):
     import json, os
-    with open(path, 'wb') as fd:
+    with open(path, 'w') as fd:
         json.dump( value,fd, ensure_ascii=True, indent=4 )
         fd.flush()
         os.fsync(fd.fileno())
@@ -362,7 +297,8 @@ def dump(path, value):
     numpy.savetxt(fname=path, X=value, fmt='%.6e')
 """
     else:
-        assert isinstance(dump, basestring), "dump must be None or a string"
+        if not (isinstance(dump, basestring)):
+            raise Exception("dump must be None or a string")
         code = dump
     # return
     return code
@@ -371,13 +307,23 @@ def dump(path, value):
 
 
 def get_pull_method(pull):
-    """Get pull function code string"""
+    """
+    Gets the source code of the function that pulls a value from a file.
+
+    :Parameters:
+        #. pull (None, str): None or a keyword starting with 'pickle', 'dill', 'json', 'numpy' or
+           'numpy_text'. Any other string is taken as source code that defines `pull(path)` and is
+           returned as given.
+
+    :Returns:
+        #. code (str): Source code that defines `pull(path)`.
+    """
     if pull is None or pull.startswith('pickle'):
         code = """
 def pull(path):
     try:
         import cPickle as pickle
-    except:
+    except ImportError:
         import pickle
     with open(path, 'rb') as fd:
         return pickle.load( fd )
@@ -412,15 +358,128 @@ def pull(path):
         return numpy.loadtxt(fname=fd)
 """
     else:
-        assert isinstance(pull, basestring), "pull must be None or a string"
+        if not (isinstance(pull, basestring)):
+            raise Exception("pull must be None or a string")
         code = pull
     # return
     return code
 
 
 
+def get_temporary_path(path):
+    """
+    Builds the path of a temporary file for writing a file atomically. The name is unique to the
+    process and to every call, so writers can never write the same temporary file, even if the locks
+    that normally keep them apart fail. The original file name stays at the end, because dump methods may
+    depend on its extension.
+
+    :Parameters:
+        #. path (str): The file that is going to be written.
+
+    :Returns:
+        #. temporaryPath (str): A path in the same directory, which makes the final rename atomic.
+    """
+    return os.path.join(os.path.dirname(path), '.pyreptmp_%i_%s_%s'%(os.getpid(), uuid.uuid4().hex[:8], os.path.basename(path)))
+
+
+def write_pickle_atomically(path, value, protocol):
+    """
+    Pickles a value into a file such that a crash or a kill leaves either the complete previous content or
+    the complete new content, never a partial file. The value is written to a temporary file next to the
+    destination and then moved over it in a single step.
+
+    :Parameters:
+        #. path (str): The file to write.
+        #. value (object): The value to pickle.
+        #. protocol (int): The pickle protocol.
+    """
+    tempPath = get_temporary_path(path)
+    try:
+        with open(tempPath, 'wb') as fd:
+            pickle.dump( value, fd, protocol=protocol )
+            fd.flush()
+            os.fsync(fd.fileno())
+        replace_file(tempPath, path)
+    except Exception:
+        # A failed write must not leave a temporary file behind
+        if os.path.isfile(tempPath):
+            os.remove(tempPath)
+        raise
+
+
+def get_class_name(value):
+    """
+    Gets the name of the class of a value, which is what the class file of a repository file stores.
+    A name is stored instead of the class itself because many classes, such as functions, cannot be pickled.
+
+    :Parameters:
+        #. value (object): Any value, None included.
+
+    :Returns:
+        #. name (None, str): The module and qualified class name, or None when the value is None.
+    """
+    if value is None:
+        return None
+    klass = value.__class__
+    return '%s.%s'%(klass.__module__, getattr(klass, '__qualname__', klass.__name__))
+
+
+def dump_atomically(dumpFunc, path, value):
+    """
+    Runs a dump function so that a crash or a failure leaves the previous content of the file untouched.
+    The function writes to a temporary file next to the destination, which is moved over the destination
+    only once the function returned.
+
+    :Parameters:
+        #. dumpFunc (callable): The dump function, called as dumpFunc(path=..., value=...).
+        #. path (str): The file to write.
+        #. value (object): The value to dump.
+
+    :Raises:
+        #. Exception: If the dump function fails or does not create the file it was given.
+    """
+    tempPath = get_temporary_path(path)
+    try:
+        dumpFunc(path=tempPath, value=value)
+        if not os.path.isfile(tempPath):
+            raise Exception("the dump method did not create the file it was given")
+        replace_file(tempPath, path)
+    except Exception:
+        # A failed write must not leave a temporary file behind
+        if os.path.isfile(tempPath):
+            os.remove(tempPath)
+        raise
+
+
+def copy_atomically(source, destination):
+    """
+    Copies a file so that a crash leaves either the complete previous destination or the complete copy.
+
+    :Parameters:
+        #. source (str): The file to copy.
+        #. destination (str): The file to create or replace.
+    """
+    tempPath = get_temporary_path(destination)
+    try:
+        shutil.copyfile(source, tempPath)
+        replace_file(tempPath, destination)
+    except Exception:
+        if os.path.isfile(tempPath):
+            os.remove(tempPath)
+        raise
+
+
 def path_required(func):
-    """Decorate methods when repository path is required."""
+    """
+    Decorates the methods that only make sense once a repository is created or loaded. Called too early,
+    they warn and return None.
+
+    :Parameters:
+        #. func (callable): The method to decorate.
+
+    :Returns:
+        #. wrapper (callable): The decorated method.
+    """
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.path is None:
@@ -430,49 +489,78 @@ def path_required(func):
     return wrapper
 
 
-class InterpreterError(Exception): pass
+class InterpreterError(Exception):
+    """
+    Raised when the source code of a dump or pull method cannot be compiled or run.
+    """
 
 def my_exec(cmd, name, description):
+    """
+    Runs source code and returns the function it defines under the given name.
+
+    :Parameters:
+        #. cmd (str): The source code.
+        #. name (str): The name of the function the code must define.
+        #. description (str): What the code is for, used in the error message.
+
+    :Returns:
+        #. func (callable): The function defined by the code.
+
+    :Raises:
+        #. InterpreterError: If the code cannot be compiled, raises when run, or does not define the function.
+    """
     try:
-        l = {}
-        exec(cmd, l)
-        func = l[name]
+        namespace = {}
+        exec(cmd, namespace)
+        func = namespace[name]
     except SyntaxError as err:
-        error_class = err.__class__.__name__
-        detail = err.args[0]
-        line_number = err.lineno
+        errorClass = err.__class__.__name__
+        detail     = str(err.args[0]) if len(err.args) else ''
+        lineNumber = err.lineno
     except Exception as err:
-        error_class = err.__class__.__name__
-        detail = err.args[0]
-        cl, exc, tb = sys.exc_info()
-        line_number = traceback.extract_tb(tb)[-1][1]
+        errorClass = err.__class__.__name__
+        detail     = str(err)
+        lineNumber = traceback.extract_tb(sys.exc_info()[2])[-1][1]
     else:
         return func
-    raise InterpreterError("%s at line %d of %s: %s" % (error_class, line_number, description, detail))
-
-
+    raise InterpreterError("%s at line %d of %s: %s" % (errorClass, lineNumber, description, detail))
 
 
 
 def copy_tree(src, dst, srcDirDict,
-              filAttr=['.%s_pyrepfileinfo','.%s_pyrepfileclass'],
-              dirAttr=['.pyrepdirinfo','.pyreprepo']):
-    """copy repository directory tree from source to destination
-    Stopped using from distutils.dir_util.copy_tree for 2 reasons.
-    #. If in the same session dst is removed, this will fail (it's a bug in distutils)
-    #. better to reimplement to copy reporsitory files only using srcDirDict
+              filAttr=('.%s_pyrepfileinfo','.%s_pyrepfileclass'),
+              dirAttr=('.pyrepdirinfo','.pyreprepo')):
+    """
+    Copies the tracked part of a repository directory tree from a source to a destination.
+    It does not use the distutils copy_tree, which fails when the destination was removed earlier in the same session.
+
+    :Parameters:
+        #. src (str): The source directory.
+        #. dst (str): The destination directory, created when missing.
+        #. srcDirDict (dict): Single key dictionary of the source directory name to the list of
+           files and directories tracked in it.
+        #. filAttr (tuple): Name patterns of the files that accompany every tracked file, where %s is the file name.
+        #. dirAttr (tuple): Names of the files that accompany every directory.
+
+    :Returns:
+        #. files (list): The destination paths that were copied.
     """
     files = []
-    assert os.path.isdir(src), "given source directory '%s' does not exist"%src
+    if not (os.path.isdir(src)):
+        raise Exception("given source directory '%s' does not exist"%src)
     src = src.rstrip(os.sep)
     dst = dst.rstrip(os.sep)
-    assert src!=dst, "source and destination directories are given the same '%s'"%src
-    assert isinstance(srcDirDict, dict), "source directory dictionary must be a dictionary "
-    assert len(srcDirDict) == 1, "source directory dictionary must be a dictionary of length 1"
+    if not (src!=dst):
+        raise Exception("source and destination directories are given the same '%s'"%src)
+    if not (isinstance(srcDirDict, dict)):
+        raise Exception("source directory dictionary must be a dictionary ")
+    if not (len(srcDirDict) == 1):
+        raise Exception("source directory dictionary must be a dictionary of length 1")
     dirName = list(srcDirDict)[0]
     dirList = srcDirDict[dirName]
     srcDirName = os.path.basename(src)
-    assert dirName == srcDirName, "source directory dictionary single key must be the source directory name '%s' but '%s' is found"%(srcDirName, dirName)
+    if not (dirName == srcDirName):
+        raise Exception("source directory dictionary single key must be the source directory name '%s' but '%s' is found"%(srcDirName, dirName))
     # create destination directory
     if not os.path.isdir(dst):
         makedirs(dst)
@@ -496,7 +584,8 @@ def copy_tree(src, dst, srcDirDict,
     # copy directories
     for d in dirList:
         if isinstance(d, dict):
-            assert len(d) == 1
+            if not (len(d) == 1):
+                raise Exception('Condition not met: len(d) == 1')
             fname = list(d)[0]
             src1  = os.path.join(src,fname)
             dst1  = os.path.join(dst,fname)
@@ -541,16 +630,18 @@ class Repository(object):
         self.__fileInfo  = '.%s_pyrepfileinfo'  # %s replaces file name
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
-        #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
         self.__isDefaultPassword = password is None
         if password is None:
             password = "pyrep_repository_b@11a"
-        assert isinstance(password, basestring), "password must be None or a string"
+        if not (isinstance(password, basestring)):
+            raise Exception("password must be None or a string")
         self.__password = password
         self.__locker   = None
         # set default protocols
-        assert isinstance(pickleProtocol, int), "pickleProtocol must be integer"
-        assert pickleProtocol>=-1, "pickleProtocol must be >=-1"
+        if not (isinstance(pickleProtocol, int)):
+            raise Exception("pickleProtocol must be integer")
+        if not (pickleProtocol>=-1):
+            raise Exception("pickleProtocol must be >=-1")
         self._DEFAULT_PICKLE_PROTOCOL = pickleProtocol
         # initialize repository
         self.reset()
@@ -558,7 +649,8 @@ class Repository(object):
         self.timeout = timeout
         # if path is not None, load existing repository
         if path is not None:
-            assert self.is_repository(path), "given path is not a repository. use create_repository or give a valid repository path"
+            if not (self.is_repository(path)):
+                raise Exception("given path is not a repository. use create_repository or give a valid repository path")
             self.load_repository(path)
 
     def __str__(self):
@@ -598,16 +690,11 @@ class Repository(object):
     def __setstate__(self, state):
         path          = state['_Repository__path']
         needsPassword = not state['_Repository__isDefaultPassword'] and state['_Repository__password'] is None
-        locker        = None
-        if path is not None and not needsPassword:
-            repoLock   = state['_Repository__repoLock']
-            password   = state['_Repository__password']
-            serverFile = os.path.join(path, repoLock)
-            locker     = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False)
-            locker.start()
-        state['_Repository__locker'] = locker
+        state['_Repository__locker'] = None
         # set state
         self.__dict__ = state
+        if path is not None and not needsPassword:
+            self.__start_locker(os.path.join(path, self.__repoLock))
         if needsPassword:
             self.reset()
             warnings.warn("A custom repository password is not stored in a pickle. Use Repository(path, password=...) to reopen the repository.")
@@ -664,26 +751,16 @@ class Repository(object):
         _walk_dir(relPath='', relDirList=dirs, relSynchedList=synched)
         return synched, errors
 
-    #def __setstate__(self, state):
-    #    self.__dict__ = state
-    #    # start locker if path is not None
-    #    if self.__dict__['_Repository__path'] is not None:
-    #        #self.__dict__['_Repository__locker'].start()
-    #        repoPath   = self.__dict__['_Repository__path']
-    #        repolock   = self.__dict__['_Repository__repoLock']
-    #        password   = self.__dict__['_Repository__password']
-    #        serverFile = os.path.join(repoPath, repolock)
-    #        self.__locker = FACTORY(key=serverFile, password=password, serverFile=serverFile, autoconnect=False, reconnect=False)
-    #        self.__locker.start()
-
 
     @property
     def len(self):
+        """The number of directories and files tracked in the repository, as a dictionary."""
         ndirs, nfiles = self.get_stats()
         return {'number_of_directories':ndirs, 'number_of_files':nfiles}
 
     @property
     def locker(self):
+        """The locker this instance uses to coordinate access to the repository."""
         return self.__locker
 
     def __save_dirinfo(self, description, dirInfoPath, create=False):
@@ -712,10 +789,7 @@ class Repository(object):
                     'create_utctime':createTime,
                     'last_update_utctime':lastUpdateTime,
                     'description':description}
-            with open(dirInfoPath, 'wb') as fd:
-                pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                fd.flush()
-                os.fsync(fd.fileno())
+            write_pickle_atomically(dirInfoPath, info, self._DEFAULT_PICKLE_PROTOCOL)
 
     def __clean_before_after(self, stateBefore, stateAfter, keepNoneEmptyDirectory=True):
         """clean repository given before and after states"""
@@ -744,13 +818,11 @@ class Repository(object):
                     removeFiles.append(os.path.join(self.__path,relaPath,self.__dirInfo))
                     removeFiles.append(os.path.join(self.__path,relaPath,self.__dirLock))
                 elif btype == 'file':
+                    parentPath = os.path.join(self.__path,os.path.dirname(relaPath))
                     removeFiles.append(os.path.join(self.__path,relaPath))
-                    removeFiles.append(os.path.join(self.__path,relaPath,self.__fileInfo%basename))
-                    removeFiles.append(os.path.join(self.__path,relaPath,self.__fileLock%basename))
-                else:
-                    ### MUST VERIFY THAT ONCE pyrepobjectdir IS IMPLEMENTED
-                    removeDirs.append(os.path.join(self.__path,relaPath))
-                    removeFiles.append(os.path.join(self.__path,relaPath,self.__fileInfo%basename))
+                    removeFiles.append(os.path.join(parentPath,self.__fileInfo%basename))
+                    removeFiles.append(os.path.join(parentPath,self.__fileClass%basename))
+                    removeFiles.append(os.path.join(parentPath,self.__fileLock%basename))
                 # remove files
                 for fpath in removeFiles:
                     if os.path.isfile(fpath):
@@ -765,34 +837,10 @@ class Repository(object):
                             try:
                                 shutil.rmtree(dpath)
                             except Exception as err:
-                                errors.append("Unable to clean directory '%s' (%s)"%(fpath, str(err)))
+                                errors.append("Unable to clean directory '%s' (%s)"%(dpath, str(err)))
         # return result and errors list
         return len(errors)==0, errors
 
-    #def __set_repository_directory(self, relativePath, dirList):
-    #    splitted = self.to_repo_relative_path(path=relativePath, split=True)
-    #    if splitted == ['']:
-    #        self.__repo['walk_repo'] = dirList
-    #        return True, ""
-    #    error = None
-    #    cDir  = self.__repo['walk_repo']
-    #    for idx, dirname in enumerate(splitted):
-    #        dList = [d for d in cDir if isinstance(d, dict)]
-    #        if not len(dList):
-    #            cDir = None
-    #            error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
-    #            break
-    #        cDict = [d for d in dList if dirname in d]
-    #        if not len(cDict):
-    #            cDir = None
-    #            error = "Repository relative directory '%s' not found"%os.sep.join(splitted[:idx])
-    #            break
-    #        if idx == len(splitted)-1:
-    #            cDict[0][dirname] = dirList
-    #        else:
-    #            cDir = cDict[0][dirname]
-    #    # return
-    #    return False, error
 
     def __get_repository_parent_directory(self, relativePath):
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
@@ -823,20 +871,17 @@ class Repository(object):
         # create and acquire lock
         error = None
         if lockFirst:
-            acquired, lockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+            acquired, lockId = self.__acquire_lock(self.__path)
             # check if acquired.
             if not acquired:
-                error = "code %s. Unable to aquire the repository lock. You may try again!"%(lockId,)
+                error = "code %s. Unable to acquire the repository lock. You may try again!"%(lockId,)
                 if raiseError:
                     raise Exception(error)
                 return False,error
         try:
             repoInfoPath = os.path.join(self.__path, self.__repoFile)
-            with open(repoInfoPath, 'wb') as fd:
-                self.__repo["last_update_utctime"] = time.time()
-                pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                fd.flush()
-                os.fsync(fd.fileno())
+            self.__repo["last_update_utctime"] = time.time()
+            write_pickle_atomically(repoInfoPath, self.__repo, self._DEFAULT_PICKLE_PROTOCOL)
         except Exception as err:
             error = "Unable to save repository (%s)"%str(err)
         # release lock
@@ -861,12 +906,18 @@ class Repository(object):
         else:
             fd.close()
         # check if it's a pyreprepo instance
-        assert isinstance(repo, dict), "pyrep repo must be a dictionary"
-        assert "create_utctime" in repo, "'create_utctime' must be a key in pyrep repo dict"
-        assert "last_update_utctime" in repo, "'last_update_utctime' must be a key in pyrep repo dict"
-        assert "pyrep_version" in repo, "'pyrep_version' must be a key in pyrep repo dict"
-        assert "walk_repo" in repo, "'walk_repo' must be a key in pyrep repo dict"
-        assert isinstance(repo['walk_repo'], list), "pyrep info 'walk_repo' key value must be a list"
+        if not (isinstance(repo, dict)):
+            raise Exception("pyrep repo must be a dictionary")
+        if not ("create_utctime" in repo):
+            raise Exception("'create_utctime' must be a key in pyrep repo dict")
+        if not ("last_update_utctime" in repo):
+            raise Exception("'last_update_utctime' must be a key in pyrep repo dict")
+        if not ("pyrep_version" in repo):
+            raise Exception("'pyrep_version' must be a key in pyrep repo dict")
+        if not ("walk_repo" in repo):
+            raise Exception("'walk_repo' must be a key in pyrep repo dict")
+        if not (isinstance(repo['walk_repo'], list)):
+            raise Exception("pyrep info 'walk_repo' key value must be a list")
         # return
         return repo
 
@@ -880,17 +931,15 @@ class Repository(object):
         if not self.is_repository(repoPath):
             raise Exception("No repository found in '%s'"%str(repoPath))
         # update locker serverFile and start
-        serverFile    = os.path.join(repoPath, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
-        self.__locker.start()
+        serverFile = os.path.join(repoPath, self.__repoLock)
+        self.__start_locker(serverFile)
         # acquire lock
         if safeMode:
             acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             # Code 2 = locker is neither server nor client — stale broken locker in FACTORY cache.
             # Regenerate a fresh ServerLocker whose __init__ picks up the current IP naturally.
             if not acquired and lockId == 2:
-                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, regenerate=True)
-                self.__locker.start()
+                self.__start_locker(serverFile, regenerate=True)
                 acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             # check if acquired.
             if not acquired:
@@ -934,8 +983,54 @@ class Repository(object):
         """Get repository unique name as generated when repository was created"""
         return self.__repo['repository_unique_name']
 
+    def __start_locker(self, serverFile, regenerate=False):
+        """
+        Gets and starts the locker shared by all the instances of this process that work on the same repository
+        and registers this instance as one of its users.
+        """
+        locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False, regenerate=regenerate)
+        locker.start()
+        with LOCKER_USERS_MUTEX:
+            LOCKER_USERS.setdefault(serverFile, weakref.WeakSet()).add(self)
+        self.__locker = locker
+        return locker
+
+    def __replace_locker(self, brokenLocker):
+        """
+        Replaces a locker whose server is gone. The first call elects this process as the new server,
+        instances and threads that follow adopt the locker the first one made.
+        """
+        with LOCKER_USERS_MUTEX:
+            if self.__locker is not brokenLocker:
+                return
+            serverFile = os.path.join(self.__path, self.__repoLock)
+            cached     = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
+            self.__start_locker(serverFile, regenerate=cached is brokenLocker)
+
+    def __acquire_lock(self, path):
+        """
+        Acquires a lock and, when the lock server is gone, takes its place and tries once more.
+        Codes 1 and 2 of the locker mean that there is no server to talk to.
+        """
+        locker = self.__locker
+        acquired, lockId = locker.acquire_lock(path=path, timeout=self.timeout)
+        if not acquired and lockId in (1, 2):
+            self.__replace_locker(locker)
+            acquired, lockId = self.__locker.acquire_lock(path=path, timeout=self.timeout)
+        return acquired, lockId
+
     def close(self):
-        if self.__locker is not None:
+        """
+        Closes this instance. The locker is stopped only when no other instance of this process still uses it.
+        """
+        if self.__locker is None:
+            return
+        serverFile = os.path.join(self.__path, self.__repoLock)
+        with LOCKER_USERS_MUTEX:
+            users = LOCKER_USERS.get(serverFile, weakref.WeakSet())
+            users.discard(self)
+            isLastUser = len(users) == 0
+        if isLastUser:
             self.__locker.stop()
 
     def get_stats(self):
@@ -963,7 +1058,6 @@ class Repository(object):
                 # or if the file or directory are not registered in the repository
                 warnings.warn("'%s' is neither a repository file nor a directory. This can happen when accessing the repository asynchronously."%(fdname))
                 continue
-                #raise Exception('Not sure what to do next. Please report issue')
         return ndirs,nfiles
 
 
@@ -1011,12 +1105,12 @@ class Repository(object):
                the repository from. If '.' or an empty string is passed,
                the current working directory will be used.
             #. verbose (boolean): Whether to be verbose about abnormalities
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing. In rare cases, when
                multiple processes are accessing the same repository components,
                different processes can alter repository components between
                successive lock releases of some other process. Bigger number
-               of trials lowers the likelyhood of failure due to multiple
+               of trials lowers the likelihood of failure due to multiple
                processes same time alteration.
             #. safeMode (boolean): loading repository can be done without
                acquiring from multiple processes. Not acquiring the lock
@@ -1025,9 +1119,12 @@ class Repository(object):
         :Returns:
              #. repository (pyrep.Repository): returns self repository with loaded data.
         """
-        assert isinstance(safeMode, bool), "safeMode must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(safeMode, bool)):
+            raise Exception("safeMode must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         repo = None
         for _trial in range(ntrials):
             try:
@@ -1044,6 +1141,73 @@ class Repository(object):
         if error is not None:
             raise Exception(error)
         return repo
+
+    @path_required
+    def refresh_repository(self, raiseError=True):
+        """
+        Reloads the tracked files and directories from disk. An instance keeps the list it loaded or saved
+        last, so files and directories added by other instances or processes only become visible after a refresh.
+
+        :Parameters:
+            #. raiseError (boolean): Whether to raise encountered error instead
+               of returning failure.
+
+        :Returns:
+            #. success (boolean): Whether refreshing was successful.
+            #. message (None, str): The reason of the failure, None when it succeeded.
+        """
+        if not isinstance(raiseError, bool):
+            raise Exception("raiseError must be boolean")
+        acquired, repoLockId = self.__acquire_lock(self.__path)
+        if not acquired:
+            error = "code %s. Unable to acquire the repository lock when refreshing. You may try again!"%(repoLockId,)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        error = None
+        try:
+            repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+            self.__repo['walk_repo'] = repo['walk_repo']
+        except Exception as err:
+            error = str(err)
+        self.__locker.release_lock(repoLockId)
+        if error is not None and raiseError:
+            raise Exception(error)
+        return error is None, error
+
+    @path_required
+    def remove_temporary_files(self, olderThan=3600):
+        """
+        Removes the temporary files that crashed writes left behind in the repository directories.
+        Temporary files are named after the process that wrote them and are never reused, so nothing else cleans them.
+
+        :Parameters:
+            #. olderThan (int, float): Only temporary files not modified for this many seconds are removed,
+               because a younger one can belong to a write in progress.
+
+        :Returns:
+            #. removed (list): The relative paths of the removed files.
+        """
+        if not (isinstance(olderThan, (int, float)) and olderThan >= 0):
+            raise Exception("olderThan must be a number >=0")
+        removed = []
+        now     = time.time()
+        for relativeDir in [''] + list(self.walk_directories_path(recursive=True)):
+            realDir = os.path.join(self.__path, relativeDir)
+            if not os.path.isdir(realDir):
+                continue
+            for name in os.listdir(realDir):
+                if not name.startswith('.pyreptmp_'):
+                    continue
+                realPath = os.path.join(realDir, name)
+                try:
+                    if now - os.path.getmtime(realPath) >= olderThan:
+                        os.remove(realPath)
+                        removed.append(os.path.join(relativeDir, name))
+                except OSError:
+                    # The writer may have finished or removed it in the meantime
+                    pass
+        return removed
 
     def create_repository(self, path, info=None, description=None, replace=False, allowNoneEmpty=True, raiseError=True):
         """
@@ -1070,20 +1234,24 @@ class Repository(object):
             #. success (boolean): Whether creating repository was successful
             #. message (None, str): Any returned message.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(allowNoneEmpty, bool), "allowNoneEmpty must be boolean"
-        assert isinstance(replace, bool), "replace must be boolean"
-        assert isinstance(path, basestring), "path must be string"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(allowNoneEmpty, bool)):
+            raise Exception("allowNoneEmpty must be boolean")
+        if not (isinstance(replace, bool)):
+            raise Exception("replace must be boolean")
+        if not (isinstance(path, basestring)):
+            raise Exception("path must be string")
         if info is None:
             info = ''
         try:
             pickle.dumps(info)
         except Exception as err:
             raise Exception("info must be None or any pickle writable type of data (%s)"%str(err))
-        #assert isinstance(info, basestring), "info must be None or a string"
         if description is None:
             description = ''
-        assert isinstance(description, basestring), "description must be None or a string"
+        if not (isinstance(description, basestring)):
+            raise Exception("description must be None or a string")
         # get real path
         if path.strip() in ('','.'):
             path = os.getcwd()
@@ -1121,10 +1289,8 @@ class Repository(object):
         # set locker
         error = None
         try:
-            serverFile    = os.path.join(self.__path, self.__repoLock)
-            self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
-            #self.__locker.debugMode = True
-            self.__locker.start()
+            serverFile = os.path.join(self.__path, self.__repoLock)
+            self.__start_locker(serverFile)
         except Exception as err:
             error = "Unable to start the repository locker (%s)"%(str(err),)
         # save repository
@@ -1145,9 +1311,8 @@ class Repository(object):
             message.append(error)
             message.append("Absolute path and directories might be created but no pyrep Repository is created. Previous repository state restored")
             if self.__path is not None:
-                serverFile    = os.path.join(self.__path, self.__repoLock)
-                self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
-                self.__locker.start()
+                serverFile = os.path.join(self.__path, self.__repoLock)
+                self.__start_locker(serverFile)
             if raiseError:
                 raise Exception('\n'.join(message))
             return False, '\n'.join(message)
@@ -1160,13 +1325,14 @@ class Repository(object):
 
         :Parameters:
             #. path (None, string): The path the repository to remove.
-            #. password (None, string): If path is not for this isntance
+            #. password (None, string): If path is not for this instance
                repository, a new Repository must be created and this
                password would be given upon instanciation
             #. removeEmptyDirs (boolean): Whether to remove remaining empty
                directories including repository one.
         """
-        assert isinstance(removeEmptyDirs, bool), "removeEmptyDirs must be boolean"
+        if not (isinstance(removeEmptyDirs, bool)):
+            raise Exception("removeEmptyDirs must be boolean")
         if path is not None:
             if path != self.__path:
                 repo = Repository(password=password)
@@ -1175,9 +1341,12 @@ class Repository(object):
                 repo = self
         else:
             repo = self
-        assert repo.path is not None, "path is not given and repository is not initialized"
-        assert repo.locker.isServer, "It's not safe to remove repository tree from a client"
-        assert not len(repo.locker._clientsLUT), "It's not safe to remove repository tree when other instances are still connected"
+        if not (repo.path is not None):
+            raise Exception("path is not given and repository is not initialized")
+        if not (repo.locker.isServer):
+            raise Exception("It's not safe to remove repository tree from a client")
+        if not (not len(repo.locker._clientsLUT)):
+            raise Exception("It's not safe to remove repository tree when other instances are still connected")
         # remove repo files and directories
         for fdict in reversed(repo.get_repository_state()):
             relaPath   = list(fdict)[0]
@@ -1204,10 +1373,12 @@ class Repository(object):
             os.remove(os.path.join(repo.path,self.__repoFile))
         if os.path.isfile(os.path.join(repo.path,self.__repoLock)):
             os.remove(os.path.join(repo.path,self.__repoLock))
+        # close repo first, the locker keeps its own lock file in the directory until it stops
+        repo.close()
+        if os.path.isfile(os.path.join(repo.path,self.__repoLock+'.lock')):
+            os.remove(os.path.join(repo.path,self.__repoLock+'.lock'))
         if not len(os.listdir(repo.path)) and removeEmptyDirs:
             shutil.rmtree( repo.path )
-        # close repo
-        repo.close()
 
     @path_required
     def save(self, description=None, raiseError=True, ntrials=3):
@@ -1220,13 +1391,13 @@ class Repository(object):
                If given will be replaced.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -1234,20 +1405,24 @@ class Repository(object):
             #. error (None, string): Fail to save repository message in case
                saving is not successful. If success is True, error will be None.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # get description
         if description is not None:
-            assert isinstance(description, basestring), "description must be None or a string"
+            if not (isinstance(description, basestring)):
+                raise Exception("description must be None or a string")
         dirInfoPath = os.path.join(self.__path, self.__dirInfo)
         if description is None and not os.path.isfile(dirInfoPath):
             description = ''
         # create and acquire lock
-        acquired, lockId = self.__locker.acquire_lock(self.__path, timeout=self.timeout)
+        acquired, lockId = self.__acquire_lock(self.__path)
         # check if acquired.
         if not acquired:
-            m = "code %s.  Unable to acquire the lo when calling 'save'. You may try again!"%(lockId,)
+            m = "code %s. Unable to acquire the lock when calling 'save'. You may try again!"%(lockId,)
             if raiseError:
                 raise Exception(m)
             return False, m
@@ -1264,11 +1439,8 @@ class Repository(object):
                         repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
                         self.__repo['walk_repo'] = repo['walk_repo']
                 # create repository
-                with open(repoInfoPath, 'wb') as fd:
-                    self.__repo["last_update_utctime"] = time.time()
-                    pickle.dump( self.__repo,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                    fd.flush()
-                    os.fsync(fd.fileno())
+                self.__repo["last_update_utctime"] = time.time()
+                write_pickle_atomically(repoInfoPath, self.__repo, self._DEFAULT_PICKLE_PROTOCOL)
             except Exception as err:
                 error = "Unable to save repository (%s)"%err
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
@@ -1295,7 +1467,8 @@ class Repository(object):
             #. allowed (bool): Whether name is allowed.
             #. message (None, str): Reason for the name to be forbidden.
         """
-        assert isinstance(path, basestring), "given path must be a string"
+        if not (isinstance(path, basestring)):
+            raise Exception("given path must be a string")
         name = os.path.basename(path)
         if not len(name):
             return False, "empty name is not allowed"
@@ -1303,8 +1476,10 @@ class Repository(object):
         for em in [self.__repoLock,self.__repoFile,self.__dirInfo,self.__dirLock]:
             if name == em:
                 return False, "name '%s' is reserved for pyrep internal usage"%em
+        if name.startswith('.pyreptmp_'):
+            return False, "names starting with '.pyreptmp_' are reserved for pyrep internal usage"
         # pattern match
-        for pm in [self.__fileInfo,self.__fileLock]:#,self.__objectDir]:
+        for pm in [self.__fileInfo,self.__fileClass,self.__fileLock]:
             if name == pm or (name.endswith(pm[3:]) and name.startswith('.')):
                 return False, "name pattern '%s' is not allowed as result may be reserved for pyrep internal usage"%pm
         # name is ok
@@ -1312,7 +1487,7 @@ class Repository(object):
 
     def to_repo_relative_path(self, path, split=False):
         """
-        Given a path, return relative path to diretory
+        Given a path, return relative path to directory
 
         :Parameters:
             #. path (str): Path as a string
@@ -1354,9 +1529,9 @@ class Repository(object):
                key which is the file or the directory name and the value is a
                dictionary of information including:
 
-                   * 'type': the type of the tracked whether it's file, dir, or objectdir
+                   * 'type': the type of the tracked item, either 'file' or 'dir'
                    * 'exists': whether file or directory actually exists on disk
-                   * 'pyrepfileinfo': In case of a file or an objectdir whether .%s_pyrepfileinfo exists
+                   * 'pyrepfileinfo': In case of a file whether .%s_pyrepfileinfo exists
                    * 'pyrepdirinfo': In case of a directory whether .pyrepdirinfo exists
         """
         state = []
@@ -1370,23 +1545,12 @@ class Repository(object):
             for fname in sorted([f for f in dirList if isinstance(f, basestring)]):
                 relaFilePath = os.path.join(relaPath,fname)
                 realFilePath = os.path.join(self.__path,relaFilePath)
-                #if os.path.isdir(realFilePath) and df.startswith('.') and df.endswith(self.__objectDir[3:]):
-                #    fileDict = {'type':'objectdir',
-                #                'exists':True,
-                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
-                #               }
-                #else:
-                #    fileDict = {'type':'file',
-                #                'exists':os.path.isfile(realFilePath),
-                #                'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
-                #               }
                 fileDict = {'type':'file',
                             'exists':os.path.isfile(realFilePath),
                             'pyrepfileinfo':os.path.isfile(os.path.join(self.__path,relaPath,self.__fileInfo%fname)),
                            }
                 state.append({relaFilePath:fileDict})
             # loop directories
-            #for ddict in sorted([d for d in dirList if isinstance(d, dict) and len(d)], key=lambda k: list(k)[0]):
             for ddict in sorted([d for d in dirList if isinstance(d, dict)], key=lambda k: list(k)[0]):
                 dirname = list(ddict)[0]
                 _walk_dir(relaPath=os.path.join(relaPath,dirname), dirList=ddict[dirname])
@@ -1394,7 +1558,8 @@ class Repository(object):
         if relaPath is None:
             _walk_dir(relaPath='', dirList=self.__repo['walk_repo'])
         else:
-            assert isinstance(relaPath, basestring), "relaPath must be None or a str"
+            if not (isinstance(relaPath, basestring)):
+                raise Exception("relaPath must be None or a str")
             relaPath = self.to_repo_relative_path(path=relaPath, split=False)
             spath    = relaPath.split(os.sep)
             dirList  = self.__repo['walk_repo']
@@ -1504,7 +1669,6 @@ class Repository(object):
                 cDir = cDict[0][dirname]
         if cDir is None:
             return False, fileOnDisk, infoOnDisk, classOnDisk
-        #if name not in cDir:
         if str(name) not in [str(i) for i in cDir]:
             return False, fileOnDisk, infoOnDisk, classOnDisk
         # this is a repository registered file. check whether all is on disk
@@ -1515,16 +1679,19 @@ class Repository(object):
         """
         Walk the repository relative path and yield file relative/full path.
 
-        :parameters:
+        :Parameters:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
         """
-        assert isinstance(fullPath, bool), "fullPath must be boolean"
-        assert isinstance(recursive, bool), "recursive must be boolean"
+        if not (isinstance(fullPath, bool)):
+            raise Exception("fullPath must be boolean")
+        if not (isinstance(recursive, bool)):
+            raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         dirList      = self.__get_repository_directory(relativePath=relativePath)
-        assert dirList is not None, "given relative path '%s' is not a repository directory"%relativePath
+        if not (dirList is not None):
+            raise Exception("given relative path '%s' is not a repository directory"%relativePath)
         # walk recursive function
         def _walk(rpath, dlist,recursive):
             # walk files
@@ -1549,13 +1716,15 @@ class Repository(object):
         first item is file relative/full path and second item is file info.
         If file info is not found on disk, second item will be None.
 
-        :parameters:
+        :Parameters:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
         """
-        assert isinstance(fullPath, bool), "fullPath must be boolean"
-        assert isinstance(recursive, bool), "recursive must be boolean"
+        if not (isinstance(fullPath, bool)):
+            raise Exception("fullPath must be boolean")
+        if not (isinstance(recursive, bool)):
+            raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         for relaPath in self.walk_files_path(relativePath=relativePath, fullPath=False, recursive=recursive):
             fpath, fname = os.path.split(relaPath)
@@ -1575,16 +1744,19 @@ class Repository(object):
         """
         Walk repository relative path and yield directory relative/full path
 
-        :parameters:
+        :Parameters:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
         """
-        assert isinstance(fullPath, bool), "fullPath must be boolean"
-        assert isinstance(recursive, bool), "recursive must be boolean"
+        if not (isinstance(fullPath, bool)):
+            raise Exception("fullPath must be boolean")
+        if not (isinstance(recursive, bool)):
+            raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         dirList      = self.__get_repository_directory(relativePath=relativePath)
-        assert dirList is not None, "given relative path '%s' is not a repository directory"%relativePath
+        if not (dirList is not None):
+            raise Exception("given relative path '%s' is not a repository directory"%relativePath)
         # walk recursive function
         def _walk(rpath, dlist,recursive):
             # walk files
@@ -1610,13 +1782,15 @@ class Repository(object):
         first item is directory relative/full path and second item is directory
         info. If directory file info is not found on disk, second item will be None.
 
-        :parameters:
+        :Parameters:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
         """
-        assert isinstance(fullPath, bool), "fullPath must be boolean"
-        assert isinstance(recursive, bool), "recursive must be boolean"
+        if not (isinstance(fullPath, bool)):
+            raise Exception("fullPath must be boolean")
+        if not (isinstance(recursive, bool)):
+            raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         # walk directories
         for dpath in self.walk_directories_path(relativePath=relativePath, fullPath=False, recursive=recursive):
@@ -1653,9 +1827,9 @@ class Repository(object):
                Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
         """
         # check mode
-        assert mode in (None, 'w', 'w:', 'w:gz', 'w:bz2'), 'unkown archive mode %s'%str(mode)
+        if not (mode in (None, 'w', 'w:', 'w:gz', 'w:bz2')):
+            raise Exception('unkown archive mode %s'%str(mode))
         if mode is None:
-            #mode = 'w:bz2'
             mode = 'w:'
         # get root
         if path is None:
@@ -1664,7 +1838,8 @@ class Repository(object):
             root = os.getcwd()
         else:
             root = os.path.realpath( os.path.expanduser(path) )
-        assert os.path.isdir(root), 'absolute path %s is not a valid directory'%path
+        if not (os.path.isdir(root)):
+            raise Exception('absolute path %s is not a valid directory'%path)
         # get name
         if name is None:
             ext = mode.split(":")
@@ -1704,102 +1879,6 @@ class Repository(object):
         finally:
             tarHandler.close()
 
-    #@path_required
-    #def maintain_directory(self, relativePath, keep=None, clean=True):
-    #    """
-    #    Maintain repository directory by keeping files and directories tracked
-    #    and removing non tracked files and directories from system.
-#
-    #    :Parameters:
-    #        #. relativePath (string): The relative to the repository path.
-    #        #. keep (None, list, tuple, str): the list of tracked files
-    #           (str) and directories (tuple) to keep in pyrep repository.
-    #           If keep is None, then all files and directories in replaced
-    #           directory will be transfered to newly created and tracked
-    #           directory.
-    #        #. clean (boolean): Whether to os remove any not tracked file or
-    #           directory from given relative path.
-#
-    #    :Returns:
-    #        #. success (boolean): Whether maintenance was successful.
-    #        #. reason (None, string): Reason why maintenance was not successful.
-    #    """
-    #    assert isinstance(clean, bool), "clean must be boolean"
-    #    assert isinstance(relativePath, str), "relativePath must be a string"
-    #    assert clean or keep is not None, "keep must be not None or clean must be True"
-    #    if keep is not None:
-    #        if isinstance(keep, (str, tuple)):
-    #            keep = [keep]
-    #        assert isinstance(keep, (list)), "keep must be None a string or a list"
-    #        assert all([isinstance(i,(str, tuple)) for i in keep]), "keep list items must be string or tuples"
-    #        assert all([len(t)==1 for t in keep if isinstance(t,tuple)]), "keep list tuple items must be of length 1"
-    #        assert all([isinstance(t[0], str) for t in keep if isinstance(t,tuple)]), "keep list tuple items unique value must be a string"
-    #        keep = set(keep)
-    #    # normalise path
-    #    relativePath = self.to_repo_relative_path(path=relativePath, split=False)
-    #    realPath     = os.path.join(self.__path,relativePath)
-    #    error        = None
-    #    mustSave     = False
-    #    # keep
-    #    LD =  Locker(filePath=None, lockPass=str(uuid.uuid1()), lockPath=os.path.join(realPath, self.__dirLock), timeout=self.timeout)
-    #    acquired, code = LD.acquire_lock()
-    #    if not acquired:
-    #        error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(code,realPath)
-    #        return False, error
-    #    try:
-    #        posList = self.get_repository_directory(relativePath=relativePath)
-    #        assert posList is not None, "Unkown relative directory %s"%relativePath
-    #        if keep is not None:
-    #            _files     = [f for f in posList if isinstance(f, str)]
-    #            _dirs      = [f for f in posList if isinstance(f, dict)]
-    #            _keepFiles = [k for k in keep if isinstance(k,str)]
-    #            _keepDirs  = [k[0] for k in keep if isinstance(k,tuple)]
-    #            _keeping   = [f for f in _files if f in _keepFiles]
-    #            _keeping.extend( [f for f in _dirs if list(f)[0] in _keepDirs] )
-    #            if len(_keeping)!=len(posList):
-    #                #self.__set_repository_directory(relativePath, posList)
-    #                _ = [posList.pop(0) for _ in range(len(posList))]
-    #                posList.extend(_keeping)
-    #                mustSave = True
-    #    except Exception as err:
-    #        error = "Unable to maintan keeping files and directories (%s)"%(str(err),)
-    #    finally:
-    #        LD.release_lock()
-    #    # clean
-    #    if clean and error is None:
-    #        _keepFiles = [f for f in posList if isinstance(f, str)]
-    #        _flocks    = [self.__fileLock%f for f in _keepFiles]
-    #        _finfos    = [self.__fileInfo%f for f in _keepFiles]
-    #        _keepFiles.extend(_flocks)
-    #        _keepFiles.extend(_finfos)
-    #        _keepFiles.extend([self.__repoLock,self.__repoFile,self.__dirInfo,self.__dirLock])
-    #        _keepDirs  = [list(f)[0] for f in posList if isinstance(f, dict)]
-    #        _keepDirs.extend([self.__objectDir%d for d in _keepDirs])
-    #        for df in os.listdir(realPath):
-    #            dfpath = os.path.join(realPath, df)
-    #            if os.path.isdir(dfpath):
-    #                if df not in _keepDirs:
-    #                    try:
-    #                        shutil.rmtree( dfpath )
-    #                    except Exception as err:
-    #                        error = "Unable to clean repository directory '%s' along with all it's contents (%s)"%(df,str(err))
-    #                        break
-    #            elif df not in _keepFiles:
-    #                try:
-    #                    os.remove(dfpath)
-    #                except Exception as err:
-    #                    error = "Unable to clean repository file '%s' (%s)"%(df,str(err))
-    #                    break
-    #    elif clean and error is not None:
-    #        error += " --> Unable to clean files from disk"
-    #    if mustSave:
-    #        if error is not None:
-    #            error += " --> Unable to save repository from disk"
-    #        else:
-    #            _, error = self.save()
-    #    # return
-    #    return error is None, error
-
 
     @path_required
     def add_directory(self, relativePath, description=None, clean=False,
@@ -1818,13 +1897,13 @@ class Repository(object):
                tracked files and folders in all created directory chain tree.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -1832,12 +1911,17 @@ class Repository(object):
             #. message (None, string): Reason why directory was not added or
                random information.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(relativePath, basestring), "relativePath must be a string"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(relativePath, basestring)):
+            raise Exception("relativePath must be a string")
         if description is not None:
-            assert isinstance(description, basestring), "description must be None or a string"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+            if not (isinstance(description, basestring)):
+                raise Exception("description must be None or a string")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # normalise path
         path = self.to_repo_relative_path(path=relativePath, split=False)
         # whether to replace
@@ -1850,9 +1934,9 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
-            m = "code %s.  Unable to acquire the lo to add directory. You may try again!"%(repoLockId,)
+            m = "code %s. Unable to acquire the lock to add directory. You may try again!"%(repoLockId,)
             if raiseError:
                 raise Exception(m)
             return False,m
@@ -1881,9 +1965,9 @@ class Repository(object):
             dirLockId = None
             # create and acquire directory lock
             if dirPath != self.__path:
-                acquired, dirLockId = self.__locker.acquire_lock(path=dirPath, timeout=self.timeout)
+                acquired, dirLockId = self.__acquire_lock(dirPath)
                 if not acquired:
-                    error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior relative directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
+                    error = "Code %s. Unable to acquire the lock when adding '%s'. All prior relative directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
                     break
             # add to directory
             for _trial in range(ntrials):
@@ -1915,7 +1999,8 @@ class Repository(object):
                         posList.append(rsd)
                         posList = rsd[name]
                     else:
-                        assert len(dList) == 1, "Same directory name dict is found twice. This should'n have happened. Report issue"
+                        if not (len(dList) == 1):
+                            raise Exception("Same directory name dict is found twice. This should'n have happened. Report issue")
                         posList = dList[0][name]
                 except Exception as err:
                     error = "Unable to create directory '%s' info file (%s)"%(dirPath, str(err))
@@ -1969,23 +2054,27 @@ class Repository(object):
                tracked files will be removed along with left empty directories.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
             #. success (boolean): Whether removing the directory was successful.
             #. reason (None, string): Reason why directory was not removed.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(clean, bool), "clean must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(clean, bool)):
+            raise Exception("clean must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # normalise path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         parentPath, dirName = os.path.split(relativePath)
@@ -2002,30 +2091,38 @@ class Repository(object):
             if raiseError:
                 raise Exception(error)
             return False, error
-        # get and acquire lock
-        acquired, dirLockId = self.__locker.acquire_lock(path=os.path.join(self.__path,parentPath), timeout=self.timeout)
+        # The repository root is already covered by the repository lock taken below
+        dirLockId = None
+        if parentPath != '':
+            acquired, dirLockId = self.__acquire_lock(os.path.join(self.__path,parentPath))
+            if not acquired:
+                error = "Code %s. Unable to acquire the parent directory lock when removing '%s'. You may try again!"%(dirLockId, relativePath)
+                if raiseError:
+                    raise Exception(error)
+                return False, error
+        # lock repository
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
-            error = "Code %s.  Unable to acquire the lo when removing '%s'. All prior relative directories were added. You may try again, to finish removing directory"%(dirLockId,realPath)
+            if dirLockId is not None:
+                self.__locker.release_lock(dirLockId)
+            error = "Code %s. Unable to acquire the repository lock when removing '%s'. You may try again!"%(repoLockId, relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
-        # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
-        if not acquired:
-            m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            if raiseError:
-                raise Exception(m)
-            return False,m
         # remove directory
         for _trial in range(ntrials):
             error = None
             try:
+                # Reload because another process may have changed the tracked files since the last read
+                repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+                self.__repo['walk_repo'] = repo['walk_repo']
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
-                assert dirList is not None, "Given relative path '%s' is not a repository directory"%(relativePath,)
+                if not (dirList is not None):
+                    raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
                 stateBefore = self.get_repository_state(relaPath=parentPath)
                 _files = [f for f in dirList if isinstance(f, basestring)]
                 _dirs  = [d for d in dirList if isinstance(d, dict)]
-                _dirs  = [d for d in dirList if dirName not in d]
+                _dirs  = [d for d in dirList if isinstance(d, dict) and dirName not in d]
                 _ = [dirList.pop(0) for _ in range(len(dirList))]
                 dirList.extend(_files)
                 dirList.extend(_dirs)
@@ -2034,7 +2131,8 @@ class Repository(object):
                 else:
                     stateAfter = self.get_repository_state(relaPath=parentPath)
                     success, errors = self.__clean_before_after(stateBefore=stateBefore, stateAfter=stateAfter, keepNoneEmptyDirectory=True)
-                    assert success, "\n".join(errors)
+                    if not (success):
+                        raise Exception("\n".join(errors))
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %s failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
@@ -2044,7 +2142,8 @@ class Repository(object):
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         # release locks
-        self.__locker.release_lock(dirLockId)
+        if dirLockId is not None:
+            self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
         # check and return
         if error is not None and raiseError:
@@ -2063,13 +2162,13 @@ class Repository(object):
             #. newName (string): The new directory name.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -2077,9 +2176,12 @@ class Repository(object):
             #. message (None, string): Some explanatory message or error reason
                why directory was not renamed.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         parentPath, dirName = os.path.split(relativePath)
         if relativePath == '':
@@ -2087,6 +2189,13 @@ class Repository(object):
             if raiseError:
                 raise Exception(error)
             return False, error
+        # The new name replaces the last path component, so it must be one name and not a path
+        isSingleName = os.path.basename(newName) == newName and newName not in ('', '.', '..')
+        allowed, reason = self.is_name_allowed(newName) if isSingleName else (False, "new name '%s' must be a single name without separators"%(newName,))
+        if not allowed:
+            if raiseError:
+                raise Exception(reason)
+            return False, reason
         realPath = os.path.join(self.__path,relativePath)
         newRealPath = os.path.join(os.path.dirname(realPath), newName)
         if os.path.isdir(newRealPath):
@@ -2097,7 +2206,7 @@ class Repository(object):
         # The repository root is already covered by the repository lock taken below
         dirLockId = None
         if parentPath != '':
-            acquired, dirLockId = self.__locker.acquire_lock(os.path.join(self.__path,parentPath), timeout=self.timeout)
+            acquired, dirLockId = self.__acquire_lock(os.path.join(self.__path,parentPath))
             if not acquired:
                 error = "Code %s. Unable to acquire the parent directory lock when renaming '%s'. You may try again!"%(dirLockId, relativePath)
                 if raiseError:
@@ -2105,7 +2214,7 @@ class Repository(object):
                 return False, error
         error = None
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
             if dirLockId is not None:
                 self.__locker.release_lock(dirLockId)
@@ -2136,11 +2245,13 @@ class Repository(object):
             error = None
             try:
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
-                assert dirList is not None, "Given relative path '%s' is not a repository directory"%(relativePath,)
+                if not (dirList is not None):
+                    raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
                 # change dirName in dirList
                 _dirDict = [nd for nd in dirList  if isinstance(nd,dict)]
                 _dirDict = [nd for nd in _dirDict if dirName in nd]
-                assert len(_dirDict) == 1, "This should not have happened. Directory not found in repository. Please report issue"
+                if not (len(_dirDict) == 1):
+                    raise Exception("This should not have happened. Directory not found in repository. Please report issue")
                 # rename directory
                 os.rename(realPath, newRealPath)
                 # update dirList
@@ -2179,13 +2290,13 @@ class Repository(object):
                directory in repository.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -2193,10 +2304,14 @@ class Repository(object):
             #. message (None, string): Some explanatory message or error reason
                why directory was not renamed.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(overwrite, bool), "overwrite must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(overwrite, bool)):
+            raise Exception("overwrite must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         if relativePath == '':
             m = "Copying to repository main directory is not possible"
@@ -2249,9 +2364,9 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
-            m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
+            m = "code %s. Unable to acquire the repository lock. You may try again!"%(repoLockId,)
             if raiseError:
                 raise Exception(m)
             return False,m
@@ -2266,10 +2381,10 @@ class Repository(object):
             return False, error
         # create locks
         if parentRealPath != self.__path:
-            acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
+            acquired, dirLockId = self.__acquire_lock(parentRealPath)
             if not acquired:
                 self.__locker.release_lock(repoLockId)
-                error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
+                error = "Code %s. Unable to acquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
                 if raiseError:
                     raise Exception(error)
                 return False, error
@@ -2277,11 +2392,11 @@ class Repository(object):
             dirLockId = None
         newDirLockId = None
         if parentRealPath != newParentRealPath and newParentRealPath != self.__path:
-            acquired, newDirLockId = self.__locker.acquire_lock(path=newParentRealPath, timeout=self.timeout)
+            acquired, newDirLockId = self.__acquire_lock(newParentRealPath)
             if not acquired:
                 if dirLockId is not None: self.__locker.release_lock(dirLockId)
                 self.__locker.release_lock(repoLockId)
-                error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
+                error = "Code %s. Unable to acquire the lock when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
                 if raiseError:
                     raise Exception(error)
                 return False, error
@@ -2290,20 +2405,26 @@ class Repository(object):
         for _trial in range(ntrials):
             try:
                 # make sure again because sometimes, when multiple processes are working on the same repo things can happen in between
-                assert self.is_repository_directory(relativePath), "Directory '%s' is not anymore a tracked repository directory"%(relativePath)
-                assert not self.is_repository_directory(newRelativePath), "Directory '%s' has become a tracked repository directory"%(newRelativePath)
+                if not (self.is_repository_directory(relativePath)):
+                    raise Exception("Directory '%s' is not anymore a tracked repository directory"%(relativePath))
+                if not (not self.is_repository_directory(newRelativePath)):
+                    raise Exception("Directory '%s' has become a tracked repository directory"%(newRelativePath))
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
-                assert dirList is not None, "Given relative path '%s' is not a repository directory"%(relativePath,)
+                if not (dirList is not None):
+                    raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
                 newDirList = self.__get_repository_parent_directory(relativePath=newRelativePath)
-                assert newDirList is not None, "Given new relative path '%s' parent directory is not a repository directory"%(newRelativePath,)
+                if not (newDirList is not None):
+                    raise Exception("Given new relative path '%s' parent directory is not a repository directory"%(newRelativePath,))
                 # change dirName in dirList
                 _dirDict = [nd for nd in dirList  if isinstance(nd,dict)]
                 _dirDict = [nd for nd in _dirDict if dirName in nd]
-                assert len(_dirDict) == 1, "This should not have happened. Directory not found in repository. Please report issue"
+                if not (len(_dirDict) == 1):
+                    raise Exception("This should not have happened. Directory not found in repository. Please report issue")
                 _dirDict = _dirDict[0]
                 _newDirDict = [nd for nd in newDirList  if isinstance(nd,dict)]
                 _newDirDict = [nd for nd in _newDirDict if newDirName in nd]
-                assert len(_newDirDict) == 0, "This should not have happened. New directory is found in repository. Please report issue"
+                if not (len(_newDirDict) == 0):
+                    raise Exception("This should not have happened. New directory is found in repository. Please report issue")
                 # try to copy directory
                 _newDirDict = copy.deepcopy(_dirDict)
                 if dirName != newDirName:
@@ -2311,7 +2432,6 @@ class Repository(object):
                 _ = copy_tree(src=realPath, dst=newRealPath, srcDirDict=_dirDict,
                               filAttr = [self.__fileInfo,self.__fileClass],
                               dirAttr = [self.__dirInfo,self.__repoFile])
-                #_ = copy_tree(realPath, newRealPath)
                 # update newDirList
                 newDirList.append(_newDirDict)
                 # update and dump dirinfo
@@ -2348,32 +2468,27 @@ class Repository(object):
             #. relativePath (str): The relative to the repository path to where
                to dump the file.
             #. description (None, string): Any description about the file.
-            #. dump (None, string): The dumping method.
-               If None it will be set automatically to pickle and therefore the
-               object must be pickleable. If a string is given, it can be a
-               keyword ('json','pickle','dill') or a string compileable code to
-               dump the data. The string code must include all the necessary
-               imports and a '$FILE_PATH' that replaces the absolute file path
-               when the dumping will be performed.\n
-               e.g. "import numpy as np; np.savetxt(fname='$FILE_PATH', X=value, fmt='%.6e')"
-            #. pull (None, string): The pulling method. If None it will be set
-               automatically to pickle and therefore the object must be
-               pickleable. If a string is given, it can be a keyword
-               ('json','pickle','dill') or a string compileable code to pull
-               the data. The string code must include all the necessary imports,
-               a '$FILE_PATH' that replaces the absolute file path when the
-               dumping will be performed and finally a PULLED_DATA variable.\n
-               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
+            #. dump (None, string): The dumping method. None uses pickle. A string
+               is either a keyword ('pickle', 'dill', 'json', 'numpy' or
+               'numpy_text', where 'pickle' and 'dill' accept a protocol such as
+               'pickle2') or source code that defines a function `dump(path, value)`
+               that writes value to path and imports whatever it needs.\n
+               e.g. "import numpy as np; dump=lambda path,value:np.savetxt(fname=path, X=value, fmt='%.6e')"
+            #. pull (None, string): The pulling method. None uses pickle, or the
+               same keyword as dump when dump is a keyword. A string is either a
+               keyword, as for dump, or source code that defines a function
+               `pull(path)` that returns the data and imports whatever it needs.\n
+               e.g. "import numpy as np; pull=lambda path:np.loadtxt(fname=path)"
             #. replace (boolean): Whether to replace any existing file.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -2382,13 +2497,18 @@ class Repository(object):
                why directory was not dumped.
         """
         # check arguments
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(replace, bool), "replace must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(replace, bool)):
+            raise Exception("replace must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         if description is None:
             description = ''
-        assert isinstance(description, basestring), "description must be None or a string"
+        if not (isinstance(description, basestring)):
+            raise Exception("description must be None or a string")
         # convert dump and pull methods to strings
         if pull is None and dump is not None:
             if dump.startswith('pickle') or dump.startswith('dill') or dump.startswith('numpy') or dump =='json':
@@ -2416,17 +2536,17 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
-            m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
+            m = "code %s. Unable to acquire the repository lock. You may try again!"%(repoLockId,)
             if raiseError:
                 raise Exception(m)
             return False,m
         # lock file
-        acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
+        acquired, fileLockId = self.__acquire_lock(savePath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
-            error = "Code %s.  Unable to acquire the lo when dumping '%s'"%(fileLockId,relativePath)
+            error = "Code %s. Unable to acquire the lock when dumping '%s'"%(fileLockId,relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
@@ -2453,12 +2573,14 @@ class Repository(object):
             try:
                 isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
                 if isRepoFile:
-                    assert replace, "file is a registered repository file. set replace to True to replace"
+                    if not (replace):
+                        raise Exception("file is a registered repository file. set replace to True to replace")
                 fileInfoPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileInfo%fName)
                 if isRepoFile and fileOnDisk:
                     with open(fileInfoPath, 'rb') as fd:
                         info = pickle.load(fd)
-                    assert info['repository_unique_name'] == self.__repo['repository_unique_name'], "it seems that file was created by another repository"
+                    if not (info['repository_unique_name'] == self.__repo['repository_unique_name']):
+                        raise Exception("it seems that file was created by another repository")
                     info['last_update_utctime'] = time.time()
                 else:
                     info = {'repository_unique_name':self.__repo['repository_unique_name']}
@@ -2471,22 +2593,13 @@ class Repository(object):
                     dirList = self.__get_repository_directory(fPath)
                 # dump file
                 dumpFunc = my_exec( dump, name='dump', description='dump')
-                dumpFunc(path=str(savePath), value=value)
+                dump_atomically(dumpFunc, str(savePath), value)
                 # update info
-                with open(fileInfoPath, 'wb') as fd:
-                    pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL)
-                    fd.flush()
-                    os.fsync(fd.fileno())
+                write_pickle_atomically(fileInfoPath, info, self._DEFAULT_PICKLE_PROTOCOL)
                 # update class file
                 fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
-                with open(fileClassPath, 'wb') as fd:
-                    if value is None:
-                        klass = None
-                    else:
-                        klass = value.__class__
-                    pickle.dump(klass , fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                    fd.flush()
-                    os.fsync(fd.fileno())
+                klass = get_class_name(value)
+                write_pickle_atomically(fileClassPath, klass, self._DEFAULT_PICKLE_PROTOCOL)
                 # add to repo if file is new and not being replaced
                 if not isRepoFile:
                     dirList.append(fName)
@@ -2497,7 +2610,7 @@ class Repository(object):
                         mi = get_pickling_errors(value)
                         if mi is not None:
                             error += '\nmore info: %s'%str(mi)
-                except:
+                except Exception:
                     pass
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
             else:
@@ -2535,13 +2648,13 @@ class Repository(object):
                will be removed from the repository and the system as well.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -2549,10 +2662,14 @@ class Repository(object):
             #. message (None, string): Some explanatory message or error reason
                why directory was not updated.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(force, bool), "force must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(force, bool)):
+            raise Exception("force must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # check old name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
@@ -2577,14 +2694,14 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
             error = "Code %s. Unable to acquire the repository lock when copying '%s'. You may try again!"%(repoLockId, relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
         # lock old file
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        acquired, fileLockId = self.__acquire_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
@@ -2592,7 +2709,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock new file
-        acquired, newFileLockId = self.__locker.acquire_lock(path=newRealPath, timeout=self.timeout)
+        acquired, newFileLockId = self.__acquire_lock(newRealPath)
         if not acquired:
             self.__locker.release_lock(fileLockId)
             self.__locker.release_lock(repoLockId)
@@ -2610,26 +2727,24 @@ class Repository(object):
                 self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
                 isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
-                assert isRepoFile,  "file '%s' is not a repository file"%(relativePath,)
-                assert fileOnDisk,  "file '%s' is found on disk"%(relativePath,)
-                assert infoOnDisk,  "%s is found on disk"%self.__fileInfo%fName
-                assert classOnDisk, "%s is found on disk"%self.__fileClass%fName
+                if not (isRepoFile):
+                    raise Exception("file '%s' is not a repository file"%(relativePath,))
+                if not (fileOnDisk):
+                    raise Exception("file '%s' is not found on disk"%(relativePath,))
+                if not (infoOnDisk):
+                    raise Exception("%s is not found on disk"%(self.__fileInfo%fName,))
+                if not (classOnDisk):
+                    raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
                 nisRepoFile,nfileOnDisk,ninfoOnDisk,nclassOnDisk = self.is_repository_file(newRelativePath)
-                assert not nisRepoFile or force, "New file path is a registered repository file, set force to True to proceed regardless"
+                if not (not nisRepoFile or force):
+                    raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
                 nDirList = self.__get_repository_directory(nfPath)
-                # remove new file and all repository files from disk
-                if os.path.isfile(newRealPath):
-                    os.remove(newRealPath)
-                if os.path.isfile(os.path.join(nfPath,self.__fileInfo%nfName)):
-                    os.remove(os.path.join(nfPath,self.__fileInfo%nfName))
-                if os.path.isfile(os.path.join(nfPath,self.__fileClass%nfName)):
-                    os.remove(os.path.join(nfPath,self.__fileClass%nfName))
-                # move old file to new path
-                shutil.copy(realPath, newRealPath)
-                shutil.copy(os.path.join(fPath,self.__fileInfo%fName),  os.path.join(nfPath,self.__fileInfo%nfName))
-                shutil.copy(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
+                # copy the file to the new path, replacing what is there in one step
+                copy_atomically(realPath, newRealPath)
+                copy_atomically(os.path.join(fPath,self.__fileInfo%fName),  os.path.join(nfPath,self.__fileInfo%nfName))
+                copy_atomically(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
                 # update new list
                 if nfName not in nDirList:
                     nDirList.append(nfName)
@@ -2681,13 +2796,13 @@ class Repository(object):
                the old one will be used.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
        :Returns:
@@ -2696,20 +2811,26 @@ class Repository(object):
               why directory was not updated.
         """
         # check arguments
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert description is False or description is None or isinstance(description, basestring), "description must be False, None or a string"
-        assert dump is False or dump is None or isinstance(dump, basestring), "dump must be False, None or a string"
-        assert pull is False or pull is None or isinstance(pull, basestring), "pull must be False, None or a string"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (description is False or description is None or isinstance(description, basestring)):
+            raise Exception("description must be False, None or a string")
+        if not (dump is False or dump is None or isinstance(dump, basestring)):
+            raise Exception("dump must be False, None or a string")
+        if not (pull is False or pull is None or isinstance(pull, basestring)):
+            raise Exception("pull must be False, None or a string")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # get name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         savePath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(savePath)
         # get locker
-        acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
+        acquired, fileLockId = self.__acquire_lock(savePath)
         if not acquired:
-            error = "Code %s.  Unable to acquire the lo to update '%s'"%(fileLockId,relativePath)
+            error = "Code %s. Unable to acquire the lock to update '%s'"%(fileLockId,relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
@@ -2720,12 +2841,16 @@ class Repository(object):
             try:
                 # check file in repository
                 isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
-                assert isRepoFile, "file '%s' is not registered in repository, no update can be performed."%(relativePath,)
+                if not (isRepoFile):
+                    raise Exception("file '%s' is not registered in repository, no update can be performed."%(relativePath,))
                 # get file info
                 if not fileOnDisk:
-                    assert description is not False,  "file '%s' is found on disk, description must be provided"%(relativePath,)
-                    assert dump is not False,  "file '%s' is found on disk, dump must be provided"%(relativePath,)
-                    assert pull is not False,  "file '%s' is found on disk, pull must be provided"%(relativePath,)
+                    if not (description is not False):
+                        raise Exception("file '%s' is not found on disk, description must be provided"%(relativePath,))
+                    if not (dump is not False):
+                        raise Exception("file '%s' is not found on disk, dump must be provided"%(relativePath,))
+                    if not (pull is not False):
+                        raise Exception("file '%s' is not found on disk, pull must be provided"%(relativePath,))
                     info = {}
                     info['repository_unique_name'] = self.__repo['repository_unique_name']
                     info['create_utctime'] = info['last_update_utctime'] = time.time()
@@ -2734,49 +2859,39 @@ class Repository(object):
                         info = pickle.load(fd)
                         info['last_update_utctime'] = time.time()
                 if not fileOnDisk:
-                    message.append("file %s is registered in repository but it was found on disk prior to updating"%relativePath)
+                    message.append("file %s is registered in repository but it was not found on disk prior to updating"%relativePath)
                 if not infoOnDisk:
-                    message.append("%s is not found on disk prior to updating"%self.__fileInfo%fName)
+                    message.append("%s is not found on disk prior to updating"%(self.__fileInfo%fName,))
                 if not classOnDisk:
-                    message.append("%s is not found on disk prior to updating"%self.__fileClass%fName)
+                    message.append("%s is not found on disk prior to updating"%(self.__fileClass%fName,))
                 # get dump and pull
-                if (description is False) or (dump is False) or (pull is False):
-                    if description is False:
-                        description = info['description']
-                    elif description is None:
-                        description = ''
-                    if dump is False:
-                        dump = info['dump']
-                    elif dump is None:
-                        dump = get_dump_method(dump, protocol=self._DEFAULT_PICKLE_PROTOCOL)
-                    if pull is False:
-                        pull = info['pull']
-                    elif pull is None:
-                        pull = get_pull_method(pull)
+                if description is False:
+                    description = info['description']
+                elif description is None:
+                    description = ''
+                if dump is False:
+                    dump = info['dump']
+                else:
+                    dump = get_dump_method(dump, protocol=self._DEFAULT_PICKLE_PROTOCOL)
+                if pull is False:
+                    pull = info['pull']
+                else:
+                    pull = get_pull_method(pull)
                 # update dump, pull and description
                 info['dump'] = dump
                 info['pull'] = pull
                 info['description'] = description
                 # dump file
                 dumpFunc = my_exec( dump, name='dump', description='update')
-                dumpFunc(path=str(savePath), value=value)
+                dump_atomically(dumpFunc, str(savePath), value)
                 # remove file if exists
                 _path = os.path.join(fPath,self.__fileInfo%fName)
                 # update info
-                with open(_path, 'wb') as fd:
-                    pickle.dump( info,fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                    fd.flush()
-                    os.fsync(fd.fileno())
+                write_pickle_atomically(_path, info, self._DEFAULT_PICKLE_PROTOCOL)
                 # update class file
                 fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
-                with open(fileClassPath, 'wb') as fd:
-                    if value is None:
-                        klass = None
-                    else:
-                        klass = value.__class__
-                    pickle.dump(klass , fd, protocol=self._DEFAULT_PICKLE_PROTOCOL )
-                    fd.flush()
-                    os.fsync(fd.fileno())
+                klass = get_class_name(value)
+                write_pickle_atomically(fileClassPath, klass, self._DEFAULT_PICKLE_PROTOCOL)
             except Exception as err:
                 message.append(str(err))
                 updated = False
@@ -2785,7 +2900,7 @@ class Repository(object):
                         mi = get_pickling_errors(value)
                         if mi is not None:
                             message.append('more info: %s'%str(mi))
-                except:
+                except Exception:
                     pass
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], '\n'.join(message)))
             else:
@@ -2804,37 +2919,37 @@ class Repository(object):
 
 
     @path_required
-    def pull_file(self, relativePath, pull=None, update=True, ntrials=3):
+    def pull_file(self, relativePath, pull=None, ntrials=3):
         """
-        Pull a file's data from the Repository.
+        Pulls a file's data from the repository.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path from
                where to pull the file.
-            #. pull (None, string): The pulling method.
-               If None, the pull method saved in the file info will be used.
-               If a string is given, the string should include all the necessary
-               imports, a '$FILE_PATH' that replaces the absolute file path when
-               the dumping will be performed and finally a PULLED_DATA variable.
-               e.g "import numpy as np; PULLED_DATA=np.loadtxt(fname='$FILE_PATH')"
-            #. update (boolean): If pull is not None, Whether to update the pull
-               method stored in the file info by the given pull method.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. pull (None, string): The pulling method. If None, the method saved
+               in the file info is used. Otherwise it is a keyword ('pickle',
+               'dill', 'json', 'numpy' or 'numpy_text') or source code that defines
+               a function `pull(path)` that returns the data.
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
-             #. raiseNotRegistered (boolean): whether to raise an error if relativePath
-                is not a repoFile
 
         :Returns:
             #. data (object): The pulled data from the file.
+
+        :Raises:
+            #. Exception: If the file is not a repository file, is missing on disk,
+               its lock cannot be acquired or pulling fails after ntrials trials.
         """
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
@@ -2843,8 +2958,8 @@ class Repository(object):
         isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
         if not isRepoFile:
             fileOnDisk  = ["",". File itself is found on disk"][fileOnDisk]
-            infoOnDisk  = ["",". %s is found on disk"%self.__fileInfo%fName][infoOnDisk]
-            classOnDisk = ["",". %s is found on disk"%self.__fileClass%fName][classOnDisk]
+            infoOnDisk  = ["",". %s is found on disk"%(self.__fileInfo%fName,)][infoOnDisk]
+            classOnDisk = ["",". %s is found on disk"%(self.__fileClass%fName,)][classOnDisk]
             raise Exception("File '%s' is not a repository file%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk))
         if not fileOnDisk:
             raise Exception("File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,))
@@ -2853,35 +2968,29 @@ class Repository(object):
                 warnings.warn("'%s' was not found on disk but pull method is given"%(self.__fileInfo%fName))
             else:
                 raise Exception("File '%s' is registered in repository but the '%s' was not found on disk and pull method is not specified"%(relativePath,(self.__fileInfo%fName)))
-        # lock repository
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        # lock file
+        acquired, fileLockId = self.__acquire_lock(realPath)
         if not acquired:
-            error = "Code %s.  Unable to acquire the lo when pulling '%s'"%(fileLockId,relativePath)
-            return False, error
-        # pull file
-        for _trial in range(ntrials):
-            error = None
-            try:
-                # get pull method
-                if pull is not None:
-                    pull = get_pull_method(pull)
+            raise Exception("Code %s. Unable to acquire the lock when pulling '%s'"%(fileLockId,relativePath))
+        # pull file, the lock is released once whatever happens
+        try:
+            givenCode = None if pull is None else get_pull_method(pull)
+            for _trial in range(ntrials):
+                error = None
+                pullCode = givenCode
+                try:
+                    if pullCode is None:
+                        with open(os.path.join(fPath,self.__fileInfo%fName), 'rb') as fd:
+                            pullCode = pickle.load(fd)['pull']
+                    pullFunc  = my_exec( pullCode, name='pull', description='pull')
+                    pulledVal = pullFunc(path=str(realPath))
+                except Exception as err:
+                    error = "Unable to pull data using '%s' from file (%s)"%(pullCode, err)
+                    if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
                 else:
-                    with open(os.path.join(fPath,self.__fileInfo%fName), 'rb') as fd:
-                        info = pickle.load(fd)
-                    pull = info['pull']
-                # try to pull file
-                pullFunc  = my_exec( pull, name='pull', description='pull')
-                pulledVal = pullFunc(path=str(realPath))
-            except Exception as err:
-                #LF.release_lock()
-                self.__locker.release_lock(fileLockId)
-                m = str(pull).replace("$FILE_PATH", str(realPath) )
-                error = "Unable to pull data using '%s' from file (%s)"%(m,err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
-            else:
-                break
-        # release lock
-        self.__locker.release_lock(fileLockId)
+                    break
+        finally:
+            self.__locker.release_lock(fileLockId)
         # check and return
         if error is not None:
             raise Exception("After %i trials, failed to pull file '%s' (%s)"%(ntrials,relativePath, error))
@@ -2908,13 +3017,13 @@ class Repository(object):
                will be removed from the repository and the system as well.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
@@ -2922,10 +3031,14 @@ class Repository(object):
             #. message (None, string): Some explanatory message or error reason
                why directory was not updated.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(force, bool), "force must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(force, bool)):
+            raise Exception("force must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # check old name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
@@ -2950,14 +3063,14 @@ class Repository(object):
                 raise Exception(reason)
             return False, reason
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
             error = "Code %s. Unable to acquire the repository lock when renaming '%s'. You may try again!"%(repoLockId, relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
         # lock old file
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        acquired, fileLockId = self.__acquire_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
@@ -2965,7 +3078,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock new file
-        acquired, newFileLockId = self.__locker.acquire_lock(path=newRealPath, timeout=self.timeout)
+        acquired, newFileLockId = self.__acquire_lock(newRealPath)
         if not acquired:
             self.__locker.release_lock(fileLockId)
             self.__locker.release_lock(repoLockId)
@@ -2983,27 +3096,25 @@ class Repository(object):
                 self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
                 isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
-                assert isRepoFile,  "file '%s' is not a repository file"%(relativePath,)
-                assert fileOnDisk,  "file '%s' is found on disk"%(relativePath,)
-                assert infoOnDisk,  "%s is found on disk"%self.__fileInfo%fName
-                assert classOnDisk, "%s is found on disk"%self.__fileClass%fName
+                if not (isRepoFile):
+                    raise Exception("file '%s' is not a repository file"%(relativePath,))
+                if not (fileOnDisk):
+                    raise Exception("file '%s' is not found on disk"%(relativePath,))
+                if not (infoOnDisk):
+                    raise Exception("%s is not found on disk"%(self.__fileInfo%fName,))
+                if not (classOnDisk):
+                    raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
                 nisRepoFile,nfileOnDisk,ninfoOnDisk,nclassOnDisk = self.is_repository_file(newRelativePath)
-                assert not nisRepoFile or force, "New file path is a registered repository file, set force to True to proceed regardless"
+                if not (not nisRepoFile or force):
+                    raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
                 oDirList = self.__get_repository_directory(fPath)
                 nDirList = self.__get_repository_directory(nfPath)
-                # remove new file and all repository files from disk
-                if os.path.isfile(newRealPath):
-                    os.remove(newRealPath)
-                if os.path.isfile(os.path.join(nfPath,self.__fileInfo%nfName)):
-                    os.remove(os.path.join(nfPath,self.__fileInfo%nfName))
-                if os.path.isfile(os.path.join(nfPath,self.__fileClass%nfName)):
-                    os.remove(os.path.join(nfPath,self.__fileClass%nfName))
-                # move old file to new path
-                os.rename(realPath, newRealPath)
-                os.rename(os.path.join(fPath,self.__fileInfo%fName), os.path.join(nfPath,self.__fileInfo%nfName))
-                os.rename(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
+                # move the file to the new path, replacing what is there in one step
+                replace_file(realPath, newRealPath)
+                replace_file(os.path.join(fPath,self.__fileInfo%fName), os.path.join(nfPath,self.__fileInfo%nfName))
+                replace_file(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
                 # update list
                 findex = oDirList.index(fName)
                 oDirList.pop(findex)
@@ -3031,7 +3142,7 @@ class Repository(object):
         try:
             if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
                 os.remove(os.path.join(fPath,self.__fileLock%fName))
-        except:
+        except OSError:
             pass
         # check and return
         if not renamed and raiseError:
@@ -3049,35 +3160,38 @@ class Repository(object):
                file to remove.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After aquiring all locks, ntrials is the maximum
+            #. ntrials (int): After acquiring all locks, ntrials is the maximum
                number of trials allowed before failing.
                In rare cases, when multiple processes
                are accessing the same repository components, different processes
                can alter repository components between successive lock releases
                of some other process. Bigger number of trials lowers the
-               likelyhood of failure due to multiple processes same time
+               likelihood of failure due to multiple processes same time
                alteration.
 
         :Returns:
             #. removed (boolean): Whether removing the file was successful.
             #. message (str): Explanatory message or error reason. Empty on success.
         """
-        assert isinstance(raiseError, bool), "raiseError must be boolean"
-        assert isinstance(ntrials, int), "ntrials must be integer"
-        assert ntrials>0, "ntrials must be >0"
+        if not (isinstance(raiseError, bool)):
+            raise Exception("raiseError must be boolean")
+        if not (isinstance(ntrials, int)):
+            raise Exception("ntrials must be integer")
+        if not (ntrials>0):
+            raise Exception("ntrials must be >0")
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(realPath)
         # lock repository
-        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
             error = "Code %s. Unable to acquire the repository lock when removing '%s'. You may try again!"%(repoLockId, relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
         # lock file
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        acquired, fileLockId = self.__acquire_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the file lock when removing '%s'. You may try again!"%(fileLockId, relativePath)
@@ -3099,9 +3213,9 @@ class Repository(object):
                     if fileOnDisk:
                         details.append("File itself is found on disk")
                     if infoOnDisk:
-                        details.append("%s is found on disk"%(self.__fileInfo%fName,))
+                        details.append("%s is not found on disk"%(self.__fileInfo%fName,))
                     if classOnDisk:
-                        details.append("%s is found on disk"%(self.__fileClass%fName,))
+                        details.append("%s is not found on disk"%(self.__fileClass%fName,))
                     raise Exception("; ".join(details))
                 else:
                     dirList = self.__get_repository_directory(fPath)
@@ -3133,7 +3247,7 @@ class Repository(object):
         try:
             if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
                 os.remove(os.path.join(fPath,self.__fileLock%fName))
-        except:
+        except OSError:
             pass
         # check and return
         if not removed and raiseError:

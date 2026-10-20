@@ -16,7 +16,7 @@ class BuildPyWithoutScripts(build_py):
 
     def find_package_modules(self, package, packageDir):
         """
-        Lists the package modules and leaves out setup.py and test.py.
+        Lists the package modules and leaves out setup.py.
 
         :Parameters:
             #. package (str): The package name.
@@ -26,7 +26,7 @@ class BuildPyWithoutScripts(build_py):
             #. modules (list): Tuples of package, module name and file path.
         """
         modules = build_py.find_package_modules(self, package, packageDir)
-        return [item for item in modules if item[1] not in ('setup', 'test')]
+        return [item for item in modules if item[1] != 'setup']
 
 
 # set package path and name
