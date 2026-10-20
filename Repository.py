@@ -542,6 +542,7 @@ class Repository(object):
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
         #self.__objectDir = '.%s_pyrepobjectdir' # %s replaces file name
+        self.__isDefaultPassword = password is None
         if password is None:
             password = "pyrep_repository_b@11a"
         assert isinstance(password, basestring), "password must be None or a string"
@@ -589,12 +590,16 @@ class Repository(object):
         state = {}
         state.update( self.__dict__ )
         state['_Repository__locker'] = None
+        # a user given password is a secret and must not be written to the pickle
+        if not self.__isDefaultPassword:
+            state['_Repository__password'] = None
         return state
 
     def __setstate__(self, state):
-        path   = state['_Repository__path']
-        locker = None
-        if path is not None:
+        path          = state['_Repository__path']
+        needsPassword = not state['_Repository__isDefaultPassword'] and state['_Repository__password'] is None
+        locker        = None
+        if path is not None and not needsPassword:
             repoLock   = state['_Repository__repoLock']
             password   = state['_Repository__password']
             serverFile = os.path.join(path, repoLock)
@@ -603,6 +608,9 @@ class Repository(object):
         state['_Repository__locker'] = locker
         # set state
         self.__dict__ = state
+        if needsPassword:
+            self.reset()
+            warnings.warn("A custom repository password is not stored in a pickle. Use Repository(path, password=...) to reopen the repository.")
 
 
     def __repr__(self):
@@ -819,7 +827,8 @@ class Repository(object):
             # check if acquired.
             if not acquired:
                 error = "code %s. Unable to aquire the repository lock. You may try again!"%(lockId,)
-                assert not raiseError, Exception(error)
+                if raiseError:
+                    raise Exception(error)
                 return False,error
         try:
             repoInfoPath = os.path.join(self.__path, self.__repoFile)
@@ -834,7 +843,8 @@ class Repository(object):
         if lockFirst:
             self.__locker.release_lock(lockId)
         # return
-        assert error is None or not raiseError, error
+        if error is not None and raiseError:
+            raise Exception(error)
         return error is None, error
 
     def __load_repository_pickle_file(self, repoPath):
@@ -883,7 +893,8 @@ class Repository(object):
                 self.__locker.start()
                 acquired, lockId = self.__locker.acquire_lock(path=repoPath, timeout=self.timeout)
             # check if acquired.
-            assert acquired, "code %s.  Unable to acquire the lo when calling 'load_repository'"%(lockId,)
+            if not acquired:
+                raise Exception("code %s. Unable to acquire the lock when calling 'load_repository'"%(lockId,))
         # load repository
         error = None
         try:
@@ -904,7 +915,8 @@ class Repository(object):
         if safeMode:
             self.__locker.release_lock(lockId)
         # check for any error
-        assert error is None, error
+        if error is not None:
+            raise Exception(error)
 
     @property
     def info(self):
@@ -1029,15 +1041,16 @@ class Repository(object):
                 repo  = self
                 break
         # check and return
-        assert error is None, error
+        if error is not None:
+            raise Exception(error)
         return repo
 
-    def create_repository(self, path, info=None, description=None, replace=True, allowNoneEmpty=True, raiseError=True):
+    def create_repository(self, path, info=None, description=None, replace=False, allowNoneEmpty=True, raiseError=True):
         """
         create a repository in a directory. This method insures the creation of
         the directory in the system if it is missing.\n
 
-        **N.B. If replace is True and existing repository is found in path, create_repository erases all existing files and directories in path.**
+        **N.B. If replace is True and an existing repository is found in path, create_repository erases ALL files and directories in path, including ones that are not tracked by the repository.**
 
         :Parameters:
             #. path (string): The real absolute path where to create the Repository.
@@ -1045,7 +1058,9 @@ class Repository(object):
             #. description (None, str): Repository main directory information.
             #. info (None, object): Repository information. It can
                be None or any pickle writable type of data.
-            #. replace (boolean): Whether to replace existing repository.
+            #. replace (boolean): Whether to replace an existing repository.
+               The default False raises or returns failure instead. True
+               erases everything in path first.
             #. allowNoneEmpty (boolean): Allow creating repository in none-empty
                directory.
             #. raiseError (boolean): Whether to raise encountered error instead
@@ -1077,8 +1092,10 @@ class Repository(object):
         message = []
         if self.is_repository(realPath):
             if not replace:
-                message.append("A pyrep Repository already exists in the given path '%s' set replace to True if you need to proceed."%path)
-                return False, message
+                error = "A pyrep Repository already exists in the given path '%s'. Set replace to True to erase it and everything in that directory."%path
+                if raiseError:
+                    raise Exception(error)
+                return False, error
             else:
                 message.append("Existing pyrep repository existing in the given path '%s' has been replaced."%path)
                 try:
@@ -1102,20 +1119,37 @@ class Repository(object):
         self.__path = realPath.rstrip(os.sep)
         self.__repo['repository_information'] = info
         # set locker
-        serverFile    = os.path.join(self.__path, self.__repoLock)
-        self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
-        #self.__locker.debugMode = True
-        self.__locker.start()
+        error = None
+        try:
+            serverFile    = os.path.join(self.__path, self.__repoLock)
+            self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
+            #self.__locker.debugMode = True
+            self.__locker.start()
+        except Exception as err:
+            error = "Unable to start the repository locker (%s)"%(str(err),)
         # save repository
-        saved = self.save(description=description)
-        if not saved:
-            self.__repo = oldRepo
-            self.__path = oldPath
+        if error is None:
+            saved, saveError = self.save(description=description, raiseError=False)
+            if not saved:
+                error = "Unable to save repository (%s)"%(saveError,)
+        if error is not None:
+            if self.__locker is not None:
+                try:
+                    self.__locker.stop()
+                except Exception:
+                    # the locker may be only partially started
+                    pass
+            self.__repo   = oldRepo
+            self.__path   = oldPath
+            self.__locker = None
+            message.append(error)
             message.append("Absolute path and directories might be created but no pyrep Repository is created. Previous repository state restored")
             if self.__path is not None:
                 serverFile    = os.path.join(self.__path, self.__repoLock)
                 self.__locker = FACTORY(key=serverFile, password=self.__password, serverFile=serverFile, autoconnect=False)
                 self.__locker.start()
+            if raiseError:
+                raise Exception('\n'.join(message))
             return False, '\n'.join(message)
         # return
         return True, '\n'.join(message)
@@ -1214,7 +1248,8 @@ class Repository(object):
         # check if acquired.
         if not acquired:
             m = "code %s.  Unable to acquire the lo when calling 'save'. You may try again!"%(lockId,)
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False, m
         # save repository
         for _trial in range(ntrials):
@@ -1242,7 +1277,8 @@ class Repository(object):
         # release lock
         self.__locker.release_lock(lockId)
         # return
-        assert error is None or not raiseError, error
+        if error is not None and raiseError:
+            raise Exception(error)
         return error is None, error
 
 
@@ -1290,6 +1326,13 @@ class Repository(object):
         if path == '.':
             path = ''
         path = path.split(self.__path)[-1].strip(os.sep)
+        # normpath keeps leading '..' components, which would point outside the repository
+        if '..' in path.split(os.sep):
+            raise Exception("Path '%s' points outside of the repository"%path)
+        # a symlink inside the repository can still lead outside of it
+        realTarget = os.path.realpath(os.path.join(self.__path, path))
+        if realTarget != self.__path and not realTarget.startswith(self.__path + os.sep):
+            raise Exception("Path '%s' resolves outside of the repository through a symbolic link"%path)
         if split:
             return path.split(os.sep)
         else:
@@ -1627,7 +1670,7 @@ class Repository(object):
             ext = mode.split(":")
             if len(ext) == 2:
                 if len(ext[1]):
-                    ext = "."+ext[1]
+                    ext = ".tar."+ext[1]
                 else:
                     ext = '.tar'
             else:
@@ -1639,22 +1682,27 @@ class Repository(object):
             tarHandler = tarfile.TarFile.open(tarfilePath, mode=mode)
         except Exception as e:
             raise Exception("Unable to create package (%s)"%e)
-        # walk directory and create empty directories
-        for dpath in sorted(list(self.walk_directories_path(recursive=True))):
-            t = tarfile.TarInfo( dpath )
-            t.type = tarfile.DIRTYPE
-            tarHandler.addfile(t)
-            tarHandler.add(os.path.join(self.__path,dpath,self.__dirInfo), arcname=self.__dirInfo)
-        # walk files and add to tar
-        for fpath in self.walk_files_path(recursive=True):
-            relaPath, fname = os.path.split(fpath)
-            tarHandler.add(os.path.join(self.__path,fpath), arcname=fname)
-            tarHandler.add(os.path.join(self.__path,relaPath,self.__fileInfo%fname), arcname=self.__fileInfo%fname)
-            tarHandler.add(os.path.join(self.__path,relaPath,self.__fileClass%fname), arcname=self.__fileClass%fname)
-        # save repository .pyrepinfo
-        tarHandler.add(os.path.join(self.__path,self.__repoFile), arcname=".pyrepinfo")
-        # close tar file
-        tarHandler.close()
+        try:
+            # the repository root directory info
+            tarHandler.add(os.path.join(self.__path,self.__dirInfo), arcname=self.__dirInfo)
+            # walk directory and create empty directories
+            for dpath in sorted(list(self.walk_directories_path(recursive=True))):
+                t = tarfile.TarInfo( dpath )
+                t.type = tarfile.DIRTYPE
+                # directories need the execute bit or they cannot be opened after unpacking
+                t.mode = 0o755
+                tarHandler.addfile(t)
+                tarHandler.add(os.path.join(self.__path,dpath,self.__dirInfo), arcname=os.path.join(dpath,self.__dirInfo))
+            # walk files and add to tar
+            for fpath in self.walk_files_path(recursive=True):
+                relaPath, fname = os.path.split(fpath)
+                tarHandler.add(os.path.join(self.__path,fpath), arcname=fpath)
+                tarHandler.add(os.path.join(self.__path,relaPath,self.__fileInfo%fname), arcname=os.path.join(relaPath,self.__fileInfo%fname))
+                tarHandler.add(os.path.join(self.__path,relaPath,self.__fileClass%fname), arcname=os.path.join(relaPath,self.__fileClass%fname))
+            # save the main repository file under its real name so the package opens as a repository
+            tarHandler.add(os.path.join(self.__path,self.__repoFile), arcname=self.__repoFile)
+        finally:
+            tarHandler.close()
 
     #@path_required
     #def maintain_directory(self, relativePath, keep=None, clean=True):
@@ -1805,7 +1853,8 @@ class Repository(object):
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s.  Unable to acquire the lo to add directory. You may try again!"%(repoLockId,)
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False,m
         # load repository info
         for _trial in range(ntrials):
@@ -1820,7 +1869,8 @@ class Repository(object):
                 break
         if error is not None:
             self.__locker.release_lock(repoLockId)
-            assert not raiseError, Exception(error)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # create directories
         error     = None
@@ -1889,7 +1939,8 @@ class Repository(object):
             self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
         # check and return
-        assert error is None or not raiseError, error
+        if error is not None and raiseError:
+            raise Exception(error)
         return error is None, error
 
     def get_repository_parent_directory(self, relativePath):
@@ -1948,19 +1999,22 @@ class Repository(object):
         realPath = os.path.join(self.__path,relativePath)
         if not os.path.isdir(realPath):
             error = "Repository relative directory '%s' seems to be missing. call maintain_repository to fix all issues"%(realPath,)
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
         # get and acquire lock
         acquired, dirLockId = self.__locker.acquire_lock(path=os.path.join(self.__path,parentPath), timeout=self.timeout)
         if not acquired:
             error = "Code %s.  Unable to acquire the lo when removing '%s'. All prior relative directories were added. You may try again, to finish removing directory"%(dirLockId,realPath)
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
         # lock repository
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert not raiseError,  m
+            if raiseError:
+                raise Exception(m)
             return False,m
         # remove directory
         for _trial in range(ntrials):
@@ -1993,7 +2047,8 @@ class Repository(object):
         self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
         # check and return
-        assert error is None or not raiseError, "Unable to remove directory after %i trials '%s' (%s)"%(relativePath, ntrials, error,)
+        if error is not None and raiseError:
+            raise Exception("Unable to remove directory '%s' after %i trials (%s)"%(relativePath, ntrials, error,))
         return error is None, error
 
 
@@ -2029,27 +2084,35 @@ class Repository(object):
         parentPath, dirName = os.path.split(relativePath)
         if relativePath == '':
             error = "Renaming main repository directory is not allowed"
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
         realPath = os.path.join(self.__path,relativePath)
         newRealPath = os.path.join(os.path.dirname(realPath), newName)
         if os.path.isdir(newRealPath):
             error = "New directory path '%s' already exist"%(newRealPath,)
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
-        # get directory parent list
-        acquired, dirLockId = self.__locker.acquire_lock(os.path.join(self.__path,parentPath), timeout=self.timeout)
-        if not acquired:
-            error = "Code %s. Unable to aquire repository lock when renaming '%s'. All prior directories were added. You may try again, to finish adding the directory"%(dirLockId,dirPath)
-            assert not raiseError, error
-            return False, error
+        # The repository root is already covered by the repository lock taken below
+        dirLockId = None
+        if parentPath != '':
+            acquired, dirLockId = self.__locker.acquire_lock(os.path.join(self.__path,parentPath), timeout=self.timeout)
+            if not acquired:
+                error = "Code %s. Unable to acquire the parent directory lock when renaming '%s'. You may try again!"%(dirLockId, relativePath)
+                if raiseError:
+                    raise Exception(error)
+                return False, error
         error = None
         # lock repository
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
-            m = "Code %s. Unable to aquire directory lock when renaming '%s'. All prior directories were added. You may try again, to finish adding the directory"%(repoLockId,dirPath)
-            assert not raiseError,  m
-            return False,m
+            if dirLockId is not None:
+                self.__locker.release_lock(dirLockId)
+            error = "Code %s. Unable to acquire the repository lock when renaming '%s'. You may try again!"%(repoLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
         # load repository info
         for _trial in range(ntrials):
             try:
@@ -2062,9 +2125,11 @@ class Repository(object):
                 error = None
                 break
         if error is not None:
-            self.__locker.release_lock(dirLockId)
+            if dirLockId is not None:
+                self.__locker.release_lock(dirLockId)
             self.__locker.release_lock(repoLockId)
-            assert not raiseError, Exception(error)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # rename directory
         for _trial in range(ntrials):
@@ -2092,10 +2157,12 @@ class Repository(object):
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
         # release locks
-        self.__locker.release_lock(dirLockId)
+        if dirLockId is not None:
+            self.__locker.release_lock(dirLockId)
         self.__locker.release_lock(repoLockId)
         # check and return
-        assert error is None or not raiseError, "Unable to rename directory '%s' to '%s' after %i trials (%s)"%(relativePath, newName, ntrials, error,)
+        if error is not None and raiseError:
+            raise Exception("Unable to rename directory '%s' to '%s' after %i trials (%s)"%(relativePath, newName, ntrials, error,))
         return error is None, error
 
     @path_required
@@ -2133,14 +2200,16 @@ class Repository(object):
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         if relativePath == '':
             m = "Copying to repository main directory is not possible"
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False, m
         realPath     = os.path.join(self.__path,relativePath)
         parentRealPath, dirName = os.path.split(realPath)
         parentRelativePath = os.path.dirname(relativePath)
         if not self.is_repository_directory(relativePath):
             m = "Directory '%s' is not a tracked repository directory"%(relativePath)
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False, m
         newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
         newRealPath     = os.path.join(self.__path,newRelativePath)
@@ -2148,22 +2217,26 @@ class Repository(object):
         newParentRelativePath = os.path.dirname(newRelativePath)
         if realPath == newRealPath:
             m = "Copying to the same directory is not possible"
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False, m
         if self.is_repository_directory(newRelativePath):
             m = "Directory '%s' is a tracked repository directory"%(newRelativePath)
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False, m
         if os.path.isdir(newRealPath):
             if overwrite:
                 try:
                     shutil.rmtree(newRealPath)
                 except Exception as err:
-                    assert not raiseError, str(err)
+                    if raiseError:
+                        raise Exception(str(err))
                     return False, str(err)
             else:
                 error = "New directory path '%s' already exist on disk. Set overwrite to True"%(newRealPath,)
-                assert not raiseError, error
+                if raiseError:
+                    raise Exception(error)
                 return False, error
         # add directory
         try:
@@ -2172,39 +2245,45 @@ class Repository(object):
             reason  = "Unable to add directory (%s)"%(str(err))
             success = False
         if not success:
-            assert not raiseError, reason
+            if raiseError:
+                raise Exception(reason)
             return False, reason
         # lock repository
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert not raiseError,  m
+            if raiseError:
+                raise Exception(m)
             return False,m
         try:
             repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
             self.__repo['walk_repo'] = repo['walk_repo']
         except Exception as err:
             self.__locker.release_lock(repoLockId)
-            assert not raiseError, Exception(str(err))
-            return False,m
+            error = "Unable to load repository info (%s)"%(str(err),)
+            if raiseError:
+                raise Exception(error)
+            return False, error
         # create locks
         if parentRealPath != self.__path:
             acquired, dirLockId = self.__locker.acquire_lock(path=parentRealPath, timeout=self.timeout)
             if not acquired:
                 self.__locker.release_lock(repoLockId)
                 error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(dirLockId,parentRealPath)
-                assert not raiseError, error
+                if raiseError:
+                    raise Exception(error)
                 return False, error
         else:
             dirLockId = None
         newDirLockId = None
-        if parentRealPath != newParentRealPath:
+        if parentRealPath != newParentRealPath and newParentRealPath != self.__path:
             acquired, newDirLockId = self.__locker.acquire_lock(path=newParentRealPath, timeout=self.timeout)
             if not acquired:
                 if dirLockId is not None: self.__locker.release_lock(dirLockId)
                 self.__locker.release_lock(repoLockId)
                 error = "Code %s.  Unable to acquire the lo when adding '%s'. All prior directories were added. You may try again, to finish adding directory"%(newDirLockId,newParentRealPath)
-                assert not raiseError, error
+                if raiseError:
+                    raise Exception(error)
                 return False, error
         # get directory parent list
         error = None
@@ -2212,7 +2291,7 @@ class Repository(object):
             try:
                 # make sure again because sometimes, when multiple processes are working on the same repo things can happen in between
                 assert self.is_repository_directory(relativePath), "Directory '%s' is not anymore a tracked repository directory"%(relativePath)
-                assert not self.is_repository_directory(newRelativePath), "Directory '%s' has become a tracked repository directory"%(relativePath)
+                assert not self.is_repository_directory(newRelativePath), "Directory '%s' has become a tracked repository directory"%(newRelativePath)
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
                 assert dirList is not None, "Given relative path '%s' is not a repository directory"%(relativePath,)
                 newDirList = self.__get_repository_parent_directory(relativePath=newRelativePath)
@@ -2249,7 +2328,8 @@ class Repository(object):
         self.__locker.release_lock(repoLockId)
         if newDirLockId is not None: self.__locker.release_lock(newDirLockId)
         # check and return
-        assert error is None or not raiseError, "Unable to copy directory '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,)
+        if error is not None and raiseError:
+            raise Exception("Unable to copy directory '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,))
         return error is None, error
 
 
@@ -2322,7 +2402,8 @@ class Repository(object):
         # check if name is allowed
         success, reason = self.is_name_allowed(savePath)
         if not success:
-            assert not raiseError, reason
+            if raiseError:
+                raise Exception(reason)
             return False, reason
         # ensure directory added
         try:
@@ -2331,20 +2412,23 @@ class Repository(object):
             reason  = "Unable to add directory (%s)"%(str(err))
             success = False
         if not success:
-            assert not raiseError, reason
+            if raiseError:
+                raise Exception(reason)
             return False, reason
         # lock repository
         acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
         if not acquired:
             m = "code %s. Unable to aquire the repository lock. You may try again!"%(repoLockId,)
-            assert not raiseError, m
+            if raiseError:
+                raise Exception(m)
             return False,m
         # lock file
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s.  Unable to acquire the lo when dumping '%s'"%(fileLockId,relativePath)
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
         # load repository info
         for _trial in range(ntrials):
@@ -2358,9 +2442,10 @@ class Repository(object):
                 error = None
                 break
         if error is not None:
-            self.__locker.release_lock(dirLockId)
             self.__locker.release_lock(fileLockId)
-            assert not raiseError, Exception(error)
+            self.__locker.release_lock(repoLockId)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # dump file
         for _trial in range(ntrials):
@@ -2425,8 +2510,9 @@ class Repository(object):
         self.__locker.release_lock(fileLockId)
         self.__locker.release_lock(repoLockId)
         # check and return
-        assert not raiseError or error is None, "unable to dump file '%s' after %i trials (%s)"%(relativePath, ntrials, error,)
-        return success, error
+        if error is not None and raiseError:
+            raise Exception("unable to dump file '%s' after %i trials (%s)"%(relativePath, ntrials, error,))
+        return error is None, error
 
     def dump(self, *args, **kwargs):
         """Alias to dump_file"""
@@ -2475,34 +2561,53 @@ class Repository(object):
         newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
         newRealPath     = os.path.join(self.__path,newRelativePath)
         nfPath, nfName  = os.path.split(newRealPath)
-        # lock old file
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
-        if not acquired:
-            error = "Code %s.  Unable to acquire the lo for old file '%s'"%(fileLockId,relativePath)
-            assert not raiseError, error
+        if realPath == newRealPath:
+            error = "Copying a file onto itself is not possible"
+            if raiseError:
+                raise Exception(error)
             return False, error
-        # add new file diretory
+        # add new file directory
         try:
             success, reason = self.add_directory(nfPath, raiseError=False, ntrials=ntrials)
         except Exception as err:
             reason  = "Unable to add directory (%s)"%(str(err))
             success = False
         if not success:
-            self.__locker.release_lock(fileLockId)
-            assert not raiseError, reason
+            if raiseError:
+                raise Exception(reason)
             return False, reason
-        # create new file lock
+        # lock repository
+        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        if not acquired:
+            error = "Code %s. Unable to acquire the repository lock when copying '%s'. You may try again!"%(repoLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        # lock old file
+        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        if not acquired:
+            self.__locker.release_lock(repoLockId)
+            error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        # lock new file
         acquired, newFileLockId = self.__locker.acquire_lock(path=newRealPath, timeout=self.timeout)
         if not acquired:
-            self.__locker.release_lock(fileLlockId)
-            error = "Code %s.  Unable to acquire the lo for new file path '%s'"%(newFileLockId,newRelativePath)
-            assert not raiseError, error
+            self.__locker.release_lock(fileLockId)
+            self.__locker.release_lock(repoLockId)
+            error = "Code %s. Unable to acquire the lock for new file path '%s'. You may try again!"%(newFileLockId, newRelativePath)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # copy file
         for _trial in range(ntrials):
             copied = False
             error  = None
             try:
+                # Reload because another process may have changed the tracked files since the last read
+                repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+                self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
                 isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
                 assert isRepoFile,  "file '%s' is not a repository file"%(relativePath,)
@@ -2536,12 +2641,20 @@ class Repository(object):
                 error = None
                 copied = True
                 break
+        # save repository
+        if copied:
+            saved, saveError = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+            if not saved:
+                copied = False
+                error  = saveError
         # release locks
         self.__locker.release_lock(fileLockId)
         self.__locker.release_lock(newFileLockId)
+        self.__locker.release_lock(repoLockId)
         # check and return
-        assert copied or not raiseError, "Unable to copy file '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,)
-        return copied, '\n'.join(message)
+        if not copied and raiseError:
+            raise Exception("Unable to copy file '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,))
+        return copied, error
 
 
     @path_required
@@ -2597,7 +2710,8 @@ class Repository(object):
         acquired, fileLockId = self.__locker.acquire_lock(path=savePath, timeout=self.timeout)
         if not acquired:
             error = "Code %s.  Unable to acquire the lo to update '%s'"%(fileLockId,relativePath)
-            assert not raiseError, error
+            if raiseError:
+                raise Exception(error)
             return False, error
         # update file
         for _trial in range(ntrials):
@@ -2680,7 +2794,8 @@ class Repository(object):
         # release lock
         self.__locker.release_lock(fileLockId)
         # check and return
-        assert updated or not raiseError, "Unable to update file '%s' (%s)"%(relativePath, '\n'.join(message),)
+        if not updated and raiseError:
+            raise Exception("Unable to update file '%s' (%s)"%(relativePath, '\n'.join(message),))
         return updated, '\n'.join(message)
 
     def update(self, *args, **kwargs):
@@ -2730,8 +2845,9 @@ class Repository(object):
             fileOnDisk  = ["",". File itself is found on disk"][fileOnDisk]
             infoOnDisk  = ["",". %s is found on disk"%self.__fileInfo%fName][infoOnDisk]
             classOnDisk = ["",". %s is found on disk"%self.__fileClass%fName][classOnDisk]
-            assert False, "File '%s' is not a repository file%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk)
-        assert fileOnDisk, "File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,)
+            raise Exception("File '%s' is not a repository file%s%s%s"%(relativePath,fileOnDisk,infoOnDisk,classOnDisk))
+        if not fileOnDisk:
+            raise Exception("File '%s' is registered in repository but the file itself was not found on disk"%(relativePath,))
         if not infoOnDisk:
             if pull is not None:
                 warnings.warn("'%s' was not found on disk but pull method is given"%(self.__fileInfo%fName))
@@ -2767,7 +2883,8 @@ class Repository(object):
         # release lock
         self.__locker.release_lock(fileLockId)
         # check and return
-        assert error is None, "After %i trials, failed to pull file '%s' (%s)"%(ntrials,relativePath, error)
+        if error is not None:
+            raise Exception("After %i trials, failed to pull file '%s' (%s)"%(ntrials,relativePath, error))
         return pulledVal
 
     def pull(self, *args, **kwargs):
@@ -2817,11 +2934,10 @@ class Repository(object):
         newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
         newRealPath     = os.path.join(self.__path,newRelativePath)
         nfPath, nfName  = os.path.split(newRealPath)
-        # lock old file
-        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
-        if not acquired:
-            error = "Code %s.  Unable to acquire the lo for old file '%s'"%(fileLockId,relativePath)
-            assert not raiseError, error
+        if realPath == newRealPath:
+            error = "Renaming a file onto itself is not possible"
+            if raiseError:
+                raise Exception(error)
             return False, error
         # add directory
         try:
@@ -2830,23 +2946,41 @@ class Repository(object):
             reason  = "Unable to add directory (%s)"%(str(err))
             success = False
         if not success:
-            #LO.release_lock()
-            self.__locker.release_lock(fileLockId)
-            assert not raiseError, reason
+            if raiseError:
+                raise Exception(reason)
             return False, reason
-        # create new file lock
+        # lock repository
+        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        if not acquired:
+            error = "Code %s. Unable to acquire the repository lock when renaming '%s'. You may try again!"%(repoLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        # lock old file
+        acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
+        if not acquired:
+            self.__locker.release_lock(repoLockId)
+            error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        # lock new file
         acquired, newFileLockId = self.__locker.acquire_lock(path=newRealPath, timeout=self.timeout)
         if not acquired:
-            #LO.release_lock()
             self.__locker.release_lock(fileLockId)
-            error = "Code %s.  Unable to acquire the lo for new file path '%s'"%(newFileLockId,newRelativePath)
-            assert not raiseError, error
+            self.__locker.release_lock(repoLockId)
+            error = "Code %s. Unable to acquire the lock for new file path '%s'. You may try again!"%(newFileLockId, newRelativePath)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # rename file
         for _trial in range(ntrials):
             renamed = False
             error   = None
             try:
+                # Reload because another process may have changed the tracked files since the last read
+                repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+                self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
                 isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
                 assert isRepoFile,  "file '%s' is not a repository file"%(relativePath,)
@@ -2883,9 +3017,16 @@ class Repository(object):
             else:
                 renamed = True
                 break
+        # save repository
+        if renamed:
+            saved, saveError = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+            if not saved:
+                renamed = False
+                error   = saveError
         # release locks
         self.__locker.release_lock(fileLockId)
         self.__locker.release_lock(newFileLockId)
+        self.__locker.release_lock(repoLockId)
         # always clean old file lock
         try:
             if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
@@ -2893,21 +3034,19 @@ class Repository(object):
         except:
             pass
         # check and return
-        assert renamed or not raiseError, "Unable to rename file '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,)
+        if not renamed and raiseError:
+            raise Exception("Unable to rename file '%s' to '%s' after %i trials (%s)"%(relativePath, newRelativePath, ntrials, error,))
         return renamed, error
 
 
     @path_required
-    def remove_file(self, relativePath, removeFromSystem=False,
-                          raiseError=True, ntrials=3):
+    def remove_file(self, relativePath, raiseError=True, ntrials=3):
         """
-        Remove file from repository.
+        Remove a file from the repository and from disk.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of the
                file to remove.
-            #. removeFromSystem (boolean): Whether to remove file from disk as
-               well.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
             #. ntrials (int): After aquiring all locks, ntrials is the maximum
@@ -2918,9 +3057,12 @@ class Repository(object):
                of some other process. Bigger number of trials lowers the
                likelyhood of failure due to multiple processes same time
                alteration.
+
+        :Returns:
+            #. removed (boolean): Whether removing the file was successful.
+            #. message (str): Explanatory message or error reason. Empty on success.
         """
-        assert isinstance(raiseError, bool), "removeFromSystem must be boolean"
-        assert isinstance(removeFromSystem, bool), "removeFromSystem must be boolean"
+        assert isinstance(raiseError, bool), "raiseError must be boolean"
         assert isinstance(ntrials, int), "ntrials must be integer"
         assert ntrials>0, "ntrials must be >0"
         # check name and path
@@ -2928,26 +3070,39 @@ class Repository(object):
         realPath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(realPath)
         # lock repository
+        acquired, repoLockId = self.__locker.acquire_lock(path=self.__path, timeout=self.timeout)
+        if not acquired:
+            error = "Code %s. Unable to acquire the repository lock when removing '%s'. You may try again!"%(repoLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
+            return False, error
+        # lock file
         acquired, fileLockId = self.__locker.acquire_lock(path=realPath, timeout=self.timeout)
         if not acquired:
-            error = "Code %s.  Unable to acquire the lo when removing '%s'"%(fileLockId,relativePath)
-            assert not raiseError, error
+            self.__locker.release_lock(repoLockId)
+            error = "Code %s. Unable to acquire the file lock when removing '%s'. You may try again!"%(fileLockId, relativePath)
+            if raiseError:
+                raise Exception(error)
             return False, error
         # remove file
         for _trial in range(ntrials):
             removed = False
             message = []
             try:
+                # Reload because another process may have changed the tracked files since the last read
+                repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
+                self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
                 isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
                 if not isRepoFile:
-                    message("File '%s' is not a repository file"%(relativePath,))
+                    details = ["File '%s' is not a repository file"%(relativePath,)]
                     if fileOnDisk:
-                        message.append("File itself is found on disk")
+                        details.append("File itself is found on disk")
                     if infoOnDisk:
-                        message.append("%s is found on disk"%self.__fileInfo%fName)
+                        details.append("%s is found on disk"%(self.__fileInfo%fName,))
                     if classOnDisk:
-                        message.append("%s is found on disk"%self.__fileClass%fName)
+                        details.append("%s is found on disk"%(self.__fileClass%fName,))
+                    raise Exception("; ".join(details))
                 else:
                     dirList = self.__get_repository_directory(fPath)
                     findex  = dirList.index(fName)
@@ -2965,8 +3120,15 @@ class Repository(object):
             else:
                 removed = True
                 break
-        # release lock
+        # save repository
+        if removed:
+            saved, saveError = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+            if not saved:
+                removed = False
+                message.append(saveError)
+        # release locks
         self.__locker.release_lock(fileLockId)
+        self.__locker.release_lock(repoLockId)
         # always clean
         try:
             if os.path.isfile(os.path.join(fPath,self.__fileLock%fName)):
@@ -2974,5 +3136,6 @@ class Repository(object):
         except:
             pass
         # check and return
-        assert removed or not raiseError, "Unable to remove file '%s' after %i trials (%s)"%(relativePath, ntrials, '\n'.join(message),)
+        if not removed and raiseError:
+            raise Exception("Unable to remove file '%s' after %i trials (%s)"%(relativePath, ntrials, '\n'.join(message),))
         return removed, '\n'.join(message)

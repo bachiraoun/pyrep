@@ -4,7 +4,7 @@ __author__     = "Bachir Aoun"
 
 __email__      = "bachir.aoun@e-aoun.com"
 
-__onlinedoc__  = "http://bachiraoun.github.io/pyrep/"
+__onlinedoc__  = "https://bachiraoun.github.io/pyrep/"
 
 __repository__ = "https://github.com/bachiraoun/pyrep"
 
