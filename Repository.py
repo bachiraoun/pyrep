@@ -83,7 +83,7 @@ output
         /folder2
           /folder3
           list.pkl
-    pyrep Repository (Version 3.2.2) @/home/user/pyrepTest_canBeDeleted [5 directories] [3 files] 
+    pyrep Repository (Version 4.0.0) @/home/user/pyrepTest_canBeDeleted [5 directories] [3 files] 
     ['pyrepTest_canBeDeleted', 'pyrepTest_canBeDeleted.tar']
     False
     True
@@ -102,20 +102,19 @@ Threads and processes can use the same repository at the same time. Access is co
 `pylocker <https://pypi.org/project/pylocker/>`_ locks. The repository index and the info files are
 written to a temporary file and then renamed into place, and so are data files, which means a crash
 leaves the previous content complete. Leftover temporary files of crashed writes are removed with
-:py:meth:`~pyrep.Repository.Repository.remove_temporary_files`. If the process hosting the lock server exits, the next operation
-of another process takes its place.
+:py:meth:`~pyrep.Repository.Repository.remove_temporary_files`, and the files that a crashed operation left in the
+repository without the index listing them are removed with :py:meth:`~pyrep.Repository.Repository.remove_orphan_files`.
+Loading a repository does both by default, for the files that were not touched for an hour, and the flags
+*removeTemporaryFiles* and *removeOrphanFiles* turn it off. Operations that need several steps, such as renaming a
+directory, write a journal first, and whoever takes the lock next completes what a crash interrupted.
+If the process hosting the lock server exits, the next operation of another process takes its place.
 """
 
 # standard distribution imports
-from __future__ import print_function
-import os, sys, re, time, uuid, warnings, tarfile, shutil, traceback, inspect, threading, weakref
+import os, sys, re, time, uuid, errno, random, warnings, tarfile, shutil, traceback, inspect, threading, weakref
 from functools import wraps
-from pprint import pprint
 import copy
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import pickle
 
 # import pylocker ServerLocker singleton implementation
 from pylocker import FACTORY
@@ -123,43 +122,82 @@ from pylocker import FACTORY
 # pyrep imports
 from .__pkginfo__ import __version__
 
-# python version dependant imports
-if sys.version_info >= (3, 0):
-    # This is python 3
-    basestring = str
-    def makedirs(name, mode=0o777):
-        """
-        Creates a directory and its missing parents.
-
-        :Parameters:
-            #. name (str): The directory path.
-            #. mode (int): The permissions of the created directories.
-        """
-        return os.makedirs(name=name, mode=mode, exist_ok=True)
-    replace_file = os.replace
-else:
-    def makedirs(name, mode=0o777):
-        """
-        Creates a directory and its missing parents.
-
-        :Parameters:
-            #. name (str): The directory path.
-            #. mode (int): The permissions of the created directories.
-        """
-        return os.makedirs(name=name, mode=mode)
-    def replace_file(source, destination):
-        # os.rename cannot overwrite an existing file on Windows
-        if os.name == 'nt' and os.path.exists(destination):
-            os.remove(destination)
-        os.rename(source, destination)
-
 # Every instance of a process that works on the same repository shares one locker, so the locker may only
 # be stopped when the last of those instances is closed. Keys are server file paths.
 LOCKER_USERS       = {}
 LOCKER_USERS_MUTEX = threading.RLock()
 
+# An operation that fails is only attempted again when the error can pass by itself. These are the codes of
+# such errors, the pause before the next attempt starts at the base delay and doubles up to the maximum.
+TRANSIENT_ERRNOS = frozenset(getattr(errno, name) for name in ('EINTR', 'EAGAIN', 'EBUSY', 'ETXTBSY', 'ESTALE', 'ETIMEDOUT', 'EMFILE', 'ENFILE')
+                             if hasattr(errno, name))
+RETRY_BASE_DELAY = 0.05
+RETRY_MAX_DELAY  = 1.0
+
 # set warnings filter to always
 warnings.simplefilter('always')
+
+
+def is_transient_error(err):
+    """
+    Tells whether an error can pass by itself, which makes the operation worth another attempt. Only operating
+    system errors such as a busy or interrupted call qualify, and on Windows a refused access, which is what a file
+    held for a moment by an antivirus or an indexer looks like. The error an operation was wrapped in is
+    looked at too. Errors of logic, of values and errors raised by user code that are not of this kind are never transient.
+
+    :Parameters:
+        #. err (Exception): The error of a failed attempt.
+
+    :Returns:
+        #. isTransient (bool): Whether another attempt can succeed.
+    """
+    seen = set()
+    while err is not None and id(err) not in seen:
+        seen.add(id(err))
+        if isinstance(err, (InterruptedError, BlockingIOError, TimeoutError)):
+            return True
+        if isinstance(err, OSError):
+            if err.errno in TRANSIENT_ERRNOS:
+                return True
+            if os.name == 'nt' and isinstance(err, PermissionError):
+                return True
+        err = err.__cause__
+    return False
+
+
+def should_retry(err, trial, ntrials):
+    """
+    Decides whether a failed attempt is followed by another one and, if so, pauses first. The pause starts at
+    RETRY_BASE_DELAY seconds, doubles with every attempt up to RETRY_MAX_DELAY, and is shortened by up to half
+    at random so that processes that failed together do not retry together.
+
+    :Parameters:
+        #. err (Exception): The error of the failed attempt.
+        #. trial (int): The index of the failed attempt, starting at 0.
+        #. ntrials (int): The maximum number of attempts.
+
+    :Returns:
+        #. retry (bool): Whether another attempt must be made.
+    """
+    if trial >= ntrials - 1 or not is_transient_error(err):
+        return False
+    time.sleep(min(RETRY_BASE_DELAY * 2 ** trial, RETRY_MAX_DELAY) * (0.5 + random.random() / 2))
+    return True
+
+
+def describe_attempts(attempts):
+    """
+    Describes the errors of all the attempts of an operation.
+
+    :Parameters:
+        #. attempts (list): The error text of every attempt so far.
+
+    :Returns:
+        #. description (str): The only error, or every attempt's error numbered.
+    """
+    if len(attempts) == 1:
+        return attempts[0]
+    return '; '.join('attempt %i: %s'%(index + 1, text) for index, text in enumerate(attempts))
 
 
 def get_pickling_errors(obj, seen=None):
@@ -177,10 +215,14 @@ def get_pickling_errors(obj, seen=None):
     """
     if seen is None:
         seen = []
-    if not hasattr(obj, "__getstate__"):
-        return None
     try:
-        state = obj.__getstate__()
+        if hasattr(obj, "__getstate__"):
+            state = obj.__getstate__()
+        elif hasattr(obj, "__dict__"):
+            # object.__getstate__ only exists from python 3.11
+            state = dict(vars(obj))
+        else:
+            return None
     except Exception as err:
         return 'unable to read the object state (%s)'%str(err)
     if state is None:
@@ -248,11 +290,7 @@ def get_dump_method(dump, protocol=-1):
         proto = parse_pickle_protocol(proto)
         code = """
 def dump(path, value):
-    import os
-    try:
-        import cPickle as pickle
-    except ImportError:
-        import pickle
+    import os, pickle
     with open(path, 'wb') as fd:
         pickle.dump( value, fd, protocol=%i )
         fd.flush()
@@ -260,7 +298,7 @@ def dump(path, value):
 """%proto
     elif dump.startswith('dill'):
         if dump == 'dill':
-            proto = 2
+            proto = 4
         else:
             proto = dump.strip('dill')
             proto = parse_pickle_protocol(proto)
@@ -297,7 +335,7 @@ def dump(path, value):
     numpy.savetxt(fname=path, X=value, fmt='%.6e')
 """
     else:
-        if not (isinstance(dump, basestring)):
+        if not (isinstance(dump, str)):
             raise Exception("dump must be None or a string")
         code = dump
     # return
@@ -321,10 +359,7 @@ def get_pull_method(pull):
     if pull is None or pull.startswith('pickle'):
         code = """
 def pull(path):
-    try:
-        import cPickle as pickle
-    except ImportError:
-        import pickle
+    import pickle
     with open(path, 'rb') as fd:
         return pickle.load( fd )
 """
@@ -358,7 +393,7 @@ def pull(path):
         return numpy.loadtxt(fname=fd)
 """
     else:
-        if not (isinstance(pull, basestring)):
+        if not (isinstance(pull, str)):
             raise Exception("pull must be None or a string")
         code = pull
     # return
@@ -379,7 +414,23 @@ def get_temporary_path(path):
     :Returns:
         #. temporaryPath (str): A path in the same directory, which makes the final rename atomic.
     """
-    return os.path.join(os.path.dirname(path), '.pyreptmp_%i_%s_%s'%(os.getpid(), uuid.uuid4().hex[:8], os.path.basename(path)))
+    # Only the end of the name is kept, so the extension and the kind suffix survive and the name stays short enough for the file system
+    return os.path.join(os.path.dirname(path), '.pyreptmp_%i_%s_%s'%(os.getpid(), uuid.uuid4().hex[:8], os.path.basename(path)[-40:]))
+
+
+def write_pickle_file(path, value, protocol):
+    """
+    Pickles a value into a file and makes sure it reaches the disk.
+
+    :Parameters:
+        #. path (str): The file to write.
+        #. value (object): The value to pickle.
+        #. protocol (int): The pickle protocol.
+    """
+    with open(path, 'wb') as fd:
+        pickle.dump( value, fd, protocol=protocol )
+        fd.flush()
+        os.fsync(fd.fileno())
 
 
 def write_pickle_atomically(path, value, protocol):
@@ -395,11 +446,8 @@ def write_pickle_atomically(path, value, protocol):
     """
     tempPath = get_temporary_path(path)
     try:
-        with open(tempPath, 'wb') as fd:
-            pickle.dump( value, fd, protocol=protocol )
-            fd.flush()
-            os.fsync(fd.fileno())
-        replace_file(tempPath, path)
+        write_pickle_file(tempPath, value, protocol)
+        os.replace(tempPath, path)
     except Exception:
         # A failed write must not leave a temporary file behind
         if os.path.isfile(tempPath):
@@ -421,52 +469,138 @@ def get_class_name(value):
     if value is None:
         return None
     klass = value.__class__
-    return '%s.%s'%(klass.__module__, getattr(klass, '__qualname__', klass.__name__))
+    return '%s.%s'%(klass.__module__, klass.__qualname__)
 
 
-def dump_atomically(dumpFunc, path, value):
+def write_journal(journalPath, kind, data, protocol):
     """
-    Runs a dump function so that a crash or a failure leaves the previous content of the file untouched.
-    The function writes to a temporary file next to the destination, which is moved over the destination
-    only once the function returned.
+    Writes a journal, the record of an operation that must be completed even if the process dies in the middle of it.
+    Writing the journal is atomic, and it is the point from which the operation is completed instead of undone.
+    Which function completes it is told by the kind, see Repository.recover_journal.
 
     :Parameters:
-        #. dumpFunc (callable): The dump function, called as dumpFunc(path=..., value=...).
-        #. path (str): The file to write.
-        #. value (object): The value to dump.
+        #. journalPath (str): The journal file.
+        #. kind (str): What the journal describes, such as 'file_moves' or 'rename_directory'.
+        #. data (object): What is needed to complete it.
+        #. protocol (int): The pickle protocol.
+    """
+    write_pickle_atomically(journalPath, {'kind': kind, 'data': data}, protocol)
+
+
+def read_journal(journalPath):
+    """
+    Reads a journal.
+
+    :Parameters:
+        #. journalPath (str): The journal file.
+
+    :Returns:
+        #. kind (str): What the journal describes.
+        #. data (object): What is needed to complete it.
 
     :Raises:
-        #. Exception: If the dump function fails or does not create the file it was given.
+        #. Exception: If the file is not a journal.
     """
-    tempPath = get_temporary_path(path)
+    with open(journalPath, 'rb') as fd:
+        record = pickle.load(fd)
+    if not (isinstance(record, dict) and set(record) == {'kind', 'data'}):
+        raise Exception("'%s' is not a pyrep journal"%(journalPath,))
+    return record['kind'], record['data']
+
+
+def finish_file_moves(journalPath):
+    """
+    Completes the file moves that a journal of the kind 'file_moves' lists. The journal names temporary files and
+    the names they must take in the same directory. Moving a temporary file that is already gone is skipped, so
+    finishing is safe to repeat, which is what makes it safe to interrupt as well.
+
+    :Parameters:
+        #. journalPath (str): The journal file, which is removed once everything is moved.
+    """
+    kind, moves = read_journal(journalPath)
+    if kind != 'file_moves':
+        raise Exception("'%s' is a journal of the kind '%s', not of file moves"%(journalPath, kind))
+    directory = os.path.dirname(journalPath)
+    for tempName, finalName in moves:
+        tempPath = os.path.join(directory, tempName)
+        if os.path.exists(tempPath):
+            os.replace(tempPath, os.path.join(directory, finalName))
+    os.remove(journalPath)
+
+
+def write_files_together(dumpFunc, path, value, pickled, protocol, journalPath):
+    """
+    Writes a data file together with the files that describe it, such that a crash or a failure leaves either
+    all of them as they were or all of them new, never a mix. Every file is first written completely to a
+    temporary file. Then a journal that lists the moves is written, which is the commit point. A crash before it
+    leaves the old files, and the temporary files are leftovers. A crash after it is completed by
+    whoever touches the file next, because the journal says what is left to move.
+
+    :Parameters:
+        #. dumpFunc (callable): The dump function of the data file, called as dumpFunc(path=..., value=...).
+        #. path (str): The data file to write.
+        #. value (object): The value to dump to the data file.
+        #. pickled (list): Tuples of path and value of the files to pickle, such as the info and class files.
+        #. protocol (int): The pickle protocol of the pickled files and of the journal.
+        #. journalPath (str): Where to write the journal, in the directory of the data file.
+
+    :Raises:
+        #. Exception: If a write fails or the dump function does not create the file it was given.
+    """
+    prepared = []
     try:
+        tempPath = get_temporary_path(path)
+        prepared.append((tempPath, path))
         dumpFunc(path=tempPath, value=value)
         if not os.path.isfile(tempPath):
             raise Exception("the dump method did not create the file it was given")
-        replace_file(tempPath, path)
+        for pickledPath, pickledValue in pickled:
+            tempPath = get_temporary_path(pickledPath)
+            prepared.append((tempPath, pickledPath))
+            write_pickle_file(tempPath, pickledValue, protocol)
+        # The journal is the commit point
+        write_journal(journalPath, 'file_moves', [(os.path.basename(t), os.path.basename(f)) for t, f in prepared], protocol)
     except Exception:
-        # A failed write must not leave a temporary file behind
-        if os.path.isfile(tempPath):
-            os.remove(tempPath)
+        # Nothing was committed, so the temporary files are only in the way
+        for tempPath, _ in prepared:
+            if os.path.isfile(tempPath):
+                os.remove(tempPath)
         raise
+    finish_file_moves(journalPath)
 
 
-def copy_atomically(source, destination):
+def copy_files_together(copies, journalPath, protocol, link=False):
     """
-    Copies a file so that a crash leaves either the complete previous destination or the complete copy.
+    Copies several files so that a crash leaves either all destinations as they were or all of them new.
+    It works like write_files_together, with copies instead of dumps.
 
     :Parameters:
-        #. source (str): The file to copy.
-        #. destination (str): The file to create or replace.
+        #. copies (list): Tuples of the source and the destination path. All destinations are in the same directory.
+        #. journalPath (str): Where to write the journal, in the directory of the destinations.
+        #. protocol (int): The pickle protocol of the journal.
+        #. link (boolean): Whether to make hard links instead of copies, which takes no time for any size.
+           Files systems without hard links get copies.
     """
-    tempPath = get_temporary_path(destination)
+    prepared = []
     try:
-        shutil.copyfile(source, tempPath)
-        replace_file(tempPath, destination)
+        for source, destination in copies:
+            tempPath = get_temporary_path(destination)
+            prepared.append((tempPath, destination))
+            if link:
+                try:
+                    os.link(source, tempPath)
+                except OSError:
+                    # This file system or this pair of directories cannot be linked
+                    shutil.copyfile(source, tempPath)
+            else:
+                shutil.copyfile(source, tempPath)
+        write_journal(journalPath, 'file_moves', [(os.path.basename(t), os.path.basename(f)) for t, f in prepared], protocol)
     except Exception:
-        if os.path.isfile(tempPath):
-            os.remove(tempPath)
+        for tempPath, _ in prepared:
+            if os.path.isfile(tempPath):
+                os.remove(tempPath)
         raise
+    finish_file_moves(journalPath)
 
 
 def path_required(func):
@@ -563,7 +697,7 @@ def copy_tree(src, dst, srcDirDict,
         raise Exception("source directory dictionary single key must be the source directory name '%s' but '%s' is found"%(srcDirName, dirName))
     # create destination directory
     if not os.path.isdir(dst):
-        makedirs(dst)
+        os.makedirs(dst, exist_ok=True)
         for attr in dirAttr:
             srcp = os.path.join(src, attr)
             if os.path.isfile(srcp):
@@ -571,7 +705,7 @@ def copy_tree(src, dst, srcDirDict,
                 shutil.copyfile(srcp, dstp)
     # copy files
     for f in dirList:
-        if isinstance(f, basestring):
+        if isinstance(f, str):
             srcp = os.path.join(src, f)
             dstp = os.path.join(dst, f)
             shutil.copyfile(srcp, dstp)
@@ -596,7 +730,7 @@ def copy_tree(src, dst, srcDirDict,
 
 
 
-class Repository(object):
+class Repository:
     """
     This is a pythonic way to organize dumping and pulling python objects
     or any type of files to a folder or directory that we call repository.
@@ -611,18 +745,31 @@ class Repository(object):
            If None, Repository is initialized but not assigned to any directory.\n
            If Path is given then repository will be loaded from path if
            existing.
-        #. pickleProtocol (int): Pickle protocol. Default value is 2 which makes
-           it compatible with python 3 and 2. If user is always going to be
-           using the same version of python, pickle.HIGHEST_PROTOCOL or -1
-           will ensure the highest protocol.
-        #. timeout (number): The maximum delay or time allowed to successfully
-           set the lock upon reading or writing to the repository
+        #. pickleProtocol (int): Pickle protocol. Default value is 4, which every
+           python 3.4 or newer reads. pickle.HIGHEST_PROTOCOL or -1 uses the
+           highest protocol of the running python, which older pythons may not read.
+        #. timeout (number): The seconds to wait for a lock on each attempt. A lock that
+           stays taken is tried four times with half a second between attempts,
+           so a failure takes up to four times this plus 1.5 seconds.
         #. password (None, string): the locker password to manage the
            repository access. If None, default password is given
+        #. removeTemporaryFiles (boolean): Whether loading the repository at *path*
+           removes the temporary files that crashed writes left behind. Only files
+           untouched for TEMPORARY_FILES_MAX_AGE seconds are removed.
+        #. removeOrphanFiles (boolean): Whether loading the repository at *path*
+           removes the files of the repository that its index no longer lists,
+           which crashed operations leave behind. Only files untouched for
+           ORPHAN_FILES_MAX_AGE seconds are removed.
     """
     DEBUG_PRINT_FAILED_TRIALS = False#True
 
-    def __init__(self, path=None, pickleProtocol=2, timeout=10, password=None):
+    # Seconds a temporary file must be untouched before loading a repository removes it, so a write in progress is never hit
+    TEMPORARY_FILES_MAX_AGE = 3600
+
+    # Seconds the files that the index does not list must be untouched before loading a repository removes them
+    ORPHAN_FILES_MAX_AGE = 3600
+
+    def __init__(self, path=None, pickleProtocol=4, timeout=10, password=None, removeTemporaryFiles=True, removeOrphanFiles=True):
         self.__repoLock  = '.pyreplock'
         self.__repoFile  = '.pyreprepo'
         self.__dirInfo   = '.pyrepdirinfo'
@@ -630,10 +777,12 @@ class Repository(object):
         self.__fileInfo  = '.%s_pyrepfileinfo'  # %s replaces file name
         self.__fileClass = '.%s_pyrepfileclass'  # %s replaces file name
         self.__fileLock  = '.%s_pyrepfilelock'  # %s replaces file name
+        self.__fileJournal = '.%s_pyrepjournal'  # %s replaces file name
+        self.__repoJournal = '.pyrepjournal'
         self.__isDefaultPassword = password is None
         if password is None:
             password = "pyrep_repository_b@11a"
-        if not (isinstance(password, basestring)):
+        if not (isinstance(password, str)):
             raise Exception("password must be None or a string")
         self.__password = password
         self.__locker   = None
@@ -651,7 +800,7 @@ class Repository(object):
         if path is not None:
             if not (self.is_repository(path)):
                 raise Exception("given path is not a repository. use create_repository or give a valid repository path")
-            self.load_repository(path)
+            self.load_repository(path, removeTemporaryFiles=removeTemporaryFiles, removeOrphanFiles=removeOrphanFiles)
 
     def __str__(self):
         if self.__path is None:
@@ -721,7 +870,7 @@ class Repository(object):
                             errors.append("Repository directory found in '%s' info dict length is not 1"%relPath)
                             continue
                         dn = list(k)[0]
-                        if not isinstance(dn, basestring):
+                        if not isinstance(dn, str):
                             errors.append("Repository directory found in '%s' info dict key is not a string"%relPath)
                             continue
                         if not len(dn):
@@ -734,7 +883,7 @@ class Repository(object):
                         rsd = {dn:[]}
                         relSynchedList.append(rsd)
                         _walk_dir(relPath=rp, relDirList=k[dn], relSynchedList=rsd[dn])
-                    elif isinstance(k, basestring):
+                    elif isinstance(k, str):
                         relFilePath = os.path.join(repoPath, relPath, k)
                         relInfoPath = os.path.join(repoPath, relPath, self.__fileInfo%k)
                         if not os.path.isfile(relFilePath):
@@ -896,13 +1045,13 @@ class Repository(object):
         try:
             fd = open(repoPath, 'rb')
         except Exception as err:
-            raise Exception("Unable to open repository file(%s)"%str(err))
+            raise Exception("Unable to open repository file(%s)"%str(err)) from err
         # read
         try:
             repo = pickle.load( fd )
         except Exception as err:
             fd.close()
-            raise Exception("Unable to load pickle repository (%s)"%str(err) )
+            raise Exception("Unable to load pickle repository (%s)"%str(err) ) from err
         else:
             fd.close()
         # check if it's a pyreprepo instance
@@ -1017,6 +1166,106 @@ class Repository(object):
         if not acquired and lockId in (1, 2):
             self.__replace_locker(locker)
             acquired, lockId = self.__locker.acquire_lock(path=path, timeout=self.timeout)
+        if acquired and path == self.__path:
+            # Whoever holds the repository lock first completes what a crash interrupted
+            try:
+                self.__recover_repository_journal()
+            except Exception as err:
+                self.__locker.release_lock(lockId)
+                return False, "unable to complete an interrupted operation (%s)"%(err,)
+        return acquired, lockId
+
+    def __remove_files(self, paths):
+        """
+        Removes files that are not needed anymore, once the index no longer lists them. A file that cannot be
+        removed is an orphan and does no harm, so failures are returned and never raised.
+        """
+        failed = []
+        for path in paths:
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError as err:
+                failed.append("%s (%s)"%(path, err))
+        return failed
+
+    def __resync_index(self):
+        """
+        Reads the tracked list from the saved index again, after a change that could not be saved.
+        """
+        try:
+            self.__repo['walk_repo'] = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))['walk_repo']
+        except Exception:
+            # The next operation reloads it anyway
+            pass
+
+    def __recover_journal(self, journalPath):
+        """
+        Completes the operation a journal describes. Every kind of journal has the function that completes it in the
+        table below, so a new kind of journal is one new function and one new line. The lock that protects the
+        journal's scope must be held: the file lock for a journal next to a data file, the repository lock for
+        the journal in the repository directory.
+        """
+        kind, data = read_journal(journalPath)
+        completers = {'file_moves': lambda: finish_file_moves(journalPath),
+                      'rename_directory': lambda: self.__finish_directory_rename(journalPath, data)}
+        if kind not in completers:
+            raise Exception("'%s' is a journal of the unknown kind '%s'"%(journalPath, kind))
+        completers[kind]()
+
+    def __recover_commit(self, realPath):
+        """
+        Completes a commit that a crash interrupted for a data file, if there is one. The file lock must be held.
+        """
+        journalPath = os.path.join(os.path.dirname(realPath), self.__fileJournal%os.path.basename(realPath))
+        if os.path.isfile(journalPath):
+            self.__recover_journal(journalPath)
+
+    def __recover_repository_journal(self):
+        """
+        Completes the operation that a crash interrupted in the repository, if there is one. The repository lock must be held.
+        """
+        journalPath = os.path.join(self.__path, self.__repoJournal)
+        if os.path.isfile(journalPath):
+            self.__recover_journal(journalPath)
+
+    def __finish_directory_rename(self, journalPath, data):
+        """
+        Completes a directory rename that a crash interrupted. What is on disk decides: when the old directory is
+        still there the directory was never renamed and there is nothing to complete, when only the new one is
+        there the index must name it as well. The repository lock must be held.
+        """
+        parent, old, new = data['parent'], data['old'], data['new']
+        oldExists = os.path.isdir(os.path.join(self.__path, parent, old))
+        newExists = os.path.isdir(os.path.join(self.__path, parent, new))
+        if newExists and not oldExists:
+            self.__repo['walk_repo'] = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))['walk_repo']
+            parentList = self.__get_repository_directory(parent)
+            if parentList is not None:
+                oldEntries = [entry for entry in parentList if isinstance(entry, dict) and old in entry]
+                newEntries = [entry for entry in parentList if isinstance(entry, dict) and new in entry]
+                if len(oldEntries) == 1 and len(newEntries) == 0:
+                    oldEntries[0][new] = oldEntries[0].pop(old)
+                    saved, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+                    if not saved:
+                        raise Exception(error)
+        elif not (oldExists and not newExists):
+            warnings.warn("The interrupted renaming of '%s' to '%s' cannot be decided because both of them or none of them exist, it is left as it is"%(os.path.join(parent, old), os.path.join(parent, new)))
+        os.remove(journalPath)
+
+    def __acquire_file_lock(self, realPath):
+        """
+        Acquires the lock of a data file and completes the commit that a crash may have interrupted for it,
+        so that whatever the caller reads or replaces next is a whole state of the file.
+        Failing to complete the commit counts as not acquiring, and the lock is given back.
+        """
+        acquired, lockId = self.__acquire_lock(realPath)
+        if acquired:
+            try:
+                self.__recover_commit(realPath)
+            except Exception as err:
+                self.__locker.release_lock(lockId)
+                return False, "unable to complete an interrupted commit (%s)"%(err,)
         return acquired, lockId
 
     def close(self):
@@ -1094,7 +1343,7 @@ class Repository(object):
             return False
 
 
-    def load_repository(self, path, verbose=True, ntrials=3, safeMode=True):
+    def load_repository(self, path, verbose=True, ntrials=3, safeMode=True, removeTemporaryFiles=True, removeOrphanFiles=True):
         """
         Load repository from a directory path and update the current instance.
         First, new repository still will be loaded. If failed, then old
@@ -1105,16 +1354,24 @@ class Repository(object):
                the repository from. If '.' or an empty string is passed,
                the current working directory will be used.
             #. verbose (boolean): Whether to be verbose about abnormalities
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing. In rare cases, when
-               multiple processes are accessing the same repository components,
-               different processes can alter repository components between
-               successive lock releases of some other process. Bigger number
-               of trials lowers the likelihood of failure due to multiple
-               processes same time alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
             #. safeMode (boolean): loading repository can be done without
                acquiring from multiple processes. Not acquiring the lock
                can be unsafe if another process is altering the repository
+            #. removeTemporaryFiles (boolean): Whether to remove the temporary files
+               that crashed writes left behind. Only files untouched for
+               TEMPORARY_FILES_MAX_AGE seconds are removed, so a write in progress
+               in another process is never hit. A failure to remove them only warns.
+            #. removeOrphanFiles (boolean): Whether to remove the files of the
+               repository that the index no longer lists, which crashed operations
+               leave behind. Only files untouched for ORPHAN_FILES_MAX_AGE seconds
+               are removed, and only files that carry the info or class file that pyrep
+               writes, so files of your own are never touched. A failure to remove them
+               only warns.
 
         :Returns:
              #. repository (pyrep.Repository): returns self repository with loaded data.
@@ -1126,13 +1383,16 @@ class Repository(object):
         if not (ntrials>0):
             raise Exception("ntrials must be >0")
         repo = None
+        attempts = []
         for _trial in range(ntrials):
             try:
                 self.__load_repository(path=path, verbose=True, safeMode=safeMode)
             except Exception as err1:
                 error = "Unable to load repository (%s)"%(err1, )
-                if _trial < ntrials - 1:
-                    time.sleep(0.1 * (_trial + 1))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err1, _trial, ntrials):
+                    break
             else:
                 error = None
                 repo  = self
@@ -1140,6 +1400,19 @@ class Repository(object):
         # check and return
         if error is not None:
             raise Exception(error)
+        self.__complete_repository_journal()
+        if removeTemporaryFiles:
+            try:
+                self.remove_temporary_files(olderThan=self.TEMPORARY_FILES_MAX_AGE)
+            except Exception as err:
+                if verbose:
+                    warnings.warn("Unable to remove the temporary files of '%s' (%s)"%(self.__path, err))
+        if removeOrphanFiles:
+            try:
+                self.remove_orphan_files(olderThan=self.ORPHAN_FILES_MAX_AGE)
+            except Exception as err:
+                if verbose:
+                    warnings.warn("Unable to remove the orphan files of '%s' (%s)"%(self.__path, err))
         return repo
 
     @path_required
@@ -1178,7 +1451,9 @@ class Repository(object):
     @path_required
     def remove_temporary_files(self, olderThan=3600):
         """
-        Removes the temporary files that crashed writes left behind in the repository directories.
+        Completes the commits that crashed writes interrupted, then removes the temporary files that crashed writes
+        left behind anywhere in the repository directory, also in directories that a crashed add_directory created
+        but did not register.
         Temporary files are named after the process that wrote them and are never reused, so nothing else cleans them.
 
         :Parameters:
@@ -1192,21 +1467,127 @@ class Repository(object):
             raise Exception("olderThan must be a number >=0")
         removed = []
         now     = time.time()
-        for relativeDir in [''] + list(self.walk_directories_path(recursive=True)):
-            realDir = os.path.join(self.__path, relativeDir)
-            if not os.path.isdir(realDir):
-                continue
-            for name in os.listdir(realDir):
+        walked  = list(os.walk(self.__path))
+        # Commits that a crash interrupted are completed first, because their temporary files are not leftovers
+        journalSuffix = self.__fileJournal[3:]
+        for realDir, _, names in walked:
+            for name in names:
+                # A journal that is still a temporary file was never committed, so it must not be completed
+                if name.startswith('.') and not name.startswith('.pyreptmp_') and name.endswith(journalSuffix):
+                    acquired, lockId = self.__acquire_file_lock(os.path.join(realDir, name[1:-len(journalSuffix)]))
+                    if acquired:
+                        self.__locker.release_lock(lockId)
+                    else:
+                        # A writer that is alive holds the lock and finishes its own commit
+                        warnings.warn("Unable to complete the interrupted commit of '%s' (%s)"%(os.path.join(realDir, name), lockId))
+        for realDir, _, names in os.walk(self.__path):
+            for name in names:
                 if not name.startswith('.pyreptmp_'):
                     continue
                 realPath = os.path.join(realDir, name)
                 try:
                     if now - os.path.getmtime(realPath) >= olderThan:
                         os.remove(realPath)
-                        removed.append(os.path.join(relativeDir, name))
+                        removed.append(os.path.relpath(realPath, self.__path))
                 except OSError:
-                    # The writer may have finished or removed it in the meantime
+                    # Another process may have finished or removed it in the meantime
                     pass
+        return removed
+
+    def __complete_repository_journal(self):
+        """
+        Completes the operation that a crash interrupted in the repository, if there is one. Taking the repository
+        lock does it, and the tracked list is read again while the lock is still held, so that no writer is
+        working with the old list. Methods that only take the lock of a file call this first, because that lock
+        does not complete it.
+        """
+        if os.path.isfile(os.path.join(self.__path, self.__repoJournal)):
+            acquired, lockId = self.__acquire_lock(self.__path)
+            if acquired:
+                try:
+                    self.__repo['walk_repo'] = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))['walk_repo']
+                finally:
+                    self.__locker.release_lock(lockId)
+
+    def __find_orphans(self, olderThan):
+        """
+        Lists the groups of files that the index does not list and that carry the info or the class file that pyrep
+        writes for a data file. A group is the data file, when it is still there, and its info and class files, and
+        only a group whose files are all older than the limit is listed. The index is read from disk.
+        """
+        walkRepo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))['walk_repo']
+        tracked  = {}
+
+        def collect(relativeDir, entries):
+            tracked[relativeDir] = set(entry for entry in entries if isinstance(entry, str))
+            for entry in entries:
+                if isinstance(entry, dict):
+                    for name, children in entry.items():
+                        collect(os.path.join(relativeDir, name), children)
+
+        collect('', walkRepo)
+        infoSuffix, classSuffix = self.__fileInfo[3:], self.__fileClass[3:]
+        now, groups = time.time(), []
+        for realDir, _, names in os.walk(self.__path):
+            relativeDir = os.path.relpath(realDir, self.__path)
+            trackedNames = tracked.get('' if relativeDir == '.' else relativeDir, set())
+            pieces = {}
+            for name in names:
+                if name.startswith('.') and not name.startswith('.pyreptmp_'):
+                    for suffix in (infoSuffix, classSuffix):
+                        if name.endswith(suffix) and len(name) > len(suffix) + 1:
+                            dataName = name[1:-len(suffix)]
+                            if dataName not in trackedNames:
+                                pieces.setdefault(dataName, []).append(name)
+            for dataName, found in pieces.items():
+                group = found + ([dataName] if dataName in names else [])
+                paths = [os.path.join(realDir, name) for name in group]
+                try:
+                    if all(now - os.path.getmtime(path) >= olderThan for path in paths):
+                        groups.append(paths)
+                except OSError:
+                    # Gone in the meantime
+                    pass
+        return groups
+
+    @path_required
+    def remove_orphan_files(self, olderThan=3600):
+        """
+        Removes the files that crashed operations left behind and that the index no longer lists, such as the old
+        names after a rename that completed or the new ones after a rename that did not. Only files that carry
+        the info or the class file that pyrep writes are removed, and only when all of them were not modified for
+        the given time, so files of your own and writes in progress are never touched. The repository lock is taken
+        only when there is something to remove, because no writer can register a file while it is held.
+
+        :Parameters:
+            #. olderThan (int, float): How many seconds the files must be untouched.
+
+        :Returns:
+            #. removed (list): The relative paths of the removed files.
+
+        :Raises:
+            #. Exception: If olderThan is not a number >=0 or the repository lock cannot be acquired.
+        """
+        if not (isinstance(olderThan, (int, float)) and olderThan >= 0):
+            raise Exception("olderThan must be a number >=0")
+        if not len(self.__find_orphans(olderThan)):
+            return []
+        acquired, lockId = self.__acquire_lock(self.__path)
+        if not acquired:
+            raise Exception("Code %s. Unable to acquire the repository lock when removing orphan files. You may try again!"%(lockId,))
+        removed = []
+        try:
+            # Looked for again because the index could have changed while the lock was not held
+            for paths in self.__find_orphans(olderThan):
+                for path in paths:
+                    try:
+                        os.remove(path)
+                        removed.append(os.path.relpath(path, self.__path))
+                    except OSError:
+                        # Another process may have removed it
+                        pass
+        finally:
+            self.__locker.release_lock(lockId)
         return removed
 
     def create_repository(self, path, info=None, description=None, replace=False, allowNoneEmpty=True, raiseError=True):
@@ -1240,7 +1621,7 @@ class Repository(object):
             raise Exception("allowNoneEmpty must be boolean")
         if not (isinstance(replace, bool)):
             raise Exception("replace must be boolean")
-        if not (isinstance(path, basestring)):
+        if not (isinstance(path, str)):
             raise Exception("path must be string")
         if info is None:
             info = ''
@@ -1250,7 +1631,7 @@ class Repository(object):
             raise Exception("info must be None or any pickle writable type of data (%s)"%str(err))
         if description is None:
             description = ''
-        if not (isinstance(description, basestring)):
+        if not (isinstance(description, str)):
             raise Exception("description must be None or a string")
         # get real path
         if path.strip() in ('','.'):
@@ -1277,7 +1658,7 @@ class Repository(object):
                     message.append("Unable to clean remove repository before create (%s)"%(str(err)))
                     return False, '\n'.join(message)
         if not os.path.isdir(realPath):
-            makedirs(realPath)
+            os.makedirs(realPath, exist_ok=True)
         elif len(os.listdir(realPath)) and not allowNoneEmpty:
             return False, "Not allowed to create repository in a non empty directory"
         # reset repository
@@ -1391,14 +1772,11 @@ class Repository(object):
                If given will be replaced.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (bool): Whether saving was successful.
@@ -1413,7 +1791,7 @@ class Repository(object):
             raise Exception("ntrials must be >0")
         # get description
         if description is not None:
-            if not (isinstance(description, basestring)):
+            if not (isinstance(description, str)):
                 raise Exception("description must be None or a string")
         dirInfoPath = os.path.join(self.__path, self.__dirInfo)
         if description is None and not os.path.isfile(dirInfoPath):
@@ -1427,6 +1805,7 @@ class Repository(object):
                 raise Exception(m)
             return False, m
         # save repository
+        attempts = []
         for _trial in range(ntrials):
             try:
                 # open file
@@ -1435,15 +1814,18 @@ class Repository(object):
                 self.__save_dirinfo(description=description, dirInfoPath=dirInfoPath)
                 # load and update repository info if existing
                 if os.path.isfile(repoInfoPath):
-                    with open(repoInfoPath, 'rb') as fd:
-                        repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
-                        self.__repo['walk_repo'] = repo['walk_repo']
+                    repo = self.__load_repository_pickle_file(repoInfoPath)
+                    self.__repo['walk_repo'] = repo['walk_repo']
                 # create repository
                 self.__repo["last_update_utctime"] = time.time()
                 write_pickle_atomically(repoInfoPath, self.__repo, self._DEFAULT_PICKLE_PROTOCOL)
             except Exception as err:
                 error = "Unable to save repository (%s)"%err
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 break
         # release lock
@@ -1467,23 +1849,45 @@ class Repository(object):
             #. allowed (bool): Whether name is allowed.
             #. message (None, str): Reason for the name to be forbidden.
         """
-        if not (isinstance(path, basestring)):
+        if not (isinstance(path, str)):
             raise Exception("given path must be a string")
         name = os.path.basename(path)
         if not len(name):
             return False, "empty name is not allowed"
+        if '\0' in name:
+            return False, "a name cannot contain a null character"
         # exact match
-        for em in [self.__repoLock,self.__repoFile,self.__dirInfo,self.__dirLock]:
+        for em in [self.__repoLock,self.__repoFile,self.__dirInfo,self.__dirLock,self.__repoJournal]:
             if name == em:
                 return False, "name '%s' is reserved for pyrep internal usage"%em
         if name.startswith('.pyreptmp_'):
             return False, "names starting with '.pyreptmp_' are reserved for pyrep internal usage"
         # pattern match
-        for pm in [self.__fileInfo,self.__fileClass,self.__fileLock]:
+        for pm in [self.__fileInfo,self.__fileClass,self.__fileLock,self.__fileJournal]:
             if name == pm or (name.endswith(pm[3:]) and name.startswith('.')):
                 return False, "name pattern '%s' is not allowed as result may be reserved for pyrep internal usage"%pm
         # name is ok
         return True, None
+
+    def __root_refusal(self, raiseError, *relativePaths):
+        """
+        Refuses a relative path that is the repository directory itself where a file is needed. It must be
+        asked before any lock is taken, because the repository directory is also the path of the repository lock.
+
+        :Parameters:
+            #. raiseError (boolean): Whether to raise the refusal instead of returning it.
+            #. relativePaths (str): The normalised relative paths to check.
+
+        :Returns:
+            #. refusal (None, tuple): None when none of the paths is the repository directory, otherwise
+               the failure tuple of False and the message.
+        """
+        if '' not in relativePaths:
+            return None
+        error = "The repository directory is not a file"
+        if raiseError:
+            raise Exception(error)
+        return False, error
 
     def to_repo_relative_path(self, path, split=False):
         """
@@ -1497,6 +1901,9 @@ class Repository(object):
             #. relativePath (str, list): Relative path as a string or as a list
                of components if split is True
         """
+        # Checked first because on some python versions normpath silently cuts a path at a null character
+        if '\0' in path:
+            raise Exception("Path '%s' contains a null character"%path.replace('\0', '\\0'))
         path = os.path.normpath(path)
         if path == '.':
             path = ''
@@ -1542,7 +1949,7 @@ class Repository(object):
                       }
             state.append({relaPath:dirDict})
             # loop files and dirobjects
-            for fname in sorted([f for f in dirList if isinstance(f, basestring)]):
+            for fname in sorted([f for f in dirList if isinstance(f, str)]):
                 relaFilePath = os.path.join(relaPath,fname)
                 realFilePath = os.path.join(self.__path,relaFilePath)
                 fileDict = {'type':'file',
@@ -1555,12 +1962,14 @@ class Repository(object):
                 dirname = list(ddict)[0]
                 _walk_dir(relaPath=os.path.join(relaPath,dirname), dirList=ddict[dirname])
         # call recursive _walk_dir
-        if relaPath is None:
-            _walk_dir(relaPath='', dirList=self.__repo['walk_repo'])
-        else:
-            if not (isinstance(relaPath, basestring)):
+        if relaPath is not None:
+            if not (isinstance(relaPath, str)):
                 raise Exception("relaPath must be None or a str")
             relaPath = self.to_repo_relative_path(path=relaPath, split=False)
+        # The empty relative path is the repository itself, which remove_directory asks for when the parent is the root
+        if relaPath is None or relaPath == '':
+            _walk_dir(relaPath='', dirList=self.__repo['walk_repo'])
+        else:
             spath    = relaPath.split(os.sep)
             dirList  = self.__repo['walk_repo']
             while len(spath):
@@ -1608,7 +2017,7 @@ class Repository(object):
         """
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         fileName     = os.path.basename(relativePath)
-        isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+        isRepoFile, _, infoOnDisk, _ = self.is_repository_file(relativePath)
         if not isRepoFile:
             return None, "file is not a registered repository file."
         if not infoOnDisk:
@@ -1696,7 +2105,7 @@ class Repository(object):
         def _walk(rpath, dlist,recursive):
             # walk files
             for fname in dlist:
-                if isinstance(fname, basestring):
+                if isinstance(fname, str):
                     if fullPath:
                         yield os.path.join(self.__path, rpath, fname)
                     else:
@@ -1897,14 +2306,11 @@ class Repository(object):
                tracked files and folders in all created directory chain tree.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether adding the directory was successful.
@@ -1913,10 +2319,10 @@ class Repository(object):
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
-        if not (isinstance(relativePath, basestring)):
+        if not (isinstance(relativePath, str)):
             raise Exception("relativePath must be a string")
         if description is not None:
-            if not (isinstance(description, basestring)):
+            if not (isinstance(description, str)):
                 raise Exception("description must be None or a string")
         if not (isinstance(ntrials, int)):
             raise Exception("ntrials must be integer")
@@ -1941,6 +2347,7 @@ class Repository(object):
                 raise Exception(m)
             return False,m
         # load repository info
+        attempts = []
         for _trial in range(ntrials):
             try:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
@@ -1948,6 +2355,10 @@ class Repository(object):
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
@@ -1970,6 +2381,7 @@ class Repository(object):
                     error = "Code %s. Unable to acquire the lock when adding '%s'. All prior relative directories were added. You may try again, to finish adding directory"%(dirLockId,dirPath)
                     break
             # add to directory
+            attempts = []
             for _trial in range(ntrials):
                 try:
                     dirPath = os.path.join(dirPath, name)
@@ -2005,6 +2417,10 @@ class Repository(object):
                 except Exception as err:
                     error = "Unable to create directory '%s' info file (%s)"%(dirPath, str(err))
                     if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                    attempts.append(error)
+                    error = describe_attempts(attempts)
+                    if not should_retry(err, _trial, ntrials):
+                        break
                 else:
                     break
             if dirLockId is not None:
@@ -2054,14 +2470,11 @@ class Repository(object):
                tracked files will be removed along with left empty directories.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether removing the directory was successful.
@@ -2110,6 +2523,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # remove directory
+        attempts = []
         for _trial in range(ntrials):
             error = None
             try:
@@ -2120,27 +2534,42 @@ class Repository(object):
                 if not (dirList is not None):
                     raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
                 stateBefore = self.get_repository_state(relaPath=parentPath)
-                _files = [f for f in dirList if isinstance(f, basestring)]
+                _files = [f for f in dirList if isinstance(f, str)]
                 _dirs  = [d for d in dirList if isinstance(d, dict)]
                 _dirs  = [d for d in dirList if isinstance(d, dict) and dirName not in d]
                 _ = [dirList.pop(0) for _ in range(len(dirList))]
                 dirList.extend(_files)
                 dirList.extend(_dirs)
-                if clean:
-                    shutil.rmtree(realPath)
-                else:
-                    stateAfter = self.get_repository_state(relaPath=parentPath)
-                    success, errors = self.__clean_before_after(stateBefore=stateBefore, stateAfter=stateAfter, keepNoneEmptyDirectory=True)
-                    if not (success):
-                        raise Exception("\n".join(errors))
+                # Nothing is deleted before the index is saved, so a crash never leaves a tracked directory without its files
+                stateAfter = None if clean else self.get_repository_state(relaPath=parentPath)
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %s failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 break
         # return
+        leftovers = None
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+            if error is None:
+                # The index no longer lists the directory, now its files can go
+                try:
+                    if clean:
+                        shutil.rmtree(realPath)
+                    else:
+                        success, errors = self.__clean_before_after(stateBefore=stateBefore, stateAfter=stateAfter, keepNoneEmptyDirectory=True)
+                        if not success:
+                            leftovers = "\n".join(errors)
+                except Exception as err:
+                    leftovers = str(err)
+                if leftovers is not None:
+                    leftovers = "The directory is removed from the repository but could not be deleted from disk (%s)"%(leftovers,)
+            else:
+                self.__resync_index()
         # release locks
         if dirLockId is not None:
             self.__locker.release_lock(dirLockId)
@@ -2148,7 +2577,7 @@ class Repository(object):
         # check and return
         if error is not None and raiseError:
             raise Exception("Unable to remove directory '%s' after %i trials (%s)"%(relativePath, ntrials, error,))
-        return error is None, error
+        return error is None, error if error is not None else leftovers
 
 
     @path_required
@@ -2162,14 +2591,11 @@ class Repository(object):
             #. newName (string): The new directory name.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
@@ -2223,6 +2649,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # load repository info
+        attempts = []
         for _trial in range(ntrials):
             try:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
@@ -2230,6 +2657,10 @@ class Repository(object):
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
@@ -2241,6 +2672,8 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # rename directory
+        journalPath = os.path.join(self.__path, self.__repoJournal)
+        attempts    = []
         for _trial in range(ntrials):
             error = None
             try:
@@ -2250,9 +2683,12 @@ class Repository(object):
                 # change dirName in dirList
                 _dirDict = [nd for nd in dirList  if isinstance(nd,dict)]
                 _dirDict = [nd for nd in _dirDict if dirName in nd]
+                if len(_dirDict) == 0:
+                    raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
                 if not (len(_dirDict) == 1):
-                    raise Exception("This should not have happened. Directory not found in repository. Please report issue")
-                # rename directory
+                    raise Exception("Directory '%s' is found more than once in the repository. Please report issue"%(relativePath,))
+                # The journal makes the rename and the saving of the index one operation, whatever happens in between
+                write_journal(journalPath, 'rename_directory', {'parent': parentPath, 'old': dirName, 'new': newName}, self._DEFAULT_PICKLE_PROTOCOL)
                 os.rename(realPath, newRealPath)
                 # update dirList
                 _dirDict[0][newName] = _dirDict[0][dirName]
@@ -2262,11 +2698,29 @@ class Repository(object):
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
         if error is None:
             _, error = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
+        # Settle the journal: the rename is done, or it never happened, or it is put back
+        if os.path.isfile(journalPath):
+            oldExists, newExists = os.path.isdir(realPath), os.path.isdir(newRealPath)
+            if error is not None and newExists and not oldExists:
+                try:
+                    os.rename(newRealPath, realPath)
+                    oldExists, newExists = True, False
+                except OSError:
+                    # The journal stays, and the next lock completes the rename
+                    pass
+            if error is None or (oldExists and not newExists):
+                self.__remove_files([journalPath])
+        if error is not None:
+            self.__resync_index()
         # release locks
         if dirLockId is not None:
             self.__locker.release_lock(dirLockId)
@@ -2290,14 +2744,11 @@ class Repository(object):
                directory in repository.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
@@ -2320,7 +2771,6 @@ class Repository(object):
             return False, m
         realPath     = os.path.join(self.__path,relativePath)
         parentRealPath, dirName = os.path.split(realPath)
-        parentRelativePath = os.path.dirname(relativePath)
         if not self.is_repository_directory(relativePath):
             m = "Directory '%s' is not a tracked repository directory"%(relativePath)
             if raiseError:
@@ -2330,6 +2780,11 @@ class Repository(object):
         newRealPath     = os.path.join(self.__path,newRelativePath)
         newParentRealPath, newDirName = os.path.split(newRealPath)
         newParentRelativePath = os.path.dirname(newRelativePath)
+        if newRelativePath == '':
+            m = "Copying to repository main directory is not possible"
+            if raiseError:
+                raise Exception(m)
+            return False, m
         if realPath == newRealPath:
             m = "Copying to the same directory is not possible"
             if raiseError:
@@ -2402,6 +2857,7 @@ class Repository(object):
                 return False, error
         # get directory parent list
         error = None
+        attempts = []
         for _trial in range(ntrials):
             try:
                 # make sure again because sometimes, when multiple processes are working on the same repo things can happen in between
@@ -2439,6 +2895,10 @@ class Repository(object):
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
@@ -2482,14 +2942,11 @@ class Repository(object):
             #. replace (boolean): Whether to replace any existing file.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether renaming the directory was successful.
@@ -2507,7 +2964,7 @@ class Repository(object):
             raise Exception("ntrials must be >0")
         if description is None:
             description = ''
-        if not (isinstance(description, basestring)):
+        if not (isinstance(description, str)):
             raise Exception("description must be None or a string")
         # convert dump and pull methods to strings
         if pull is None and dump is not None:
@@ -2543,7 +3000,7 @@ class Repository(object):
                 raise Exception(m)
             return False,m
         # lock file
-        acquired, fileLockId = self.__acquire_lock(savePath)
+        acquired, fileLockId = self.__acquire_file_lock(savePath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the lock when dumping '%s'"%(fileLockId,relativePath)
@@ -2551,6 +3008,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # load repository info
+        attempts = []
         for _trial in range(ntrials):
             try:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
@@ -2558,6 +3016,10 @@ class Repository(object):
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
@@ -2568,10 +3030,11 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # dump file
+        attempts = []
         for _trial in range(ntrials):
             error = None
             try:
-                isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+                isRepoFile, fileOnDisk, _, _ = self.is_repository_file(relativePath)
                 if isRepoFile:
                     if not (replace):
                         raise Exception("file is a registered repository file. set replace to True to replace")
@@ -2593,13 +3056,11 @@ class Repository(object):
                     dirList = self.__get_repository_directory(fPath)
                 # dump file
                 dumpFunc = my_exec( dump, name='dump', description='dump')
-                dump_atomically(dumpFunc, str(savePath), value)
-                # update info
-                write_pickle_atomically(fileInfoPath, info, self._DEFAULT_PICKLE_PROTOCOL)
-                # update class file
                 fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
-                klass = get_class_name(value)
-                write_pickle_atomically(fileClassPath, klass, self._DEFAULT_PICKLE_PROTOCOL)
+                # the data, info and class files are all written completely before any of them replaces the old one
+                write_files_together(dumpFunc, str(savePath), value,
+                                     [(fileInfoPath, info), (fileClassPath, get_class_name(value))],
+                                     self._DEFAULT_PICKLE_PROTOCOL, os.path.join(fPath, self.__fileJournal%fName))
                 # add to repo if file is new and not being replaced
                 if not isRepoFile:
                     dirList.append(fName)
@@ -2613,6 +3074,10 @@ class Repository(object):
                 except Exception:
                     pass
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 break
@@ -2648,14 +3113,11 @@ class Repository(object):
                will be removed from the repository and the system as well.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether renaming the file was successful.
@@ -2678,6 +3140,9 @@ class Repository(object):
         newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
         newRealPath     = os.path.join(self.__path,newRelativePath)
         nfPath, nfName  = os.path.split(newRealPath)
+        refusal = self.__root_refusal(raiseError, relativePath, newRelativePath)
+        if refusal is not None:
+            return refusal
         if realPath == newRealPath:
             error = "Copying a file onto itself is not possible"
             if raiseError:
@@ -2701,7 +3166,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock old file
-        acquired, fileLockId = self.__acquire_lock(realPath)
+        acquired, fileLockId = self.__acquire_file_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
@@ -2709,7 +3174,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock new file
-        acquired, newFileLockId = self.__acquire_lock(newRealPath)
+        acquired, newFileLockId = self.__acquire_file_lock(newRealPath)
         if not acquired:
             self.__locker.release_lock(fileLockId)
             self.__locker.release_lock(repoLockId)
@@ -2718,6 +3183,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # copy file
+        attempts = []
         for _trial in range(ntrials):
             copied = False
             error  = None
@@ -2736,15 +3202,16 @@ class Repository(object):
                 if not (classOnDisk):
                     raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
-                nisRepoFile,nfileOnDisk,ninfoOnDisk,nclassOnDisk = self.is_repository_file(newRelativePath)
+                nisRepoFile, _, _, _ = self.is_repository_file(newRelativePath)
                 if not (not nisRepoFile or force):
                     raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
                 nDirList = self.__get_repository_directory(nfPath)
                 # copy the file to the new path, replacing what is there in one step
-                copy_atomically(realPath, newRealPath)
-                copy_atomically(os.path.join(fPath,self.__fileInfo%fName),  os.path.join(nfPath,self.__fileInfo%nfName))
-                copy_atomically(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
+                copy_files_together([(realPath, newRealPath),
+                                     (os.path.join(fPath,self.__fileInfo%fName),  os.path.join(nfPath,self.__fileInfo%nfName)),
+                                     (os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))],
+                                    os.path.join(nfPath,self.__fileJournal%nfName), self._DEFAULT_PICKLE_PROTOCOL)
                 # update new list
                 if nfName not in nDirList:
                     nDirList.append(nfName)
@@ -2752,6 +3219,10 @@ class Repository(object):
                 copied = False
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 error = None
                 copied = True
@@ -2796,14 +3267,11 @@ class Repository(object):
                the old one will be used.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
        :Returns:
            #. success (boolean): Whether renaming the directory was successful.
@@ -2813,28 +3281,30 @@ class Repository(object):
         # check arguments
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
-        if not (description is False or description is None or isinstance(description, basestring)):
+        if not (description is False or description is None or isinstance(description, str)):
             raise Exception("description must be False, None or a string")
-        if not (dump is False or dump is None or isinstance(dump, basestring)):
+        if not (dump is False or dump is None or isinstance(dump, str)):
             raise Exception("dump must be False, None or a string")
-        if not (pull is False or pull is None or isinstance(pull, basestring)):
+        if not (pull is False or pull is None or isinstance(pull, str)):
             raise Exception("pull must be False, None or a string")
         if not (isinstance(ntrials, int)):
             raise Exception("ntrials must be integer")
         if not (ntrials>0):
             raise Exception("ntrials must be >0")
+        self.__complete_repository_journal()
         # get name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         savePath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(savePath)
         # get locker
-        acquired, fileLockId = self.__acquire_lock(savePath)
+        acquired, fileLockId = self.__acquire_file_lock(savePath)
         if not acquired:
             error = "Code %s. Unable to acquire the lock to update '%s'"%(fileLockId,relativePath)
             if raiseError:
                 raise Exception(error)
             return False, error
         # update file
+        attempts = []
         for _trial in range(ntrials):
             message = []
             updated = False
@@ -2883,15 +3353,12 @@ class Repository(object):
                 info['description'] = description
                 # dump file
                 dumpFunc = my_exec( dump, name='dump', description='update')
-                dump_atomically(dumpFunc, str(savePath), value)
-                # remove file if exists
                 _path = os.path.join(fPath,self.__fileInfo%fName)
-                # update info
-                write_pickle_atomically(_path, info, self._DEFAULT_PICKLE_PROTOCOL)
-                # update class file
                 fileClassPath = os.path.join(self.__path,os.path.dirname(relativePath),self.__fileClass%fName)
-                klass = get_class_name(value)
-                write_pickle_atomically(fileClassPath, klass, self._DEFAULT_PICKLE_PROTOCOL)
+                # the data, info and class files are all written completely before any of them replaces the old one
+                write_files_together(dumpFunc, str(savePath), value,
+                                     [(_path, info), (fileClassPath, get_class_name(value))],
+                                     self._DEFAULT_PICKLE_PROTOCOL, os.path.join(fPath, self.__fileJournal%fName))
             except Exception as err:
                 message.append(str(err))
                 updated = False
@@ -2903,6 +3370,10 @@ class Repository(object):
                 except Exception:
                     pass
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], '\n'.join(message)))
+                attempts.append('; '.join(message))
+                message[:] = [describe_attempts(attempts)]
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 updated = True
                 break
@@ -2930,14 +3401,11 @@ class Repository(object):
                in the file info is used. Otherwise it is a keyword ('pickle',
                'dill', 'json', 'numpy' or 'numpy_text') or source code that defines
                a function `pull(path)` that returns the data.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. data (object): The pulled data from the file.
@@ -2950,6 +3418,7 @@ class Repository(object):
             raise Exception("ntrials must be integer")
         if not (ntrials>0):
             raise Exception("ntrials must be >0")
+        self.__complete_repository_journal()
         # check name and path
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
@@ -2969,12 +3438,13 @@ class Repository(object):
             else:
                 raise Exception("File '%s' is registered in repository but the '%s' was not found on disk and pull method is not specified"%(relativePath,(self.__fileInfo%fName)))
         # lock file
-        acquired, fileLockId = self.__acquire_lock(realPath)
+        acquired, fileLockId = self.__acquire_file_lock(realPath)
         if not acquired:
             raise Exception("Code %s. Unable to acquire the lock when pulling '%s'"%(fileLockId,relativePath))
         # pull file, the lock is released once whatever happens
         try:
             givenCode = None if pull is None else get_pull_method(pull)
+            attempts = []
             for _trial in range(ntrials):
                 error = None
                 pullCode = givenCode
@@ -2987,6 +3457,10 @@ class Repository(object):
                 except Exception as err:
                     error = "Unable to pull data using '%s' from file (%s)"%(pullCode, err)
                     if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                    attempts.append(error)
+                    error = describe_attempts(attempts)
+                    if not should_retry(err, _trial, ntrials):
+                        break
                 else:
                     break
         finally:
@@ -3017,14 +3491,11 @@ class Repository(object):
                will be removed from the repository and the system as well.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. success (boolean): Whether renaming the file was successful.
@@ -3047,6 +3518,9 @@ class Repository(object):
         newRelativePath = self.to_repo_relative_path(path=newRelativePath, split=False)
         newRealPath     = os.path.join(self.__path,newRelativePath)
         nfPath, nfName  = os.path.split(newRealPath)
+        refusal = self.__root_refusal(raiseError, relativePath, newRelativePath)
+        if refusal is not None:
+            return refusal
         if realPath == newRealPath:
             error = "Renaming a file onto itself is not possible"
             if raiseError:
@@ -3070,7 +3544,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock old file
-        acquired, fileLockId = self.__acquire_lock(realPath)
+        acquired, fileLockId = self.__acquire_file_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the lock for old file '%s'. You may try again!"%(fileLockId, relativePath)
@@ -3078,7 +3552,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock new file
-        acquired, newFileLockId = self.__acquire_lock(newRealPath)
+        acquired, newFileLockId = self.__acquire_file_lock(newRealPath)
         if not acquired:
             self.__locker.release_lock(fileLockId)
             self.__locker.release_lock(repoLockId)
@@ -3087,6 +3561,8 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # rename file
+        nisRepoFile = False
+        attempts = []
         for _trial in range(ntrials):
             renamed = False
             error   = None
@@ -3105,16 +3581,18 @@ class Repository(object):
                 if not (classOnDisk):
                     raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
-                nisRepoFile,nfileOnDisk,ninfoOnDisk,nclassOnDisk = self.is_repository_file(newRelativePath)
+                nisRepoFile, _, _, _ = self.is_repository_file(newRelativePath)
                 if not (not nisRepoFile or force):
                     raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
                 oDirList = self.__get_repository_directory(fPath)
                 nDirList = self.__get_repository_directory(nfPath)
-                # move the file to the new path, replacing what is there in one step
-                replace_file(realPath, newRealPath)
-                replace_file(os.path.join(fPath,self.__fileInfo%fName), os.path.join(nfPath,self.__fileInfo%nfName))
-                replace_file(os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))
+                # The new names appear first, all together and linked to the same data. The old names stay until the
+                # index is saved, so a crash leaves every tracked file complete and the rename done or not done
+                copy_files_together([(realPath, newRealPath),
+                                     (os.path.join(fPath,self.__fileInfo%fName),  os.path.join(nfPath,self.__fileInfo%nfName)),
+                                     (os.path.join(fPath,self.__fileClass%fName), os.path.join(nfPath,self.__fileClass%nfName))],
+                                    os.path.join(nfPath,self.__fileJournal%nfName), self._DEFAULT_PICKLE_PROTOCOL, link=True)
                 # update list
                 findex = oDirList.index(fName)
                 oDirList.pop(findex)
@@ -3125,15 +3603,26 @@ class Repository(object):
                 renamed = False
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                attempts.append(error)
+                error = describe_attempts(attempts)
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 renamed = True
                 break
-        # save repository
+        # save repository, which is the commit point of the rename
+        newNames = [newRealPath, os.path.join(nfPath,self.__fileInfo%nfName), os.path.join(nfPath,self.__fileClass%nfName)]
         if renamed:
             saved, saveError = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
-            if not saved:
+            if saved:
+                self.__remove_files([realPath, os.path.join(fPath,self.__fileInfo%fName), os.path.join(fPath,self.__fileClass%fName)])
+            else:
                 renamed = False
                 error   = saveError
+                self.__resync_index()
+        # A rename that did not happen must not leave new names behind, unless they were tracked before it
+        if not renamed and not nisRepoFile:
+            self.__remove_files(newNames)
         # release locks
         self.__locker.release_lock(fileLockId)
         self.__locker.release_lock(newFileLockId)
@@ -3160,14 +3649,11 @@ class Repository(object):
                file to remove.
             #. raiseError (boolean): Whether to raise encountered error instead
                of returning failure.
-            #. ntrials (int): After acquiring all locks, ntrials is the maximum
-               number of trials allowed before failing.
-               In rare cases, when multiple processes
-               are accessing the same repository components, different processes
-               can alter repository components between successive lock releases
-               of some other process. Bigger number of trials lowers the
-               likelihood of failure due to multiple processes same time
-               alteration.
+            #. ntrials (int): The maximum number of attempts of the operation once its locks are held.
+               Only an error that can pass by itself, such as a busy or interrupted call of the file
+               system, is attempted again, after a pause that doubles with every attempt. Any other
+               error fails at once, which also keeps your own dump and pull methods from running
+               again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
             #. removed (boolean): Whether removing the file was successful.
@@ -3183,6 +3669,9 @@ class Repository(object):
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         realPath     = os.path.join(self.__path,relativePath)
         fPath, fName = os.path.split(realPath)
+        refusal = self.__root_refusal(raiseError, relativePath)
+        if refusal is not None:
+            return refusal
         # lock repository
         acquired, repoLockId = self.__acquire_lock(self.__path)
         if not acquired:
@@ -3191,7 +3680,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # lock file
-        acquired, fileLockId = self.__acquire_lock(realPath)
+        acquired, fileLockId = self.__acquire_file_lock(realPath)
         if not acquired:
             self.__locker.release_lock(repoLockId)
             error = "Code %s. Unable to acquire the file lock when removing '%s'. You may try again!"%(fileLockId, relativePath)
@@ -3199,6 +3688,7 @@ class Repository(object):
                 raise Exception(error)
             return False, error
         # remove file
+        attempts = []
         for _trial in range(ntrials):
             removed = False
             message = []
@@ -3221,25 +3711,29 @@ class Repository(object):
                     dirList = self.__get_repository_directory(fPath)
                     findex  = dirList.index(fName)
                     dirList.pop(findex)
-                    if os.path.isfile(realPath):
-                        os.remove(realPath)
-                    if os.path.isfile(os.path.join(fPath,self.__fileInfo%fName)):
-                        os.remove(os.path.join(fPath,self.__fileInfo%fName))
-                    if os.path.isfile(os.path.join(fPath,self.__fileClass%fName)):
-                        os.remove(os.path.join(fPath,self.__fileClass%fName))
             except Exception as err:
                 removed = False
                 message.append(str(err))
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], '\n'.join(message)))
+                attempts.append('; '.join(message))
+                message[:] = [describe_attempts(attempts)]
+                if not should_retry(err, _trial, ntrials):
+                    break
             else:
                 removed = True
                 break
-        # save repository
+        # save repository, which is the commit point, and only then delete the files, so that a crash never leaves
+        # a tracked file without its data
         if removed:
             saved, saveError = self.__save_repository_pickle_file(lockFirst=False, raiseError=False)
-            if not saved:
+            if saved:
+                failed = self.__remove_files([realPath, os.path.join(fPath,self.__fileInfo%fName), os.path.join(fPath,self.__fileClass%fName)])
+                if len(failed):
+                    message.append("The file is removed from the repository but could not be deleted from disk: %s"%("; ".join(failed),))
+            else:
                 removed = False
                 message.append(saveError)
+                self.__resync_index()
         # release locks
         self.__locker.release_lock(fileLockId)
         self.__locker.release_lock(repoLockId)

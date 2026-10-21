@@ -3,7 +3,9 @@ Regression tests, one for each bug that was found and fixed. A bug that is found
 @known_bug marker, which reports it as an expected failure and announces when it gets fixed.
 """
 import os
+import time
 import unittest
+import importlib.util
 
 from pyrep import Repository
 
@@ -21,6 +23,7 @@ class TestRegressions(unittest.TestCase):
         self.addCleanup(self.temporary.__exit__, None, None, None)
         self.repo = self.temporary.repo
 
+    @unittest.skipUnless(importlib.util.find_spec('dill'), 'dill is not installed')
     def test_dill_stores_a_function(self):
         """The dill keyword stores a function, which is what dill is for."""
         self.assertTrue(self.repo.dump_file(lambda value: value + 1, 'function', dump='dill', raiseError=False)[0])
@@ -92,6 +95,7 @@ class TestRegressions(unittest.TestCase):
         self.assertTrue(self.repo.update_file({'a': 2}, 'j', description='', dump='json', pull='json', raiseError=False)[0])
         self.assertEqual(self.repo.pull_file('j'), {'a': 2})
 
+    @unittest.skipUnless(importlib.util.find_spec('dill'), 'dill is not installed')
     def test_dill_function_is_usable_after_pull(self):
         """A function stored with dill can be called after it is pulled."""
         self.repo.dump_file(lambda value: value + 1, 'function', dump='dill')
@@ -100,6 +104,8 @@ class TestRegressions(unittest.TestCase):
     def test_pyrep_temporary_names_are_reserved(self):
         """Names that pyrep uses for its temporary files cannot hold user data."""
         self.assertFalse(self.repo.is_name_allowed('.pyreptmp_anything')[0])
+        self.assertFalse(self.repo.is_name_allowed('.anything_pyrepjournal')[0])
+        self.assertFalse(self.repo.is_name_allowed('.pyrepjournal')[0])
         self.assertFalse(self.repo.dump_file('v', '.pyreptmp_anything', raiseError=False)[0])
 
     def test_rename_directory_only_accepts_a_single_name(self):
@@ -118,6 +124,53 @@ class TestRegressions(unittest.TestCase):
         self.assertTrue(self.repo.remove_directory('gone', raiseError=False)[0])
         self.assertEqual(sorted(self.repo.walk_files_path(recursive=True)), ['stays/file', 'top_file'])
         self.assertTrue(self.repo.dump_file('v', 'later', raiseError=False)[0])
+
+    def test_removing_a_top_level_directory_deletes_its_files_from_disk(self):
+        """remove_directory without clean removes the tracked files of a top level directory from disk too, as for nested ones."""
+        self.repo.dump_file('one', 'top/inner/file')
+        self.repo.dump_file('two', 'top/other')
+        self.repo.dump_file('keep', 'keepme')
+        self.assertTrue(self.repo.remove_directory('top', raiseError=False)[0])
+        left = sorted(os.path.relpath(os.path.join(root, name), self.temporary.path)
+                      for root, _, names in os.walk(self.temporary.path) for name in names if not name.startswith('.'))
+        self.assertEqual(left, ['keepme'])
+
+    def test_the_state_of_the_empty_path_is_the_whole_repository(self):
+        """Asking for the state of the repository root as an empty path gives the same as asking for everything."""
+        self.repo.dump_file('v', 'a/file')
+        self.assertEqual(self.repo.get_repository_state(''), self.repo.get_repository_state())
+        self.assertEqual(self.repo.get_repository_state('.'), self.repo.get_repository_state())
+
+    def test_file_methods_refuse_the_repository_directory_at_once(self):
+        """Giving the repository directory where a file is needed is refused immediately, without waiting for a lock."""
+        self.repo.dump_file('v', 'top')
+        for root in ('', '.'):
+            calls = [lambda raiseError, root=root: self.repo.remove_file(root, raiseError=raiseError),
+                     lambda raiseError, root=root: self.repo.copy_file('top', root, raiseError=raiseError),
+                     lambda raiseError, root=root: self.repo.rename_file('top', root, raiseError=raiseError),
+                     lambda raiseError, root=root: self.repo.copy_file(root, 'other', raiseError=raiseError),
+                     lambda raiseError, root=root: self.repo.rename_file(root, 'other', raiseError=raiseError)]
+            for call in calls:
+                start = time.time()
+                succeeded, message = call(False)
+                self.assertFalse(succeeded)
+                self.assertIn('not a file', message)
+                with self.assertRaises(Exception) as caught:
+                    call(True)
+                self.assertIn('not a file', str(caught.exception))
+                self.assertLess(time.time() - start, 1.0)
+        self.assertEqual(sorted(self.repo.walk_files_path(recursive=True)), ['top'])
+        self.assertEqual(self.repo.pull_file('top'), 'v')
+
+    def test_copying_a_directory_to_the_root_says_so(self):
+        """The repository directory cannot be the destination of a directory copy, and the message says that."""
+        self.repo.dump_file('v', 'a/file')
+        for root in ('', '.'):
+            succeeded, message = self.repo.copy_directory('a', root, raiseError=False)
+            self.assertFalse(succeeded)
+            self.assertIn('main directory', message)
+            with self.assertRaises(Exception):
+                self.repo.copy_directory('a', root)
 
 
 if __name__ == '__main__':

@@ -366,7 +366,7 @@ class TestBasicOperations(unittest.TestCase):
         """When a value cannot be pickled the error names the attribute that is to blame."""
         import threading
 
-        class Holder(object):
+        class Holder:
             """
             An object that holds a lock, which cannot be pickled.
             """
@@ -443,6 +443,55 @@ class TestBasicOperations(unittest.TestCase):
         with self.assertRaises(Exception):
             self.repo.remove_temporary_files(olderThan=-1)
         self.assertEqual(self.repo.pull_file('sub/file'), 'v')
+
+    def test_long_names_keep_working(self):
+        """File names close to the limit of the file system still round trip, because temporary names stay short."""
+        for length in (100, 200, 230):
+            name = 'n' * length
+            self.assertEqual(self.repo.dump_file(length, name), (True, None))
+            self.assertTrue(self.repo.update_file(length + 1, name)[0])
+            self.assertEqual(self.reopen().pull_file(name), length + 1)
+        self.assert_consistent()
+
+    def test_name_with_a_null_character_is_refused_clearly(self):
+        """A name that no file system accepts raises the same kind of error as other bad paths, and nothing is written."""
+        for call in (lambda: self.repo.dump_file('v', 'a\0b', raiseError=False),
+                     lambda: self.repo.pull_file('a\0b'),
+                     lambda: self.repo.add_directory('a\0b', raiseError=False)):
+            with self.assertRaises(Exception) as caught:
+                call()
+            self.assertNotIsInstance(caught.exception, ValueError)
+            self.assertIn('null character', str(caught.exception))
+        self.assertEqual(list(self.repo.walk_files_path(recursive=True)), [])
+        self.assertFalse(self.repo.is_name_allowed('a\0b')[0])
+
+    def test_rename_works_where_hard_links_are_not_possible(self):
+        """When the file system cannot link files, a rename copies them and ends the same."""
+        from unittest import mock
+        self.repo.dump_file({'a': [1, 2]}, 'src/file', description='kept')
+        with mock.patch('os.link', side_effect=OSError('no hard links here')):
+            self.assertEqual(self.repo.rename_file('src/file', 'dst/moved'), (True, None))
+        reloaded = self.reopen()
+        self.assertEqual(reloaded.pull_file('dst/moved'), {'a': [1, 2]})
+        self.assertEqual(reloaded.get_file_info('dst/moved')[0]['description'], 'kept')
+        self.assertEqual(sorted(reloaded.walk_files_path(recursive=True)), ['dst/moved'])
+        self.assertEqual(sorted(name for _, _, names in os.walk(self.temporary.path) for name in names if not name.startswith('.')), ['moved'])
+
+    def test_a_renamed_file_keeps_its_own_content_after_the_old_name_is_reused(self):
+        """After a rename the old name can hold a new value without touching the renamed file."""
+        self.repo.dump_file('first', 'name')
+        self.repo.rename_file('name', 'moved')
+        self.repo.dump_file('second', 'name')
+        self.repo.update_file('first updated', 'moved')
+        reloaded = self.reopen()
+        self.assertEqual((reloaded.pull_file('name'), reloaded.pull_file('moved')), ('second', 'first updated'))
+        self.assert_consistent()
+
+    def test_removing_a_file_deletes_it_from_disk_after_the_index_is_saved(self):
+        """The data, info and class files are all gone from disk once a removal returned."""
+        self.repo.dump_file('v', 'sub/gone')
+        self.assertEqual(self.repo.remove_file('sub/gone'), (True, ''))
+        self.assertEqual([name for name in os.listdir(os.path.join(self.temporary.path, 'sub')) if not name.startswith('.pyrepdirinfo')], [])
 
 
 if __name__ == '__main__':

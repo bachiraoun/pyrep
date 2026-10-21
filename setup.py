@@ -6,7 +6,7 @@ twine upload dist/pyrep-...
 """
 from setuptools import setup
 from setuptools.command.build_py import build_py
-import os, sys
+import os
 
 
 class BuildPyWithoutScripts(build_py):
@@ -32,11 +32,6 @@ class BuildPyWithoutScripts(build_py):
 # set package path and name
 PACKAGE_PATH = '.'
 PACKAGE_NAME = 'pyrep'
-
-# check python version
-major, minor = sys.version_info[:2]
-if major==2 and minor!=7:
-    raise RuntimeError("Python version 2.7.x or >=3.x is required.")
 
 # automatically create MANIFEST.in
 commands = [# include MANIFEST.in
@@ -74,9 +69,13 @@ Development Status :: 4 - Beta
 Intended Audience :: Science/Research
 Intended Audience :: Developers
 Programming Language :: Python
-Programming Language :: Python :: 2
-Programming Language :: Python :: 2.7
 Programming Language :: Python :: 3
+Programming Language :: Python :: 3 :: Only
+Programming Language :: Python :: 3.9
+Programming Language :: Python :: 3.10
+Programming Language :: Python :: 3.11
+Programming Language :: Python :: 3.12
+Programming Language :: Python :: 3.13
 Topic :: Software Development
 Topic :: Software Development :: Build Tools
 Topic :: Scientific/Engineering
@@ -112,6 +111,7 @@ metadata = dict(name             = PACKAGE_NAME,
                 url              = "https://bachiraoun.github.io/pyrep/",
                 download_url     = "https://github.com/bachiraoun/pyrep",
                 license          = 'AGPL-3.0-only',
+                python_requires  = ">=3.9",
                 install_requires = ["pylocker>=5.0.0,<6",],
                 classifiers      = [_f for _f in CLASSIFIERS.split('\n') if _f],
                 platforms        = ["Windows", "Linux", "Mac OS-X", "Unix"] )

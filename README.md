@@ -1,13 +1,13 @@
 # pyrep
 This package provides a pythonic way to organize dumping and pulling python objects and other type of files to a Repository. A Repository can be created in any directory or folder. Repository directories are transferable between operating systems. By default dump and pull methods use pickle to serialize storing python objects. Practically any other methods can be used simply by providing the means and the required libraries in a simple form of string.
 
-Repositories are safe to use from several threads and processes at the same time. Access is coordinated by [pylocker](https://pypi.org/project/pylocker/), and the repository index and the info files are replaced atomically, so a crash never leaves them half written. Data files are written by your own dump code, directly in place.
+Repositories are safe to use from several threads and processes at the same time. Access is coordinated by [pylocker](https://pypi.org/project/pylocker/), and the repository index, the info files and the data files are all written to a temporary file first and renamed into place, so a crash leaves the previous content complete. Loading a repository removes the temporary files and the orphan files that crashed operations left behind, when they are older than an hour, unless `removeTemporaryFiles=False` or `removeOrphanFiles=False` is given. Operations that need several steps, such as renaming a directory, write a journal first, and the next process to take the lock completes what a crash interrupted.
 
 ## Installation
 ```
 pip install pyrep
 ```
-pylocker is installed with it. The tests run on Python 3.
+pyrep needs Python 3.9 or newer, and pylocker is installed with it. The tests are run on Python 3.10 to 3.13.
 
 ## Testing
 ```

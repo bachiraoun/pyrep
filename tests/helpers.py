@@ -104,7 +104,7 @@ def check_record(record):
     return True, ''
 
 
-class TemporaryRepository(object):
+class TemporaryRepository:
     """
     Context manager that creates a repository in a temporary directory and
     removes everything on exit.
@@ -233,6 +233,10 @@ def audit_repository(path, expectedFiles=None):
                 relative = os.path.relpath(os.path.join(root, fileName), path)
                 if fileName.endswith('_pyrepfilelock') or fileName == '.pyrepdirlock':
                     problems['stale-lock-files'].append(relative)
+                elif fileName.endswith('_pyrepjournal') and not fileName.startswith('.pyreptmp_'):
+                    problems['pending-commit-journals'].append(relative)
+                elif fileName == '.pyrepjournal':
+                    problems['pending-repository-journal'].append(relative)
                 elif not fileName.startswith('.'):
                     onDisk.add(relative)
         for relative in sorted(set(tracked)):
