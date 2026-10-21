@@ -15,6 +15,7 @@ python3 tests/run_tests.py            ## everything, one line for each test
 python3 tests/run_tests.py --quiet    ## only the summary
 python3 tests/run_tests.py --quick    ## skip the slow crash tests
 python3 tests/run_tests.py --list     ## the test files
+python3 benchmark/bench_contention.py --processes 100 --threads 10   ## contention benchmark
 ```
 The suite includes 10 processes with several threads each fighting over the same files, and crash tests that kill a writer in the middle of a write.
 
