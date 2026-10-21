@@ -48,7 +48,7 @@ Usage:
     other = Repository(PATH)
     REP.dump("added later", 'late')
     print('late' in list(other.walk_files_path()))
-    other.refresh_repository()    # an instance only sees what others added after a refresh
+    other.refresh_repository()    # a listing only shows what others added after a refresh, pulling a name it does not know reloads by itself
     print('late' in list(other.walk_files_path()))
     other.close()
 
@@ -431,6 +431,19 @@ def write_pickle_file(path, value, protocol):
         pickle.dump( value, fd, protocol=protocol )
         fd.flush()
         os.fsync(fd.fileno())
+
+
+def get_file_signature(status):
+    """
+    Builds the signature that tells whether a file was replaced or changed.
+
+    :Parameters:
+        #. status (os.stat_result): The status of the file.
+
+    :Returns:
+        #. signature (tuple): The inode, the modification time in nanoseconds and the size. Files that pyrep writes are always replaced as a whole, so their inode changes with every save.
+    """
+    return (status.st_ino, status.st_mtime_ns, status.st_size)
 
 
 def write_pickle_atomically(path, value, protocol):
@@ -1031,6 +1044,7 @@ class Repository:
             repoInfoPath = os.path.join(self.__path, self.__repoFile)
             self.__repo["last_update_utctime"] = time.time()
             write_pickle_atomically(repoInfoPath, self.__repo, self._DEFAULT_PICKLE_PROTOCOL)
+            self.__indexSignature = get_file_signature(os.stat(repoInfoPath))
         except Exception as err:
             error = "Unable to save repository (%s)"%str(err)
         # release lock
@@ -1041,11 +1055,13 @@ class Repository:
             raise Exception(error)
         return error is None, error
 
-    def __load_repository_pickle_file(self, repoPath):
+    def __load_repository_pickle_file(self, repoPath, track=True):
         try:
             fd = open(repoPath, 'rb')
         except Exception as err:
             raise Exception("Unable to open repository file(%s)"%str(err)) from err
+        # The signature comes from the open file, so it describes exactly the content that is read
+        signature = get_file_signature(os.fstat(fd.fileno()))
         # read
         try:
             repo = pickle.load( fd )
@@ -1067,6 +1083,8 @@ class Repository:
             raise Exception("'walk_repo' must be a key in pyrep repo dict")
         if not (isinstance(repo['walk_repo'], list)):
             raise Exception("pyrep info 'walk_repo' key value must be a list")
+        if track:
+            self.__indexSignature = signature
         # return
         return repo
 
@@ -1315,6 +1333,8 @@ class Repository:
         """
         self.__path   = None
         self.__locker = None
+        # Signature of the index file as this instance loaded or saved it, used to notice changes made by others
+        self.__indexSignature = None
         self.__repo   = {'repository_unique_name': str(uuid.uuid1()),
                          'create_utctime': time.time(),
                          'last_update_utctime': None,
@@ -1416,10 +1436,39 @@ class Repository:
         return repo
 
     @path_required
+    def __refresh_if_stale(self):
+        """
+        Reloads the tracked list when another instance or process saved the index after this instance read it.
+        It is only called after something was not found, so that looking up a known name never costs a lock.
+        It runs outside of every lock, which is why it takes the repository lock itself.
+        """
+        if self.__path is None:
+            return False
+        try:
+            current = get_file_signature(os.stat(os.path.join(self.__path, self.__repoFile)))
+        except OSError:
+            return False
+        if current == self.__indexSignature:
+            return False
+        return self.refresh_repository(raiseError=False)[0]
+
+    def __get_directory_or_refresh(self, relativePath, parent=False):
+        """
+        Gets a tracked directory, or its parent, and looks again after reloading the list when it is not found
+        and the index changed since this instance read it.
+        """
+        getter = self.__get_repository_parent_directory if parent else self.__get_repository_directory
+        dirList = getter(relativePath)
+        if dirList is None and self.__refresh_if_stale():
+            dirList = getter(relativePath)
+        return dirList
+
     def refresh_repository(self, raiseError=True):
         """
         Reloads the tracked files and directories from disk. An instance keeps the list it loaded or saved
-        last, so files and directories added by other instances or processes only become visible after a refresh.
+        last. Looking up a name that is not in that list reloads it by itself when the index changed, so pulling or
+        asking about a file that another instance added just works. Listings and names that others removed only
+        change after a refresh.
 
         :Parameters:
             #. raiseError (boolean): Whether to raise encountered error instead
@@ -1515,7 +1564,8 @@ class Repository:
         writes for a data file. A group is the data file, when it is still there, and its info and class files, and
         only a group whose files are all older than the limit is listed. The index is read from disk.
         """
-        walkRepo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))['walk_repo']
+        # Only reads the index, so this instance must not take it as its own view
+        walkRepo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile), track=False)['walk_repo']
         tracked  = {}
 
         def collect(relativeDir, entries):
@@ -1941,6 +1991,17 @@ class Repository:
                    * 'pyrepfileinfo': In case of a file whether .%s_pyrepfileinfo exists
                    * 'pyrepdirinfo': In case of a directory whether .pyrepdirinfo exists
         """
+        state = self.__get_repository_state(relaPath)
+        # An empty state means that the directory is not tracked here, which may be because the list is old
+        if len(state) == 0 and self.__refresh_if_stale():
+            state = self.__get_repository_state(relaPath)
+        return state
+
+    def __get_repository_state(self, relaPath):
+        """
+        Builds the state from the list this instance holds, without looking for changes made by others. Methods
+        that hold locks use it, because refreshing would take the repository lock again.
+        """
         state = []
         def _walk_dir(relaPath, dirList):
             dirDict = {'type':'dir',
@@ -2000,7 +2061,7 @@ class Repository:
                directory. If directory is not tracked in repository None is
                returned
         """
-        return copy.deepcopy(self.__get_repository_directory(relativePath))
+        return copy.deepcopy(self.__get_directory_or_refresh(relativePath))
 
     def get_file_info(self, relativePath):
         """
@@ -2041,6 +2102,13 @@ class Repository:
         :Returns:
             #. result (boolean): Whether directory is tracked and registered.
         """
+        return self.__get_directory_or_refresh(relativePath) is not None
+
+    def __is_repository_directory(self, relativePath):
+        """
+        Tells whether a directory is tracked in the list this instance holds, without looking at the disk. Methods
+        that hold locks use it, because refreshing would take the repository lock again.
+        """
         return self.__get_repository_directory(relativePath) is not None
 
 
@@ -2056,6 +2124,18 @@ class Repository:
             #. isFileOnDisk (boolean): Whether file is found on disk.
             #. isFileInfoOnDisk (boolean): Whether file info is found on disk.
             #. isFileClassOnDisk (boolean): Whether file class is found on disk.
+        """
+        result = self.__is_repository_file(relativePath)
+        # Tracked but missing on disk is also what a file removed by another instance looks like from an old list
+        isComplete = result[0] is True and result[1] is True and result[2] is True
+        if isComplete is False and self.__refresh_if_stale():
+            result = self.__is_repository_file(relativePath)
+        return result
+
+    def __is_repository_file(self, relativePath):
+        """
+        Checks a file against the list this instance holds, without looking for changes made by others. Methods
+        that hold locks use it, because refreshing would take the repository lock again.
         """
         relativePath  = self.to_repo_relative_path(path=relativePath, split=False)
         if relativePath == '':
@@ -2098,7 +2178,7 @@ class Repository:
         if not (isinstance(recursive, bool)):
             raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
-        dirList      = self.__get_repository_directory(relativePath=relativePath)
+        dirList      = self.__get_directory_or_refresh(relativePath)
         if not (dirList is not None):
             raise Exception("given relative path '%s' is not a repository directory"%relativePath)
         # walk recursive function
@@ -2163,7 +2243,7 @@ class Repository:
         if not (isinstance(recursive, bool)):
             raise Exception("recursive must be boolean")
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
-        dirList      = self.__get_repository_directory(relativePath=relativePath)
+        dirList      = self.__get_directory_or_refresh(relativePath)
         if not (dirList is not None):
             raise Exception("given relative path '%s' is not a repository directory"%relativePath)
         # walk recursive function
@@ -2331,7 +2411,7 @@ class Repository:
         # normalise path
         path = self.to_repo_relative_path(path=relativePath, split=False)
         # whether to replace
-        if self.is_repository_directory(path):
+        if self.__is_repository_directory(path):
             return True, "Directory is already tracked in repository"
         # check whether name is allowed
         allowed, reason = self.is_name_allowed(path)
@@ -2456,7 +2536,7 @@ class Repository:
                parent directory. If directory is not tracked in repository
                None is returned
         """
-        return copy.deepcopy(self.__get_repository_parent_directory(relativePath))
+        return copy.deepcopy(self.__get_directory_or_refresh(relativePath, parent=True))
 
     @path_required
     def remove_directory(self, relativePath, clean=False, raiseError=True, ntrials=3):
@@ -2495,7 +2575,7 @@ class Repository:
         if relativePath == '':
             return False, "Removing main repository directory is not allowed"
         # check if this is a repository directory
-        if not self.is_repository_directory(relativePath):
+        if not self.__is_repository_directory(relativePath):
             return False, "Given relative path '%s' is not a repository path"%relativePath
         # check if directory actually exists on disk
         realPath = os.path.join(self.__path,relativePath)
@@ -2533,7 +2613,7 @@ class Repository:
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
                 if not (dirList is not None):
                     raise Exception("Given relative path '%s' is not a repository directory"%(relativePath,))
-                stateBefore = self.get_repository_state(relaPath=parentPath)
+                stateBefore = self.__get_repository_state(relaPath=parentPath)
                 _files = [f for f in dirList if isinstance(f, str)]
                 _dirs  = [d for d in dirList if isinstance(d, dict)]
                 _dirs  = [d for d in dirList if isinstance(d, dict) and dirName not in d]
@@ -2541,7 +2621,7 @@ class Repository:
                 dirList.extend(_files)
                 dirList.extend(_dirs)
                 # Nothing is deleted before the index is saved, so a crash never leaves a tracked directory without its files
-                stateAfter = None if clean else self.get_repository_state(relaPath=parentPath)
+                stateAfter = None if clean else self.__get_repository_state(relaPath=parentPath)
             except Exception as err:
                 error = str(err)
                 if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %s failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
@@ -2771,7 +2851,7 @@ class Repository:
             return False, m
         realPath     = os.path.join(self.__path,relativePath)
         parentRealPath, dirName = os.path.split(realPath)
-        if not self.is_repository_directory(relativePath):
+        if not self.__is_repository_directory(relativePath):
             m = "Directory '%s' is not a tracked repository directory"%(relativePath)
             if raiseError:
                 raise Exception(m)
@@ -2790,7 +2870,7 @@ class Repository:
             if raiseError:
                 raise Exception(m)
             return False, m
-        if self.is_repository_directory(newRelativePath):
+        if self.__is_repository_directory(newRelativePath):
             m = "Directory '%s' is a tracked repository directory"%(newRelativePath)
             if raiseError:
                 raise Exception(m)
@@ -2861,9 +2941,9 @@ class Repository:
         for _trial in range(ntrials):
             try:
                 # make sure again because sometimes, when multiple processes are working on the same repo things can happen in between
-                if not (self.is_repository_directory(relativePath)):
+                if not (self.__is_repository_directory(relativePath)):
                     raise Exception("Directory '%s' is not anymore a tracked repository directory"%(relativePath))
-                if not (not self.is_repository_directory(newRelativePath)):
+                if not (not self.__is_repository_directory(newRelativePath)):
                     raise Exception("Directory '%s' has become a tracked repository directory"%(newRelativePath))
                 dirList = self.__get_repository_parent_directory(relativePath=relativePath)
                 if not (dirList is not None):
@@ -3034,7 +3114,7 @@ class Repository:
         for _trial in range(ntrials):
             error = None
             try:
-                isRepoFile, fileOnDisk, _, _ = self.is_repository_file(relativePath)
+                isRepoFile, fileOnDisk, _, _ = self.__is_repository_file(relativePath)
                 if isRepoFile:
                     if not (replace):
                         raise Exception("file is a registered repository file. set replace to True to replace")
@@ -3192,7 +3272,7 @@ class Repository:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
                 self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
-                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.__is_repository_file(relativePath)
                 if not (isRepoFile):
                     raise Exception("file '%s' is not a repository file"%(relativePath,))
                 if not (fileOnDisk):
@@ -3202,7 +3282,7 @@ class Repository:
                 if not (classOnDisk):
                     raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
-                nisRepoFile, _, _, _ = self.is_repository_file(newRelativePath)
+                nisRepoFile, _, _, _ = self.__is_repository_file(newRelativePath)
                 if not (not nisRepoFile or force):
                     raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
@@ -3310,7 +3390,7 @@ class Repository:
             updated = False
             try:
                 # check file in repository
-                isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+                isRepoFile, fileOnDisk, infoOnDisk, classOnDisk = self.__is_repository_file(relativePath)
                 if not (isRepoFile):
                     raise Exception("file '%s' is not registered in repository, no update can be performed."%(relativePath,))
                 # get file info
@@ -3571,7 +3651,7 @@ class Repository:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
                 self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
-                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.__is_repository_file(relativePath)
                 if not (isRepoFile):
                     raise Exception("file '%s' is not a repository file"%(relativePath,))
                 if not (fileOnDisk):
@@ -3581,7 +3661,7 @@ class Repository:
                 if not (classOnDisk):
                     raise Exception("%s is not found on disk"%(self.__fileClass%fName,))
                 # get new file path
-                nisRepoFile, _, _, _ = self.is_repository_file(newRelativePath)
+                nisRepoFile, _, _, _ = self.__is_repository_file(newRelativePath)
                 if not (not nisRepoFile or force):
                     raise Exception("New file path is a registered repository file, set force to True to proceed regardless")
                 # get parent directories list
@@ -3697,7 +3777,7 @@ class Repository:
                 repo = self.__load_repository_pickle_file(os.path.join(self.__path, self.__repoFile))
                 self.__repo['walk_repo'] = repo['walk_repo']
                 # check whether it's a repository file
-                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.is_repository_file(relativePath)
+                isRepoFile,fileOnDisk, infoOnDisk, classOnDisk = self.__is_repository_file(relativePath)
                 if not isRepoFile:
                     details = ["File '%s' is not a repository file"%(relativePath,)]
                     if fileOnDisk:

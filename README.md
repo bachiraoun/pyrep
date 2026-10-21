@@ -54,7 +54,7 @@ REP.rename_file('folder1/copy_of_text', 'folder1/renamed_text')
 REP.remove_file('folder1/renamed_text')
 ```
 
-An instance keeps the list of files it loaded or saved last. To see files that another instance or process added, call `REP.refresh_repository()`.
+An instance keeps the list of files it loaded or saved last. Pulling or asking about a file that another instance or process added reloads the list by itself, and it costs nothing for names the instance already knows. Listings and files that others removed only change after `REP.refresh_repository()`.
 
 ## Online Documentation
 https://bachiraoun.github.io/pyrep/
