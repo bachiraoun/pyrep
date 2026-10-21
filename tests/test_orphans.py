@@ -88,6 +88,9 @@ class TestOrphanFiles(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=0.1)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -151,6 +154,9 @@ class TestOrphanFilesAtLoad(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=3)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -160,6 +166,9 @@ class TestOrphanFilesAtLoad(unittest.TestCase):
     def left(self):
         """
         The orphan files that are still there.
+
+        :Returns:
+            #. left (list): The paths of the orphan files that still exist.
         """
         return [path for path in self.orphans if os.path.exists(path)]
 

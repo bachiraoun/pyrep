@@ -80,6 +80,9 @@ class TestAttemptsInOperations(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=3)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -89,12 +92,21 @@ class TestAttemptsInOperations(unittest.TestCase):
     def calls(self):
         """
         The number of times the test code ran.
+
+        :Returns:
+            #. count (int): The number of times the dump code ran.
         """
         return len(open(self.counter).read()) if os.path.exists(self.counter) else 0
 
     def failing_dump(self, kind):
         """
         Source of a dump method that counts its runs and fails with the given error.
+
+        :Parameters:
+            #. kind (str): The source of the exception the dump code raises.
+
+        :Returns:
+            #. source (str): The source code of the dump method.
         """
         return ("import errno\ndef dump(path, value):\n    open(%r, 'a').write('x')\n    raise %s\n"%(self.counter, kind))
 

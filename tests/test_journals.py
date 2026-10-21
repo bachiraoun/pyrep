@@ -20,6 +20,9 @@ class TestJournalFormat(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=3)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -67,6 +70,9 @@ class TestRepositoryJournal(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=0.1)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)

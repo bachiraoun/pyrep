@@ -84,6 +84,12 @@ class LineResult(unittest.TestResult):
         self.__started   = 0.0
 
     def startTest(self, test):
+        """
+        Starts the clock of a test.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test that starts.
+        """
         super().startTest(test)
         self.__started = time.monotonic()
 
@@ -116,27 +122,67 @@ class LineResult(unittest.TestResult):
             sys.__stdout__.flush()
 
     def addSuccess(self, test):
+        """
+        Records a test that passed.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test that passed.
+        """
         super().addSuccess(test)
         self.record(test.id(), 'PASS')
 
     def addFailure(self, test, err):
+        """
+        Records a test that failed an assertion.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test that failed.
+            #. err (tuple): The exception type, value and traceback.
+        """
         super().addFailure(test, err)
         self.record(test.id(), 'FAIL', self.last_line(err))
 
     def addError(self, test, err):
+        """
+        Records a test that raised an unexpected error.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test that raised.
+            #. err (tuple): The exception type, value and traceback.
+        """
         super().addError(test, err)
         self.record(test.id(), 'ERROR', self.last_line(err))
 
     def addSkip(self, test, reason):
+        """
+        Records a test that was skipped.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test that was skipped.
+            #. reason (str): Why it was skipped.
+        """
         super().addSkip(test, reason)
         self.record(test.id(), 'SKIP', reason)
 
     def addExpectedFailure(self, test, err):
+        """
+        Records a test of a known bug that still fails, which counts as a pass.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test of the known bug.
+            #. err (tuple): The exception type, value and traceback.
+        """
         super().addExpectedFailure(test, err)
         self.knownBugs.append((test.id(), known_bug_summary(test)))
         self.record(test.id(), 'PASS', f'known bug: {known_bug_summary(test)}')
 
     def addUnexpectedSuccess(self, test):
+        """
+        Records a test of a known bug that passes, which counts as a failure until its marker is removed.
+
+        :Parameters:
+            #. test (unittest.TestCase): The test of the known bug.
+        """
         super().addUnexpectedSuccess(test)
         self.record(test.id(), 'FAIL', 'the known bug is fixed, remove its @known_bug marker')
 

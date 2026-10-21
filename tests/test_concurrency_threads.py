@@ -20,6 +20,9 @@ class TestThreadsFightingForFiles(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository()
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -30,6 +33,9 @@ class TestThreadsFightingForFiles(unittest.TestCase):
     def run_fight(self, makeRepo):
         """
         Runs one session per thread and checks the result from disk.
+
+        :Parameters:
+            #. makeRepo (callable): Returns the Repository instance a thread uses.
         """
         failures = []
 
@@ -70,6 +76,9 @@ class TestThreadsRacing(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository()
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)

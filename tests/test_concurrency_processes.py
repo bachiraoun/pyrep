@@ -199,6 +199,9 @@ class TestProcessesFighting(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository()
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -207,6 +210,12 @@ class TestProcessesFighting(unittest.TestCase):
     def collect_failures(self, results):
         """
         Flattens the failures reported by all processes.
+
+        :Parameters:
+            #. results (list): The result dictionary of every process.
+
+        :Returns:
+            #. failures (list): The failures of all processes together.
         """
         return [failure for result in results for failure in result['failures']]
 

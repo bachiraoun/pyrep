@@ -38,6 +38,9 @@ class TestTemporaryFilesAtLoad(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=3)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -55,6 +58,12 @@ class TestTemporaryFilesAtLoad(unittest.TestCase):
     def load(self, **arguments):
         """
         Loads the repository in a new instance.
+
+        :Parameters:
+            #. arguments (dict): Keyword arguments of load_repository, and attributes to set on the instance first under the key attributes.
+
+        :Returns:
+            #. repo (pyrep.Repository): The instance that loaded the repository.
         """
         repo = Repository(timeout=3)
         for name, value in arguments.pop('attributes', {}).items():

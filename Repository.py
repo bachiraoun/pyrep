@@ -108,6 +108,11 @@ Loading a repository does both by default, for the files that were not touched f
 *removeTemporaryFiles* and *removeOrphanFiles* turn it off. Operations that need several steps, such as renaming a
 directory, write a journal first, and whoever takes the lock next completes what a crash interrupted.
 If the process hosting the lock server exits, the next operation of another process takes its place.
+
+An instance keeps the list of tracked files that it loaded or saved last. Looking up a name that is not in that list, or
+whose file is missing on disk, reloads the list by itself when another instance saved the index in the meantime, so
+pulling or asking about a file that others added or removed gives the right answer. Listings and names that were removed
+by others only change after :py:meth:`~pyrep.Repository.Repository.refresh_repository`.
 """
 
 # standard distribution imports
@@ -279,6 +284,9 @@ def get_dump_method(dump, protocol=-1):
 
     :Returns:
         #. code (str): Source code that defines `dump(path, value)`.
+
+    :Raises:
+        #. Exception: If dump is neither None nor a string.
     """
     if dump is None:
         dump = 'pickle'
@@ -355,6 +363,9 @@ def get_pull_method(pull):
 
     :Returns:
         #. code (str): Source code that defines `pull(path)`.
+
+    :Raises:
+        #. Exception: If pull is neither None nor a string.
     """
     if pull is None or pull.startswith('pickle'):
         code = """
@@ -456,6 +467,9 @@ def write_pickle_atomically(path, value, protocol):
         #. path (str): The file to write.
         #. value (object): The value to pickle.
         #. protocol (int): The pickle protocol.
+
+    :Raises:
+        #. Exception: Any error of pickling or writing the value, once the temporary file is removed.
     """
     tempPath = get_temporary_path(path)
     try:
@@ -529,6 +543,9 @@ def finish_file_moves(journalPath):
 
     :Parameters:
         #. journalPath (str): The journal file, which is removed once everything is moved.
+
+    :Raises:
+        #. Exception: If the journal is not of the kind 'file_moves'.
     """
     kind, moves = read_journal(journalPath)
     if kind != 'file_moves':
@@ -593,6 +610,9 @@ def copy_files_together(copies, journalPath, protocol, link=False):
         #. protocol (int): The pickle protocol of the journal.
         #. link (boolean): Whether to make hard links instead of copies, which takes no time for any size.
            Files systems without hard links get copies.
+
+    :Raises:
+        #. Exception: If a file cannot be copied or the journal cannot be written, once the temporary files are removed.
     """
     prepared = []
     try:
@@ -691,6 +711,9 @@ def copy_tree(src, dst, srcDirDict,
 
     :Returns:
         #. files (list): The destination paths that were copied.
+
+    :Raises:
+        #. Exception: If the source directory does not exist, is the same as the destination, or the given dictionary is malformed.
     """
     files = []
     if not (os.path.isdir(src)):
@@ -871,6 +894,10 @@ class Repository:
         return repr
 
     def __sync_files(self, repoPath, dirs):
+        """
+        Keeps the entries of an index whose directories, files and info files are all on disk.
+        It returns the kept list and a message for every entry that was dropped.
+        """
         errors  = []
         synched = []
         def _walk_dir(relPath, relDirList, relSynchedList):
@@ -927,6 +954,10 @@ class Repository:
 
     def __save_dirinfo(self, description, dirInfoPath, create=False):
         # create main directory info file
+        """
+        Writes the info file of a directory, keeping its creation time and, when no description is given, its description.
+        A directory info file of another repository is replaced by a new one.
+        """
         oldInfo = None
         if description is None and os.path.isfile(dirInfoPath):
             with open(dirInfoPath, 'rb') as fd:
@@ -954,7 +985,7 @@ class Repository:
             write_pickle_atomically(dirInfoPath, info, self._DEFAULT_PICKLE_PROTOCOL)
 
     def __clean_before_after(self, stateBefore, stateAfter, keepNoneEmptyDirectory=True):
-        """clean repository given before and after states"""
+        """Removes the files and directories that the state after leaves out of the state before, and returns the failures."""
         # prepare after for faster search
         errors    = []
         afterDict = {}
@@ -1005,6 +1036,9 @@ class Repository:
 
 
     def __get_repository_parent_directory(self, relativePath):
+        """
+        Gets the list of the directory that contains a path, or None when that directory is not tracked.
+        """
         relativePath = self.to_repo_relative_path(path=relativePath, split=False)
         if relativePath == '':
             return None
@@ -1012,6 +1046,10 @@ class Repository:
         return self.__get_repository_directory(relativePath=parentPath)
 
     def __get_repository_directory(self, relativePath):
+        """
+        Gets the list of a tracked directory from the index this instance holds, or None when it is not tracked.
+        The returned list is the live one, so changing it changes the index of this instance.
+        """
         cDir = self.__repo['walk_repo']
         splitted = self.to_repo_relative_path(path=relativePath, split=True)
         if splitted == ['']:
@@ -1031,6 +1069,10 @@ class Repository:
 
     def __save_repository_pickle_file(self, lockFirst=False, raiseError=True):
         # create and acquire lock
+        """
+        Writes the index atomically and remembers its signature, so that this instance knows it is up to date.
+        The repository lock must be held, or lockFirst must be True.
+        """
         error = None
         if lockFirst:
             acquired, lockId = self.__acquire_lock(self.__path)
@@ -1056,6 +1098,9 @@ class Repository:
         return error is None, error
 
     def __load_repository_pickle_file(self, repoPath, track=True):
+        """
+        Reads and validates an index file and, when track is True, remembers its signature as the one this instance holds.
+        """
         try:
             fd = open(repoPath, 'rb')
         except Exception as err:
@@ -1090,6 +1135,10 @@ class Repository:
 
     def __load_repository(self, path, verbose=True, safeMode=True):
         # try to open
+        """
+        Loads the repository at a path into this instance, under the repository lock when safeMode is True.
+        The entries of the index that are not on disk are dropped, and a warning lists them when verbose is True.
+        """
         if path.strip() in ('','.'):
             path = os.getcwd()
         repoPath = os.path.realpath( os.path.expanduser(path) )
@@ -1136,18 +1185,17 @@ class Repository:
 
     @property
     def info(self):
-        """Get repository information"""
+        """The information given to the repository when it was created."""
         return self.__repo['repository_information']
 
     @property
     def path(self):
-        """The repository instance path which points to the directory where
-        .pyreprepo is."""
+        """The path of the directory that holds the .pyreprepo file, None before a repository is loaded."""
         return self.__path
 
     @property
     def uniqueName(self):
-        """Get repository unique name as generated when repository was created"""
+        """The unique name that was generated when the repository was created."""
         return self.__repo['repository_unique_name']
 
     def __start_locker(self, serverFile, regenerate=False):
@@ -1302,7 +1350,7 @@ class Repository:
 
     def get_stats(self):
         """
-        Get repository descriptive stats
+        Gets the number of directories and files tracked in the repository.
 
         :Returns:
             #. numberOfDirectories (integer): Number of diretories in repository
@@ -1395,6 +1443,9 @@ class Repository:
 
         :Returns:
              #. repository (pyrep.Repository): returns self repository with loaded data.
+
+        :Raises:
+            #. Exception: If safeMode is not a boolean, ntrials is not a positive integer, there is no repository in path, or the lock cannot be acquired.
         """
         if not (isinstance(safeMode, bool)):
             raise Exception("safeMode must be boolean")
@@ -1477,6 +1528,9 @@ class Repository:
         :Returns:
             #. success (boolean): Whether refreshing was successful.
             #. message (None, str): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If *raiseError* is not a boolean, and, when it is True, if the repository lock cannot be acquired or the index cannot be read.
         """
         if not isinstance(raiseError, bool):
             raise Exception("raiseError must be boolean")
@@ -1511,6 +1565,9 @@ class Repository:
 
         :Returns:
             #. removed (list): The relative paths of the removed files.
+
+        :Raises:
+            #. Exception: If olderThan is not a number >=0.
         """
         if not (isinstance(olderThan, (int, float)) and olderThan >= 0):
             raise Exception("olderThan must be a number >=0")
@@ -1642,8 +1699,8 @@ class Repository:
 
     def create_repository(self, path, info=None, description=None, replace=False, allowNoneEmpty=True, raiseError=True):
         """
-        create a repository in a directory. This method insures the creation of
-        the directory in the system if it is missing.\n
+        Creates a repository in a directory. This method ensures the creation of
+        the directory in the system if it is missing.
 
         **N.B. If replace is True and an existing repository is found in path, create_repository erases ALL files and directories in path, including ones that are not tracked by the repository.**
 
@@ -1664,6 +1721,9 @@ class Repository:
         :Returns:
             #. success (boolean): Whether creating repository was successful
             #. message (None, str): Any returned message.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -1758,9 +1818,12 @@ class Repository:
             #. path (None, string): The path the repository to remove.
             #. password (None, string): If path is not for this instance
                repository, a new Repository must be created and this
-               password would be given upon instanciation
+               password would be given upon instantiation
             #. removeEmptyDirs (boolean): Whether to remove remaining empty
                directories including repository one.
+
+        :Raises:
+            #. Exception: If removeEmptyDirs is not a boolean, no path is given for an instance without a repository, or removing is not safe because this instance is a lock client or other instances use the repository.
         """
         if not (isinstance(removeEmptyDirs, bool)):
             raise Exception("removeEmptyDirs must be boolean")
@@ -1832,6 +1895,9 @@ class Repository:
             #. success (bool): Whether saving was successful.
             #. error (None, string): Fail to save repository message in case
                saving is not successful. If success is True, error will be None.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -1888,8 +1954,8 @@ class Repository:
 
     def is_name_allowed(self, path):
         """
-        Get whether creating a file or a directory from the basenane of the given
-        path is allowed
+        Tells whether creating a file or a directory from the basename of the given
+        path is allowed.
 
         :Parameters:
             #. path (str): The absolute or relative path or simply the file
@@ -1898,6 +1964,9 @@ class Repository:
         :Returns:
             #. allowed (bool): Whether name is allowed.
             #. message (None, str): Reason for the name to be forbidden.
+
+        :Raises:
+            #. Exception: If path is not a string.
         """
         if not (isinstance(path, str)):
             raise Exception("given path must be a string")
@@ -1941,7 +2010,7 @@ class Repository:
 
     def to_repo_relative_path(self, path, split=False):
         """
-        Given a path, return relative path to directory
+        Returns the path relative to the repository directory of a given path.
 
         :Parameters:
             #. path (str): Path as a string
@@ -1950,6 +2019,9 @@ class Repository:
         :Returns:
             #. relativePath (str, list): Relative path as a string or as a list
                of components if split is True
+
+        :Raises:
+            #. Exception: If the path contains a null character, or points outside of the repository directly or through a symbolic link.
         """
         # Checked first because on some python versions normpath silently cuts a path at a null character
         if '\0' in path:
@@ -1974,7 +2046,7 @@ class Repository:
     def get_repository_state(self, relaPath=None):
         """
         Get a list representation of repository state along with useful
-        information. List state is ordered relativeley to directories level
+        information. List state is ordered relatively to directories level.
 
         :Parameters:
             #. relaPath (None, str): relative directory path from where to
@@ -2172,6 +2244,9 @@ class Repository:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
+
+        :Raises:
+            #. Exception: If fullPath or recursive is not a boolean, or relativePath is not a repository directory.
         """
         if not (isinstance(fullPath, bool)):
             raise Exception("fullPath must be boolean")
@@ -2209,6 +2284,9 @@ class Repository:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively
+
+        :Raises:
+            #. Exception: If fullPath or recursive is not a boolean, or relativePath is not a repository directory.
         """
         if not (isinstance(fullPath, bool)):
             raise Exception("fullPath must be boolean")
@@ -2237,6 +2315,9 @@ class Repository:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
+
+        :Raises:
+            #. Exception: If fullPath or recursive is not a boolean, or relativePath is not a repository directory.
         """
         if not (isinstance(fullPath, bool)):
             raise Exception("fullPath must be boolean")
@@ -2275,6 +2356,9 @@ class Repository:
             #. relativePath (string): The relative path from which start the walk.
             #. fullPath (boolean): Whether to return full or relative path.
             #. recursive (boolean): Whether walk all directories files recursively.
+
+        :Raises:
+            #. Exception: If fullPath or recursive is not a boolean, or relativePath is not a repository directory.
         """
         if not (isinstance(fullPath, bool)):
             raise Exception("fullPath must be boolean")
@@ -2314,6 +2398,9 @@ class Repository:
             #. mode (None, string): The writing mode of the tarfile.
                If None, automatically the best compression mode will be chose.
                Available modes are ('w', 'w:', 'w:gz', 'w:bz2')
+
+        :Raises:
+            #. Exception: If the archive mode is unknown, the repository path is not a directory, or the package cannot be created.
         """
         # check mode
         if not (mode in (None, 'w', 'w:', 'w:gz', 'w:bz2')):
@@ -2373,8 +2460,8 @@ class Repository:
     def add_directory(self, relativePath, description=None, clean=False,
                             raiseError=True, ntrials=3):
         """
-        Add a directory in the repository and creates its attribute in the
-        Repository with utc timestamp. It insures adding all the missing
+        Adds a directory in the repository and creates its attribute in the
+        Repository with utc timestamp. It ensures adding all the missing
         directories in the path.
 
         :Parameters:
@@ -2396,6 +2483,9 @@ class Repository:
             #. success (boolean): Whether adding the directory was successful.
             #. message (None, string): Reason why directory was not added or
                random information.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -2559,6 +2649,9 @@ class Repository:
         :Returns:
             #. success (boolean): Whether removing the directory was successful.
             #. reason (None, string): Reason why directory was not removed.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -2663,7 +2756,7 @@ class Repository:
     @path_required
     def rename_directory(self, relativePath, newName, raiseError=True, ntrials=3):
         """
-        Rename a directory in the repository. It insures renaming the directory in the system.
+        Renames a directory in the repository. It ensures renaming the directory in the system.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of
@@ -2678,9 +2771,11 @@ class Repository:
                again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
-            #. success (boolean): Whether renaming the directory was successful.
-            #. message (None, string): Some explanatory message or error reason
-               why directory was not renamed.
+            #. success (boolean): Whether renaming the directory succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -2831,9 +2926,11 @@ class Repository:
                again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
-            #. success (boolean): Whether renaming the directory was successful.
-            #. message (None, string): Some explanatory message or error reason
-               why directory was not renamed.
+            #. success (boolean): Whether copying the directory succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -3029,9 +3126,11 @@ class Repository:
                again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
-            #. success (boolean): Whether renaming the directory was successful.
-            #. message (None, string): Some explanatory message or error reason
-               why directory was not dumped.
+            #. success (boolean): Whether dumping the file succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         # check arguments
         if not (isinstance(raiseError, bool)):
@@ -3173,7 +3272,19 @@ class Repository:
         return error is None, error
 
     def dump(self, *args, **kwargs):
-        """Alias to dump_file"""
+        """
+        Is the short name of dump_file.
+
+        :Parameters:
+            #. args (tuple): The positional arguments of dump_file.
+            #. kwargs (dict): The keyword arguments of dump_file.
+
+        :Returns:
+            #. result (tuple): What dump_file returns, a success flag and a message.
+
+        :Raises:
+            #. Exception: Whatever dump_file raises.
+        """
         return self.dump_file(*args, **kwargs)
 
 
@@ -3200,9 +3311,11 @@ class Repository:
                again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
-            #. success (boolean): Whether renaming the file was successful.
-            #. message (None, string): Some explanatory message or error reason
-               why directory was not updated.
+            #. success (boolean): Whether copying the file succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -3327,12 +3440,10 @@ class Repository:
     def update_file(self, value, relativePath, description=False,
                           dump=False, pull=False, raiseError=True, ntrials=3):
         """
-        Update the value of a file that is already in the Repository.\n
-        If file is not registered in repository, and error will be thrown.\n
-        If file is missing in the system, it will be regenerated as dump method
-        is called.
-        Unlike dump_file, update_file won't block the whole repository but only
-        the file being updated.
+        Updates the value of a file that is already in the Repository.
+        If the file is not registered in the repository, an error is raised.
+        If the file is missing in the system, it is regenerated as the dump method is called.
+        Unlike dump_file, update_file does not block the whole repository but only the file being updated.
 
         :Parameters:
             #. value (object): The value of a file to update.
@@ -3353,10 +3464,12 @@ class Repository:
                error fails at once, which also keeps your own dump and pull methods from running
                again after they failed. The message of a failure lists the error of every attempt.
 
-       :Returns:
-           #. success (boolean): Whether renaming the directory was successful.
-           #. message (None, string): Some explanatory message or error reason
-              why directory was not updated.
+        :Returns:
+            #. success (boolean): Whether updating the file succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         # check arguments
         if not (isinstance(raiseError, bool)):
@@ -3465,7 +3578,19 @@ class Repository:
         return updated, '\n'.join(message)
 
     def update(self, *args, **kwargs):
-        """Alias to update_file"""
+        """
+        Is the short name of update_file.
+
+        :Parameters:
+            #. args (tuple): The positional arguments of update_file.
+            #. kwargs (dict): The keyword arguments of update_file.
+
+        :Returns:
+            #. result (tuple): What update_file returns, a success flag and a message.
+
+        :Raises:
+            #. Exception: Whatever update_file raises.
+        """
         return self.update_file(*args, **kwargs)
 
 
@@ -3551,7 +3676,19 @@ class Repository:
         return pulledVal
 
     def pull(self, *args, **kwargs):
-        """Alias to pull_file"""
+        """
+        Is the short name of pull_file.
+
+        :Parameters:
+            #. args (tuple): The positional arguments of pull_file.
+            #. kwargs (dict): The keyword arguments of pull_file.
+
+        :Returns:
+            #. data (object): The data that pull_file returns.
+
+        :Raises:
+            #. Exception: Whatever pull_file raises.
+        """
         return self.pull_file(*args, **kwargs)
 
 
@@ -3559,7 +3696,7 @@ class Repository:
     def rename_file(self, relativePath, newRelativePath,
                           force=False, raiseError=True, ntrials=3):
         """
-        Rename a file in the repository. It insures renaming the file in the system.
+        Renames a file in the repository. It ensures renaming the file in the system.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of
@@ -3578,9 +3715,11 @@ class Repository:
                again after they failed. The message of a failure lists the error of every attempt.
 
         :Returns:
-            #. success (boolean): Whether renaming the file was successful.
-            #. message (None, string): Some explanatory message or error reason
-               why directory was not updated.
+            #. success (boolean): Whether renaming the file succeeded.
+            #. message (None, string): The reason of the failure, None when it succeeded.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")
@@ -3738,6 +3877,9 @@ class Repository:
         :Returns:
             #. removed (boolean): Whether removing the file was successful.
             #. message (str): Explanatory message or error reason. Empty on success.
+
+        :Raises:
+            #. Exception: If an argument has a wrong type or value, and, when *raiseError* is True, if the operation fails.
         """
         if not (isinstance(raiseError, bool)):
             raise Exception("raiseError must be boolean")

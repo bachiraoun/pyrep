@@ -18,6 +18,9 @@ class TestBasicOperations(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository()
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -26,6 +29,9 @@ class TestBasicOperations(unittest.TestCase):
     def reopen(self):
         """
         Loads the repository from disk in a new instance, which proves persistence.
+
+        :Returns:
+            #. reopened (pyrep.Repository): The new instance, which is closed after the test.
         """
         reopened = Repository(self.temporary.path, timeout=30)
         self.addCleanup(reopened.close)
@@ -42,6 +48,9 @@ class TestBasicOperations(unittest.TestCase):
         """
         Fails when the index saved on disk does not list exactly the expected files.
         Loading a repository repairs what it reads, so only the raw index proves that a change was saved.
+
+        :Parameters:
+            #. expected (list, set): The relative paths of the files that the index must list.
         """
         self.assertEqual(read_index(self.temporary.path), set(expected))
 

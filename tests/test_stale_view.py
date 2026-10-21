@@ -64,6 +64,9 @@ class TestStaleView(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository()
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)

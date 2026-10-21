@@ -15,6 +15,9 @@ class DirectoryTestCase(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=0.1)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -27,6 +30,12 @@ class DirectoryTestCase(unittest.TestCase):
         """
         Takes a lock of the repository locker and keeps it until the end of the test, so that the operation under test
         cannot get it.
+
+        :Parameters:
+            #. path (str): The path whose lock is taken.
+
+        :Returns:
+            #. release (callable): Releases the lock before the end of the test.
         """
         acquired, lockId = self.repo.locker.acquire_lock(path=path, timeout=1)
         self.assertTrue(acquired)
@@ -49,6 +58,10 @@ class DirectoryTestCase(unittest.TestCase):
     def corrupt_index(self):
         """
         Replaces the saved index by garbage and returns the original bytes, so a test can put it back.
+
+        :Returns:
+            #. indexPath (str): The path of the index file.
+            #. original (bytes): The content of the index before it was replaced.
         """
         indexPath = os.path.join(self.temporary.path, '.pyreprepo')
         with open(indexPath, 'rb') as fd:
@@ -62,6 +75,10 @@ class DirectoryTestCase(unittest.TestCase):
     def restore_index(indexPath, original):
         """
         Puts the original index bytes back.
+
+        :Parameters:
+            #. indexPath (str): The path of the index file.
+            #. original (bytes): The content to write back.
         """
         with open(indexPath, 'wb') as fd:
             fd.write(original)

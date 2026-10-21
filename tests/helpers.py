@@ -151,6 +151,9 @@ def run_in_threads(target, argsList, timeoutSeconds=300):
 
     :Returns:
         #. crashes (list): Traceback text of every thread that raised.
+
+    :Raises:
+        #. AssertionError: If some threads do not finish within the time given.
     """
     crashes = []
 
@@ -184,6 +187,9 @@ def run_in_processes(target, argsList, timeoutSeconds=300):
 
     :Returns:
         #. results (list): One result per process, in completion order.
+
+    :Raises:
+        #. AssertionError: If some processes do not report a result.
     """
     context     = multiprocessing.get_context('spawn')
     resultQueue = context.Queue()

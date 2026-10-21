@@ -18,6 +18,9 @@ class TestRegressions(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=1)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)

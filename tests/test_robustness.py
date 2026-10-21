@@ -140,6 +140,9 @@ class TestCrashes(unittest.TestCase):
     """
 
     def setUp(self):
+        """
+        Creates a temporary repository for every test, it is removed afterwards.
+        """
         self.temporary = TemporaryRepository(timeout=10)
         self.temporary.__enter__()
         self.addCleanup(self.temporary.__exit__, None, None, None)
@@ -148,6 +151,11 @@ class TestCrashes(unittest.TestCase):
     def crash(self, crashFile, action, path=None):
         """
         Lets a child process die at the chosen moment of a write, in the test repository or in the one at path.
+
+        :Parameters:
+            #. crashFile (str): The moment at which the child dies, such as replace:1 or remove:2.
+            #. action (str): What the child does, such as dump, update or rename.
+            #. path (None, str): The repository to write in, None for the test repository.
         """
         context = multiprocessing.get_context('spawn')
         process = context.Process(target=crashing_writer, args=(self.temporary.path if path is None else path, crashFile, action))
@@ -158,6 +166,15 @@ class TestCrashes(unittest.TestCase):
     def crash_in_the_commit(self, crashFile, action, otherValue=None, extraFiles=()):
         """
         Runs a write that dies at the given moment of its commit in a repository of its own, and returns the path.
+
+        :Parameters:
+            #. crashFile (str): The moment at which the child dies.
+            #. action (str): What the child does.
+            #. otherValue (None, object): The value of a second file to create first, None for no second file.
+            #. extraFiles (tuple): Pairs of a name and a value of more files to create first.
+
+        :Returns:
+            #. path (str): The path of the repository the child wrote in.
         """
         temporary = TemporaryRepository(timeout=10)
         temporary.__enter__()
@@ -208,6 +225,9 @@ class TestCrashes(unittest.TestCase):
         """
         Fails when the repository has any inconsistency other than data files that the index no longer lists.
         Those are orphans, which do no harm.
+
+        :Parameters:
+            #. path (str): The repository path.
         """
         problems = audit_repository(path)
         problems.pop('on-disk-but-untracked', None)
@@ -217,6 +237,9 @@ class TestCrashes(unittest.TestCase):
         """
         Loads the repository in a way that removes orphan files however young, and fails when anything is
         inconsistent afterwards, orphans included.
+
+        :Parameters:
+            #. path (str): The repository path.
         """
         sweeper = Repository(timeout=10)
         sweeper.ORPHAN_FILES_MAX_AGE = 0
@@ -227,6 +250,13 @@ class TestCrashes(unittest.TestCase):
     def pull_or_none(self, repo, name):
         """
         Pulls a file and returns None when it is not tracked.
+
+        :Parameters:
+            #. repo (pyrep.Repository): The instance to pull with.
+            #. name (str): The relative path of the file.
+
+        :Returns:
+            #. data (None, object): The data of the file, None when it is not tracked.
         """
         try:
             return repo.pull_file(name)
