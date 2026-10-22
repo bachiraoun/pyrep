@@ -121,6 +121,9 @@ class TemporaryRepository:
     """
 
     def __init__(self, timeout=LOCK_TIMEOUT, password=None):
+        """
+        Stores the settings, the repository itself is created when the context is entered.
+        """
         self.timeout  = timeout
         self.password = password
         self.root     = None

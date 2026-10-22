@@ -113,10 +113,13 @@ An instance keeps the list of tracked files that it loaded or saved last. Lookin
 whose file is missing on disk, reloads the list by itself when another instance saved the index in the meantime, so
 pulling or asking about a file that others added or removed gives the right answer. Listings and names that were removed
 by others only change after :py:meth:`~pyrep.Repository.Repository.refresh_repository`.
+
+Every failed attempt of an operation that is attempted again is logged at the DEBUG level by the logger named
+``pyrep.Repository``, which stays silent until the application configures logging.
 """
 
 # standard distribution imports
-import os, sys, re, time, uuid, errno, random, warnings, tarfile, shutil, traceback, inspect, threading, weakref
+import os, sys, re, time, uuid, errno, random, warnings, tarfile, shutil, traceback, logging, threading, weakref
 from functools import wraps
 import copy
 import pickle
@@ -129,6 +132,7 @@ from .__pkginfo__ import __version__
 
 # Every instance of a process that works on the same repository shares one locker, so the locker may only
 # be stopped when the last of those instances is closed. Keys are server file paths.
+LOGGER             = logging.getLogger(__name__)
 LOCKER_USERS       = {}
 LOCKER_USERS_MUTEX = threading.RLock()
 
@@ -797,8 +801,6 @@ class Repository:
            which crashed operations leave behind. Only files untouched for
            ORPHAN_FILES_MAX_AGE seconds are removed.
     """
-    DEBUG_PRINT_FAILED_TRIALS = False#True
-
     # Seconds a temporary file must be untouched before loading a repository removes it, so a write in progress is never hit
     TEMPORARY_FILES_MAX_AGE = 3600
 
@@ -806,6 +808,9 @@ class Repository:
     ORPHAN_FILES_MAX_AGE = 3600
 
     def __init__(self, path=None, pickleProtocol=4, timeout=10, password=None, removeTemporaryFiles=True, removeOrphanFiles=True):
+        """
+        Creates the instance, and loads the repository at path when a path is given.
+        """
         self.__repoLock  = '.pyreplock'
         self.__repoFile  = '.pyreprepo'
         self.__dirInfo   = '.pyrepdirinfo'
@@ -1377,7 +1382,7 @@ class Repository:
 
 
     def reset(self):
-        """Reset repository instance.
+        """Resets repository instance.
         """
         self.__path   = None
         self.__locker = None
@@ -1393,7 +1398,7 @@ class Repository:
 
     def is_repository(self, path):
         """
-        Check if there is a Repository in path.
+        Checks if there is a Repository in path.
 
         :Parameters:
             #. path (string): The real path of the directory where to check if
@@ -1413,7 +1418,7 @@ class Repository:
 
     def load_repository(self, path, verbose=True, ntrials=3, safeMode=True, removeTemporaryFiles=True, removeOrphanFiles=True):
         """
-        Load repository from a directory path and update the current instance.
+        Loads repository from a directory path and update the current instance.
         First, new repository still will be loaded. If failed, then old
         style repository load will be tried.
 
@@ -1812,7 +1817,7 @@ class Repository:
 
     def remove_repository(self, path=None, password=None, removeEmptyDirs=True):
         """
-        Remove all repository from path along with all repository tracked files.
+        Removes all repository from path along with all repository tracked files.
 
         :Parameters:
             #. path (None, string): The path the repository to remove.
@@ -1877,7 +1882,7 @@ class Repository:
     @path_required
     def save(self, description=None, raiseError=True, ntrials=3):
         """
-        Save repository '.pyreprepo' to disk and create (if missing) or
+        Saves repository '.pyreprepo' to disk and create (if missing) or
         update (if description is not None) '.pyrepdirinfo'.
 
         :Parameters:
@@ -1937,7 +1942,7 @@ class Repository:
                 write_pickle_atomically(repoInfoPath, self.__repo, self._DEFAULT_PICKLE_PROTOCOL)
             except Exception as err:
                 error = "Unable to save repository (%s)"%err
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'save', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -2045,7 +2050,7 @@ class Repository:
     @path_required
     def get_repository_state(self, relaPath=None):
         """
-        Get a list representation of repository state along with useful
+        Gets a list representation of repository state along with useful
         information. List state is ordered relatively to directories level.
 
         :Parameters:
@@ -2123,7 +2128,7 @@ class Repository:
 
     def get_repository_directory(self, relativePath):
         """
-        Get repository directory list copy.
+        Gets repository directory list copy.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path .
@@ -2137,7 +2142,7 @@ class Repository:
 
     def get_file_info(self, relativePath):
         """
-        Get file information dict from the repository given its relative path.
+        Gets file information dict from the repository given its relative path.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of
@@ -2166,7 +2171,7 @@ class Repository:
 
     def is_repository_directory(self, relativePath):
         """
-        Get whether directory is registered in repository.
+        Tells whether a directory is registered in the repository.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path.
@@ -2186,7 +2191,7 @@ class Repository:
 
     def is_repository_file(self, relativePath):
         """
-        Check whether a given relative path is a repository file path
+        Checks whether a given relative path is a repository file path.
 
         :Parameters:
             #. relativePath (string): File relative path
@@ -2238,7 +2243,7 @@ class Repository:
     @path_required
     def walk_files_path(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk the repository relative path and yield file relative/full path.
+        Walks the repository relative path and yield file relative/full path.
 
         :Parameters:
             #. relativePath (string): The relative path from which start the walk.
@@ -2276,7 +2281,7 @@ class Repository:
 
     def walk_files_info(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk the repository relative path and yield tuple of two items where
+        Walks the repository relative path and yield tuple of two items where
         first item is file relative/full path and second item is file info.
         If file info is not found on disk, second item will be None.
 
@@ -2309,7 +2314,7 @@ class Repository:
 
     def walk_directories_path(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk repository relative path and yield directory relative/full path
+        Walks repository relative path and yield directory relative/full path.
 
         :Parameters:
             #. relativePath (string): The relative path from which start the walk.
@@ -2348,7 +2353,7 @@ class Repository:
 
     def walk_directories_info(self, relativePath="", fullPath=False, recursive=False):
         """
-        Walk the repository relative path and yield tuple of two items where
+        Walks the repository relative path and yield tuple of two items where
         first item is directory relative/full path and second item is directory
         info. If directory file info is not found on disk, second item will be None.
 
@@ -2381,7 +2386,7 @@ class Repository:
     @path_required
     def create_package(self, path=None, name=None, mode=None):
         """
-        Create a tar file package of all the repository files and directories.
+        Creates a tar file package of all the repository files and directories.
         Only files and directories that are tracked in the repository
         are stored in the package tar file.
 
@@ -2524,7 +2529,7 @@ class Repository:
                 self.__repo['walk_repo'] = repo['walk_repo']
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'add_directory', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -2586,7 +2591,7 @@ class Repository:
                         posList = dList[0][name]
                 except Exception as err:
                     error = "Unable to create directory '%s' info file (%s)"%(dirPath, str(err))
-                    if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                    LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'add_directory', str(error))
                     attempts.append(error)
                     error = describe_attempts(attempts)
                     if not should_retry(err, _trial, ntrials):
@@ -2616,7 +2621,7 @@ class Repository:
 
     def get_repository_parent_directory(self, relativePath):
         """
-        Get repository parent directory list copy.
+        Gets repository parent directory list copy.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path .
@@ -2631,7 +2636,7 @@ class Repository:
     @path_required
     def remove_directory(self, relativePath, clean=False, raiseError=True, ntrials=3):
         """
-        Remove directory from repository tracking.
+        Removes directory from repository tracking.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of the
@@ -2717,7 +2722,7 @@ class Repository:
                 stateAfter = None if clean else self.__get_repository_state(relaPath=parentPath)
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %s failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'remove_directory', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -2831,7 +2836,7 @@ class Repository:
                 self.__repo['walk_repo'] = repo['walk_repo']
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'rename_directory', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -2872,7 +2877,7 @@ class Repository:
                 self.__save_dirinfo(description=None, dirInfoPath=parentPath, create=False)
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'rename_directory', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -2909,7 +2914,7 @@ class Repository:
     def copy_directory(self, relativePath, newRelativePath,
                              overwrite=False, raiseError=True, ntrials=3):
         """
-        Copy a directory in the repository. New directory must not exist.
+        Copies a directory in the repository. New directory must not exist.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of
@@ -3071,7 +3076,7 @@ class Repository:
                 self.__save_dirinfo(description=None, dirInfoPath=newParentRelativePath, create=False)
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'copy_directory', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -3096,7 +3101,7 @@ class Repository:
                         dump=None, pull=None,
                         replace=False, raiseError=True, ntrials=3):
         """
-        Dump a file using its value to the system and creates its
+        Dumps a file using its value to the system and creates its
         attribute in the Repository with utc timestamp.
 
         :Parameters:
@@ -3194,7 +3199,7 @@ class Repository:
                 self.__repo['walk_repo'] = repo['walk_repo']
             except Exception as err:
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'dump_file', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -3252,7 +3257,7 @@ class Repository:
                             error += '\nmore info: %s'%str(mi)
                 except Exception:
                     pass
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'dump_file', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -3292,7 +3297,7 @@ class Repository:
     def copy_file(self, relativePath, newRelativePath,
                         force=False, raiseError=True, ntrials=3):
         """
-        Copy a file in the repository.
+        Copies a file in the repository.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of
@@ -3411,7 +3416,7 @@ class Repository:
             except Exception as err:
                 copied = False
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'copy_file', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -3562,7 +3567,7 @@ class Repository:
                             message.append('more info: %s'%str(mi))
                 except Exception:
                     pass
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], '\n'.join(message)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'update_file', '\n'.join(message))
                 attempts.append('; '.join(message))
                 message[:] = [describe_attempts(attempts)]
                 if not should_retry(err, _trial, ntrials):
@@ -3661,7 +3666,7 @@ class Repository:
                     pulledVal = pullFunc(path=str(realPath))
                 except Exception as err:
                     error = "Unable to pull data using '%s' from file (%s)"%(pullCode, err)
-                    if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                    LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'pull_file', str(error))
                     attempts.append(error)
                     error = describe_attempts(attempts)
                     if not should_retry(err, _trial, ntrials):
@@ -3821,7 +3826,7 @@ class Repository:
             except Exception as err:
                 renamed = False
                 error = str(err)
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], str(error)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'rename_file', str(error))
                 attempts.append(error)
                 error = describe_attempts(attempts)
                 if not should_retry(err, _trial, ntrials):
@@ -3861,7 +3866,7 @@ class Repository:
     @path_required
     def remove_file(self, relativePath, raiseError=True, ntrials=3):
         """
-        Remove a file from the repository and from disk.
+        Removes a file from the repository and from disk.
 
         :Parameters:
             #. relativePath (string): The relative to the repository path of the
@@ -3936,7 +3941,7 @@ class Repository:
             except Exception as err:
                 removed = False
                 message.append(str(err))
-                if self.DEBUG_PRINT_FAILED_TRIALS: print("Trial %i failed in Repository.%s (%s). Set Repository.DEBUG_PRINT_FAILED_TRIALS to False to mute"%(_trial, inspect.stack()[1][3], '\n'.join(message)))
+                LOGGER.debug('Trial %s failed in Repository.%s (%s)', _trial, 'remove_file', '\n'.join(message))
                 attempts.append('; '.join(message))
                 message[:] = [describe_attempts(attempts)]
                 if not should_retry(err, _trial, ntrials):

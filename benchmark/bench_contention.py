@@ -7,6 +7,7 @@ import json
 import time
 import argparse
 import threading
+import resource
 import multiprocessing
 
 # The benchmark reuses the self-verifying records and the disk audit of the test suite
@@ -18,9 +19,9 @@ from pyrep.__pkginfo__ import __version__ as pyrepVersion
 from helpers import TemporaryRepository, audit_repository, check_record, make_record, run_in_processes
 
 HOT_NAME      = 'shared/hot'
-SCENARIOS     = ('read_same', 'update_same', 'mixed', 'create_unique')
+SCENARIOS     = ('read_same', 'update_same', 'read_own', 'update_own', 'create_unique', 'mixed')
 LOCK_TIMEOUT  = 600
-START_DELAY   = 5.0
+BARRIER_TIMEOUT = 900
 
 
 def percentile(values, fraction):
@@ -59,6 +60,18 @@ def run_operation(repo, scenario, writerId, step, recordSize, latencies, failure
         latencies.setdefault(name, []).append(time.perf_counter() - begin)
         return outcome
 
+    if scenario == 'read_own':
+        try:
+            seen = timed('pull_own', repo.pull_file, f'own/{writerId}/seed')
+            isValid, reason = check_record(seen)
+            if isValid is False or seen['writer'] != writerId:
+                failures.append(f'own file is wrong: {reason}')
+        except Exception as err:
+            failures.append(f'pull of own file failed: {str(err)[:150]}')
+    if scenario == 'update_own':
+        succeeded, message = timed('update_own', repo.update_file, make_record(writerId, step + 1), f'own/{writerId}/seed', raiseError=False)
+        if succeeded is False:
+            failures.append(f'update of own file failed: {message}')
     if scenario in ('read_same', 'mixed'):
         try:
             seen = timed('pull_shared', repo.pull_file, HOT_NAME)
@@ -79,7 +92,7 @@ def run_operation(repo, scenario, writerId, step, recordSize, latencies, failure
             failures.append(f'dump failed: {message}')
 
 
-def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, instancePerThread, startAt, resultQueue):
+def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, instancePerThread, processBarrier, resultQueue):
     """
     Process body: runs the writer threads of one process and reports their timings.
 
@@ -91,7 +104,7 @@ def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, i
         #. scenario (str): One of SCENARIOS.
         #. recordSize (int): Number of items in the shared record.
         #. instancePerThread (bool): Whether every thread has its own Repository instance.
-        #. startAt (float): Wall clock time at which all processes begin together.
+        #. processBarrier (multiprocessing.Barrier): Releases all the processes at the same moment, once every one of them is ready.
         #. resultQueue (multiprocessing.Queue): Receives the result dictionary.
     """
     instanceCount = threadCount if instancePerThread else 1
@@ -100,11 +113,14 @@ def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, i
     failures      = []
     lock          = threading.Lock()
 
+    threadBarrier = threading.Barrier(threadCount)
+
     def session(threadIndex):
         writerId     = f'p{processIndex}t{threadIndex}'
         ownLatencies = {}
         ownFailures  = []
         repo         = instances[threadIndex % instanceCount]
+        threadBarrier.wait(timeout=BARRIER_TIMEOUT)
         for step in range(steps):
             run_operation(repo, scenario, writerId, step, recordSize, ownLatencies, ownFailures)
         with lock:
@@ -112,8 +128,8 @@ def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, i
                 latencies.setdefault(name, []).extend(values)
             failures.extend(ownFailures)
 
-    # Every process waits for the same instant so that all contenders really start together
-    time.sleep(max(0.0, startAt - time.time()))
+    # Every process waits for all the others, so that all contenders really start together
+    processBarrier.wait(timeout=BARRIER_TIMEOUT)
     begin   = time.perf_counter()
     threads = [threading.Thread(target=session, args=(index,)) for index in range(threadCount)]
     for thread in threads:
@@ -123,8 +139,11 @@ def bench_worker(path, processIndex, threadCount, steps, scenario, recordSize, i
     elapsed = time.perf_counter() - begin
     for instance in instances:
         instance.close()
+    peakMemory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # macOS reports bytes, Linux reports kilobytes
+    peakBytes  = peakMemory if sys.platform == 'darwin' else peakMemory * 1024
     resultQueue.put({'process': processIndex, 'elapsed': elapsed, 'latencies': latencies, 'failures': failures[:20],
-                     'failureCount': len(failures)})
+                     'failureCount': len(failures), 'peakBytes': peakBytes})
 
 
 def run_scenario(scenario, processCount, threadCount, steps, recordSize, instancePerThread):
@@ -140,12 +159,18 @@ def run_scenario(scenario, processCount, threadCount, steps, recordSize, instanc
         #. instancePerThread (bool): Whether every thread has its own Repository instance.
 
     :Returns:
-        #. summary (dict): Throughput, latency percentiles per operation, failures and disk problems.
+        #. summary (dict): Throughput, latency percentiles per operation, failures, disk problems and the peak memory of the biggest process.
     """
     with TemporaryRepository(timeout=LOCK_TIMEOUT) as temporary:
         temporary.repo.dump_file(make_record('seed', 0, size=recordSize), HOT_NAME)
-        startAt = time.time() + START_DELAY + processCount * 0.05
-        args    = [(temporary.path, index, threadCount, steps, scenario, recordSize, instancePerThread, startAt)
+        if scenario in ('read_own', 'update_own'):
+            # Every thread owns one file, created here so that the timed part only reads or updates it
+            for index in range(processCount):
+                for threadIndex in range(threadCount):
+                    writerId = f'p{index}t{threadIndex}'
+                    temporary.repo.dump_file(make_record(writerId, 0), f'own/{writerId}/seed')
+        processBarrier = multiprocessing.get_context('spawn').Barrier(processCount)
+        args    = [(temporary.path, index, threadCount, steps, scenario, recordSize, instancePerThread, processBarrier)
                    for index in range(processCount)]
         results = run_in_processes(bench_worker, args, timeoutSeconds=3600)
         merged  = {}
@@ -160,11 +185,11 @@ def run_scenario(scenario, processCount, threadCount, steps, recordSize, instanc
                             'p95_ms': 1000 * percentile(values, 0.95), 'p99_ms': 1000 * percentile(values, 0.99),
                             'max_ms': 1000 * max(values)}
     totalCount = sum(item['count'] for item in operations.values())
-    return {'scenario': scenario, 'processes': processCount, 'threads': threadCount, 'wall_seconds': wallTime,
+    return {'scenario': scenario, 'processes': processCount, 'threads': threadCount, 'steps': steps, 'wall_seconds': wallTime,
             'operations_per_second': totalCount / wallTime, 'operations': operations,
             'failures': sum(result['failureCount'] for result in results),
             'failure_samples': [text for result in results for text in result['failures']][:5],
-            'disk_problems': problems}
+            'disk_problems': problems, 'peak_process_bytes': max(result['peakBytes'] for result in results)}
 
 
 def print_summary(summary):
@@ -209,7 +234,7 @@ def main():
     print(f'{options.processes * options.threads} concurrent threads in total, scenarios: {", ".join(options.scenarios)}')
     summaries = []
     for scenario in options.scenarios:
-        print(f'\nrunning {scenario}, it waits a few seconds so that every process starts together ...', flush=True)
+        print(f'\nrunning {scenario}, every process waits for the others before the clock starts ...', flush=True)
         summary = run_scenario(scenario, options.processes, options.threads, options.steps, options.record_size,
                                options.instance_per_thread)
         print_summary(summary)

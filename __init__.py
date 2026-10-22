@@ -11,15 +11,15 @@ providing the means and the required libraries in a simple form of string.
 
 Installation guide:
 ===================
-pyrep is a pure python module for Python 3.9 or newer that only needs pylocker, which pip installs with it. One can either
-fork pyrep's `github repository <https://github.com/bachiraoun/pyrep/>`_ and copy the
-package to python's site-packages or use pip as the following:
+pyrep is a pure python module for Python 3.9 or newer that only needs pylocker. Fork pyrep's
+`github repository <https://github.com/bachiraoun/pyrep/>`_, copy the package to python's
+site-packages and install pylocker as the following:
 
 
 .. code-block:: console
 
 
-        pip install pyrep
+        pip install pylocker
 
 
 Package Functions:

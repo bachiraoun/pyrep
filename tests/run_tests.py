@@ -76,6 +76,9 @@ class LineResult(unittest.TestResult):
     """
 
     def __init__(self, isQuiet):
+        """
+        Starts a result with no test recorded.
+        """
         super().__init__()
         self.buffer      = True
         self.isQuiet     = isQuiet

@@ -1,9 +1,11 @@
 """
 Tests of the attempts an operation makes when it fails: which errors are attempted again, the pauses, and the messages.
 """
+import io
 import os
 import errno
 import time
+import contextlib
 import unittest
 import importlib
 from unittest import mock
@@ -100,7 +102,7 @@ class TestAttemptsInOperations(unittest.TestCase):
 
     def failing_dump(self, kind):
         """
-        Source of a dump method that counts its runs and fails with the given error.
+        Gives the source of a dump method that counts its runs and fails with the given error.
 
         :Parameters:
             #. kind (str): The source of the exception the dump code raises.
@@ -127,6 +129,16 @@ class TestAttemptsInOperations(unittest.TestCase):
         for number in (1, 2, 3):
             self.assertIn('attempt %i'%number, message)
         self.assertEqual(list(self.repo.walk_files_path(recursive=True)), [])
+
+    def test_every_failed_attempt_is_logged_and_nothing_is_printed(self):
+        """Failed attempts go to the pyrep.Repository logger at the DEBUG level, never to the standard output."""
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed), self.assertLogs('pyrep.Repository', level='DEBUG') as logged:
+            self.repo.dump_file('v', 'name', dump=self.failing_dump("OSError(errno.EBUSY, 'device busy')"), raiseError=False)
+        trials = [record.getMessage() for record in logged.records if record.getMessage().startswith('Trial ')]
+        self.assertEqual(len(trials), 3, trials)
+        self.assertIn('dump_file', trials[0])
+        self.assertEqual(printed.getvalue(), '')
 
     def test_one_attempt_means_no_pause_and_no_second_run(self):
         """ntrials=1 runs the code once and reports its error as it is."""

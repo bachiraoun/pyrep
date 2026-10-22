@@ -1,8 +1,10 @@
 *.pyc
+__pycache__/
 .svn
 *.log
 MANIFEST.in
 dist/
 docs/build/
+docs/_build/
 pyrep.egg-info/
 .DS_Store

@@ -4,10 +4,11 @@ This package provides a pythonic way to organize dumping and pulling python obje
 Repositories are safe to use from several threads and processes at the same time. Access is coordinated by [pylocker](https://pypi.org/project/pylocker/), and the repository index, the info files and the data files are all written to a temporary file first and renamed into place, so a crash leaves the previous content complete. Loading a repository removes the temporary files and the orphan files that crashed operations left behind, when they are older than an hour, unless `removeTemporaryFiles=False` or `removeOrphanFiles=False` is given. Operations that need several steps, such as renaming a directory, write a journal first, and the next process to take the lock completes what a crash interrupted.
 
 ## Installation
+Fork or download the [github repository](https://github.com/bachiraoun/pyrep/) and copy the `pyrep` package to python's site-packages. Then install its one dependency:
 ```
-pip install pyrep
+pip install pylocker
 ```
-pyrep needs Python 3.9 or newer, and pylocker is installed with it. The tests are run on Python 3.10 to 3.13.
+pyrep needs Python 3.9 or newer. The tests are run on Python 3.10 to 3.13.
 
 ## Testing
 ```
@@ -16,6 +17,7 @@ python3 tests/run_tests.py --quiet    ## only the summary
 python3 tests/run_tests.py --quick    ## skip the slow crash tests
 python3 tests/run_tests.py --list     ## the test files
 python3 benchmark/bench_contention.py --processes 100 --threads 10   ## contention benchmark
+python3 benchmark/bench_ladder.py --markdown results.md                ## ladder from 1 to 500 processes x 10 threads, tables for the docs
 ```
 The suite includes 10 processes with several threads each fighting over the same files, and crash tests that kill a writer in the middle of a write.
 
