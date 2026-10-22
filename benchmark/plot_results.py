@@ -8,13 +8,13 @@ import argparse
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, NullFormatter, ScalarFormatter
+from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter, ScalarFormatter
 
 PERCENTILE_COLUMNS   = ('p50 ms', 'p95 ms', 'max ms')
 REFERENCE_LATENCY_MS = 1000
-SPLIT_TOTAL_THREADS  = 1000
-COMPARE_PROCESSES    = 10
-COMPARE_TOTALS       = (100, 1000)
+SPLIT_TOTAL_THREADS  = 64
+COMPARE_PROCESSES    = 16
+COMPARE_TOTALS       = (16, 64, 256)
 
 
 def read_tables(path):
@@ -69,9 +69,26 @@ def apply_latency_axis(axis):
         #. axis (matplotlib.axes.Axes): The axis to set up.
     """
     axis.set_yscale('log')
+    # Ticks at 1, 2 and 5 of every decade, so that a narrow range still gets labels
+    axis.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
     axis.yaxis.set_major_formatter(FuncFormatter(format_milliseconds))
     axis.yaxis.set_minor_formatter(NullFormatter())
     axis.axhline(REFERENCE_LATENCY_MS, color='gray', linestyle='--', linewidth=1)
+    axis.grid(True, which='both', alpha=0.3)
+
+
+def apply_rate_axis(axis):
+    """
+    Gives an axis a logarithmic operations-per-second scale with plain number labels.
+
+    :Parameters:
+        #. axis (matplotlib.axes.Axes): The axis to set up.
+    """
+    axis.set_yscale('log')
+    axis.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
+    axis.yaxis.set_major_formatter(FuncFormatter(lambda value, position: f'{value:g}'))
+    axis.yaxis.set_minor_formatter(NullFormatter())
+    axis.set_ylabel('operations per second (log scale)')
     axis.grid(True, which='both', alpha=0.3)
 
 
@@ -138,6 +155,18 @@ def first_operation_rows(rows):
     return [row for row in rows if row['operation'] == first]
 
 
+def draw_figure_legend(figure, axis):
+    """
+    Puts the legend of an axis at the right of the figure, where it hides no data.
+
+    :Parameters:
+        #. figure (matplotlib.figure.Figure): The figure receiving the legend.
+        #. axis (matplotlib.axes.Axes): The axis whose lines are named.
+    """
+    handles, labels = axis.get_legend_handles_labels()
+    figure.legend(handles, labels, loc='center right')
+
+
 def hide_unused_axes(axes, usedCount):
     """
     Hides the empty panels at the end of a grid.
@@ -173,8 +202,8 @@ def draw_scenario(scenario, rows, outputPath):
             apply_latency_axis(axis)
             apply_thread_axis(axis, [int(row['threads each']) for row in rows])
             axis.set_title(f'{scenario}: {operation}, {column}')
-    axes[0, 0].legend()
-    figure.tight_layout()
+    draw_figure_legend(figure, axes[0, 0])
+    figure.tight_layout(rect=(0, 0, 0.9, 1))
     figure.savefig(outputPath, dpi=110)
     plt.close(figure)
 
@@ -196,14 +225,12 @@ def draw_throughput(tables, outputPath):
             selected = [row for row in selectedRows if int(row['processes']) == processCount]
             axis.plot([int(row['threads each']) for row in selected], [float(row['ops/s']) for row in selected],
                       marker='o', label=f'{processCount} processes')
-        axis.set_yscale('log')
-        axis.set_ylabel('operations per second (log scale)')
+        apply_rate_axis(axis)
         axis.set_title(scenario)
-        axis.grid(True, which='both', alpha=0.3)
         apply_thread_axis(axis, [int(row['threads each']) for row in selectedRows])
-    axes[0, 0].legend()
+    draw_figure_legend(figure, axes[0, 0])
     hide_unused_axes(axes, len(tables))
-    figure.tight_layout()
+    figure.tight_layout(rect=(0, 0, 0.9, 1))
     figure.savefig(outputPath, dpi=110)
     plt.close(figure)
 
@@ -285,9 +312,10 @@ def draw_comparison(tables, outputPath):
     rateAxis.set_xticks(range(len(tables)))
     rateAxis.set_xticklabels(list(tables), rotation=45, ha='right')
     rateAxis.set_title(f'operations per second with {COMPARE_PROCESSES} processes')
-    rateAxis.set_ylabel('operations per second (log scale)')
-    rateAxis.grid(True, which='both', alpha=0.3)
-    latencyAxis.legend()
+    apply_rate_axis(rateAxis)
+    # Headroom above the bars keeps the legend off them
+    latencyAxis.set_ylim(top=latencyAxis.get_ylim()[1] * 5)
+    latencyAxis.legend(ncol=len(COMPARE_TOTALS), loc='upper left')
     figure.tight_layout()
     figure.savefig(outputPath, dpi=110)
     plt.close(figure)

@@ -1,6 +1,24 @@
 """
 Runs the contention benchmark on a ladder of sizes, from one instance to 500 processes with 10 threads each, for
 reading, updating and writing, and prints the results as Markdown tables that can go into the documentation.
+
+.. code-block:: python
+
+    python benchmark/bench_ladder.py \
+        --configs 1x1 1x4 1x16 1x64 1x128 \
+                  2x1 2x4 2x16 2x64 2x128 \
+                  4x1 4x4 4x16 4x64 4x128 \
+                  8x1 8x4 8x16 8x64 8x128 \
+                  16x1 16x4 16x16 16x64 \
+                  32x1 32x4 32x16 32x32 \
+                  64x1 64x4 64x16 \
+                  128x1 128x4 128x8 \
+        --max-total-threads 1024 \
+        --min-operations 1000 \
+        --markdown results.md --json results.json
+
+    python benchmark/plot_results.py results.md
+
 """
 import os
 import sys
@@ -66,19 +84,20 @@ def raise_file_limit(processCount):
     return soft
 
 
-def measure_process_memory(scenario, recordSize, instancePerThread):
+def measure_process_memory(scenario, recordSize, instancePerThread, threadCount):
     """
-    Measures the peak memory of one process by running the smallest possible size.
+    Measures the peak memory of one process running the given number of threads.
 
     :Parameters:
         #. scenario (str): One of SCENARIOS.
         #. recordSize (int): Number of items in the shared record.
         #. instancePerThread (bool): Whether every thread has its own Repository instance.
+        #. threadCount (int): Number of threads in the measured process.
 
     :Returns:
         #. peakBytes (int): Peak memory of the single process, in bytes.
     """
-    summary = run_scenario(scenario, 1, 1, 3, recordSize, instancePerThread)
+    summary = run_scenario(scenario, 1, threadCount, 3, recordSize, instancePerThread)
     return summary['peak_process_bytes']
 
 
@@ -165,6 +184,8 @@ def main():
                         help='steps are raised until a run has this many operations per timed operation, so small sizes measure something (default 300)')
     parser.add_argument('--record-size', type=int, default=2000, help='items in the shared record (default 2000)')
     parser.add_argument('--instance-per-thread', action='store_true', help='give every thread its own Repository instance')
+    parser.add_argument('--max-total-threads', type=int, default=2048,
+                        help='sizes with more threads than this (processes x threads) are not run (default 2048)')
     parser.add_argument('--markdown', default=None, help='file receiving the tables')
     parser.add_argument('--json', default=None, help='file receiving the raw results')
     options = parser.parse_args()
@@ -178,10 +199,8 @@ def main():
               f"- instances: {'one per thread' if options.instance_per_thread else 'one per process'}; shared record of {options.record_size} items",
               f'- date: {time.strftime("%Y-%m-%d %H:%M")}']
     print('\n'.join(header))
-    bytesPerProcess = measure_process_memory(options.scenarios[0], options.record_size, options.instance_per_thread)
-    print(f'One process peaks at {bytesPerProcess / 1024 ** 2:.0f} MB, so the largest size needs about '
-          f'{biggest * bytesPerProcess / 1024 ** 3:.0f} GB for its processes.', flush=True)
-    memoryLimit = get_memory_budget()
+    memoryLimit      = get_memory_budget()
+    memoryPerProcess = {}
     results = []
     for scenario in options.scenarios:
         for processCount, threadCount in configs:
@@ -189,9 +208,19 @@ def main():
             steps = max(options.steps, math.ceil(options.min_operations / totalThreads))
             print(f'\n[{scenario}] {processCount} processes x {threadCount} threads, {steps} steps each ...', flush=True)
             entry = {'scenario': scenario, 'config': (processCount, threadCount), 'rows': [], 'error': None}
-            neededBytes = processCount * bytesPerProcess
-            if memoryLimit is not None and neededBytes > memoryLimit:
-                entry['error'] = f'needs {neededBytes / 1024 ** 3:.0f} GB, above the {memoryLimit / 1024 ** 3:.0f} GB budget'
+            skipReason = None
+            if totalThreads > options.max_total_threads:
+                skipReason = f'{totalThreads} threads, above the limit of {options.max_total_threads}'
+            elif memoryLimit is not None:
+                if threadCount not in memoryPerProcess:
+                    memoryPerProcess[threadCount] = measure_process_memory(options.scenarios[0], options.record_size,
+                                                                           options.instance_per_thread, threadCount)
+                    print(f'One process with {threadCount} threads peaks at {memoryPerProcess[threadCount] / 1024 ** 2:.0f} MB', flush=True)
+                neededBytes = processCount * memoryPerProcess[threadCount]
+                if neededBytes > memoryLimit:
+                    skipReason = f'needs {neededBytes / 1024 ** 3:.0f} GB, above the {memoryLimit / 1024 ** 3:.0f} GB budget'
+            if skipReason is not None:
+                entry['error'] = skipReason
                 print(f"    not run: {entry['error']}", flush=True)
                 results.append(entry)
                 continue
