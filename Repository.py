@@ -99,7 +99,7 @@ Every method that can fail takes a *raiseError* argument. With the default ``Tru
 Concurrency and crashes
 =======================
 Threads and processes can use the same repository at the same time. Access is coordinated by
-`pylocker <https://pypi.org/project/pylocker/>`_ locks. The repository index and the info files are
+`pylocker <https://github.com/bachiraoun/pylocker/>`_ locks. The repository index and the info files are
 written to a temporary file and then renamed into place, and so are data files, which means a crash
 leaves the previous content complete. Leftover temporary files of crashed writes are removed with
 :py:meth:`~pyrep.Repository.Repository.remove_temporary_files`, and the files that a crashed operation left in the

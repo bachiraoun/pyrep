@@ -13,19 +13,14 @@ Installation guide:
 ===================
 pyrep is a pure python module for Python 3.9 or newer that only needs pylocker. Fork pyrep's
 `github repository <https://github.com/bachiraoun/pyrep/>`_, copy the package to python's
-site-packages and install pylocker as the following:
-
-
-.. code-block:: console
-
-
-        pip install pylocker
+site-packages, and do the same with pylocker's
+`github repository <https://github.com/bachiraoun/pylocker/>`_.
 
 
 Package Functions:
 ==================
 """
-from .__pkginfo__ import __version__, __author__, __email__, __onlinedoc__, __repository__, __pypi__
+from .__pkginfo__ import __version__, __author__, __email__, __onlinedoc__, __repository__
 from .Repository import Repository
 
 
@@ -73,12 +68,3 @@ def get_repository():
         #. link (str): The URL of the source repository.
     """
     return __repository__
-
-def get_pypi():
-    """
-    Gets pyrep pypi's link.
-
-    :Returns:
-        #. link (str): The URL of the package on the Python Package Index.
-    """
-    return __pypi__

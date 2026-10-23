@@ -7,5 +7,3 @@ __email__      = "bachir.aoun@e-aoun.com"
 __onlinedoc__  = "https://bachiraoun.github.io/pyrep/"
 
 __repository__ = "https://github.com/bachiraoun/pyrep"
-
-__pypi__       = "https://pypi.python.org/pypi/pyrep"
